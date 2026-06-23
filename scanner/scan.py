@@ -67,7 +67,7 @@ def format_table(rows: list[dict]) -> str:
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Free-data mean-reversion scanner (NSE).")
-    p.add_argument("--rsi-max", type=float, default=30.0, help="oversold RSI ceiling")
+    p.add_argument("--rsi-max", type=float, default=35.0, help="oversold RSI ceiling")
     p.add_argument("--below-dma", type=float, default=0.20,
                    help="min fractional distance below the 200-DMA (0.20 = 20%%)")
     p.add_argument("--min-mcap", type=float, default=20_000.0, help="min market cap (cr)")
