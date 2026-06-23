@@ -16,10 +16,19 @@ from scanner.signals import evaluate
 from scanner.universe import load_symbols, select_universe
 
 
+DEFAULT_CFG = {
+    "rsi_period": 14,
+    "dma_window": 200,
+    "rsi_max": 35.0,
+    "below_dma_min": 0.20,
+    "min_mcap_cr": 20_000.0,
+    "max_de": 0.50,
+}
+
+
 def build_cfg(args) -> dict:
     return {
-        "rsi_period": 14,
-        "dma_window": 200,
+        **DEFAULT_CFG,
         "rsi_max": args.rsi_max,
         "below_dma_min": args.below_dma,
         "min_mcap_cr": args.min_mcap,
