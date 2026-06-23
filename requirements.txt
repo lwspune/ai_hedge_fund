@@ -1,0 +1,8 @@
+# Market scanner — free-data mean-reversion spike
+pandas
+yfinance          # EOD prices (proven fallback)
+jugaad-data       # EOD prices via official NSE bhavcopy (primary)
+requests          # screener.in scrape
+beautifulsoup4    # screener.in HTML parse
+lxml              # bs4 parser backend
+pytest            # tests
