@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+data/ohlcv_cache/*.parquet
+extracted/sheets/*.xlsx
+extracted/_formulas_*.txt
+extracted/UNIDENTIFIED*.md
+.idea/
+.vscode/
