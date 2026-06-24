@@ -1,7 +1,7 @@
--- Market-intel platform — Supabase schema (P2)
--- Run this in the Supabase SQL editor. Single-user personal tool: backend uses the
--- service role, so RLS is left OFF. If this ever goes multi-user, enable RLS on every
--- table and add per-user policies before exposing any anon/auth key.
+-- Market-intel platform — Supabase schema (P2/P3)
+-- Applied live via the Supabase MCP. RLS is ON: the anon key (dashboard / Vercel) can
+-- READ only; all writes go through the service-role key (CLIs + edge functions), which
+-- bypasses RLS. See the RLS section at the bottom.
 
 -- Every `scanner.run <signal>` invocation (with --save)
 create table if not exists scan_runs (
@@ -65,3 +65,35 @@ create table if not exists outcomes (
   realized_return     numeric,
   recorded_at         timestamptz not null default now()
 );
+
+-- Historical bulk/block deal warehouse (backfilled from cache; refreshed daily by the
+-- refresh-deals edge function via per-date reload).
+create table if not exists market_deals (
+  id         bigint generated always as identity primary key,
+  deal_date  date not null,
+  symbol     text not null,
+  security   text,
+  client     text not null,
+  side       text not null,           -- BUY | SELL
+  qty        bigint,
+  price      numeric,
+  value      numeric,                 -- qty * price (rupees)
+  kind       text not null,           -- bulk | block
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_deals_symbol on market_deals(symbol);
+create index if not exists idx_deals_date on market_deals(deal_date);
+
+-- RLS: anon (dashboard) reads only; service-role writes bypass RLS.
+alter table scan_runs    enable row level security;
+alter table candidates   enable row level security;
+alter table buybacks     enable row level security;
+alter table tenders      enable row level security;
+alter table outcomes     enable row level security;
+alter table market_deals enable row level security;
+create policy "anon read scan_runs"    on scan_runs    for select to anon using (true);
+create policy "anon read candidates"   on candidates   for select to anon using (true);
+create policy "anon read buybacks"     on buybacks     for select to anon using (true);
+create policy "anon read tenders"      on tenders      for select to anon using (true);
+create policy "anon read outcomes"     on outcomes     for select to anon using (true);
+create policy "anon read market_deals" on market_deals for select to anon using (true);

@@ -1,17 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase, configured } from './supabaseClient'
 import signals from './signals.json'
 import SignalsOverview from './components/SignalsOverview'
 import BuybackTable from './components/BuybackTable'
+import DealsView from './components/DealsView'
 import TrackedPositions from './components/TrackedPositions'
 import ScanHistory from './components/ScanHistory'
 
 export default function App() {
   const [buybacks, setBuybacks] = useState([])
+  const [deals, setDeals] = useState([])
   const [runs, setRuns] = useState([])
   const [positions, setPositions] = useState([])
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  const loadDeals = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('market_deals')
+      .select('*')
+      .order('deal_date', { ascending: false })
+      .order('value', { ascending: false, nullsFirst: false })
+      .limit(60)
+    if (!error) setDeals(data || [])
+  }, [])
 
   useEffect(() => {
     if (!configured) {
@@ -33,13 +45,14 @@ export default function App() {
         setBuybacks(bb.data || [])
         setRuns(sr.data || [])
         setPositions(td.data || [])
+        await loadDeals()
       } catch (e) {
         setError(e.message || String(e))
       } finally {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [loadDeals])
 
   return (
     <div className="app">
@@ -60,13 +73,15 @@ export default function App() {
       ) : (
         <>
           <BuybackTable rows={buybacks} />
+          <DealsView rows={deals} onRefresh={loadDeals} />
           <TrackedPositions rows={positions} />
           <ScanHistory rows={runs} />
         </>
       )}
 
       <footer className="app-footer">
-        Read-only surfacing · data from Supabase (RLS read-only) · writes via the <code>track</code> CLI
+        Read-only surfacing · data from Supabase (RLS read-only) · writes via the <code>track</code> CLI ·
+        deals refresh via Supabase Edge Function
       </footer>
     </div>
   )

@@ -82,19 +82,21 @@ def outcome_row(tender_id, accepted_shares=None, realized_acceptance=None,
 
 # --- REST primitives ---------------------------------------------------------
 
-def insert(table: str, rows, on_conflict: str | None = None) -> list[dict]:
+def insert(table: str, rows, on_conflict: str | None = None,
+           return_rows: bool = True) -> list[dict]:
     url, key = config()
     if isinstance(rows, dict):
         rows = [rows]
-    prefer = "return=representation"
+    ret = "representation" if return_rows else "minimal"
+    prefer = f"return={ret}"
     params = {}
     if on_conflict:
-        prefer = "resolution=merge-duplicates,return=representation"
+        prefer = f"resolution=merge-duplicates,return={ret}"
         params = {"on_conflict": on_conflict}
     r = requests.post(f"{url}/rest/v1/{table}", headers=_headers(key, prefer),
-                      params=params, json=rows, timeout=20)
+                      params=params, json=rows, timeout=30)
     r.raise_for_status()
-    return r.json()
+    return r.json() if return_rows else []
 
 
 def select(table: str, params: dict | None = None) -> list[dict]:
