@@ -3,8 +3,65 @@ import pytest
 
 from scanner.buyback import (
     parse_entitlement, parse_symbol, arb_return, after_tax_return,
-    estimate_acceptance, expected_after_tax,
+    estimate_acceptance, expected_after_tax, parse_issue_size,
+    mcap_bucket, calibrate_from_outcomes,
 )
+
+
+# --- issue-size feature ------------------------------------------------------
+
+def test_parse_issue_size_crores():
+    assert parse_issue_size("Issue Size (Amount) ₹60.24 Crores Buyback Price") == pytest.approx(60.24)
+
+
+def test_parse_issue_size_none():
+    assert parse_issue_size("no issue size here") is None
+
+
+def test_parse_issue_size_strips_rupee_entity():
+    # &#8377; (₹) entity's digits (8377) must not be mistaken for the amount.
+    assert parse_issue_size("Issue Size (Amount) &#8377;60.24 Crores") == pytest.approx(60.24)
+
+
+def test_large_relative_buyback_boosts_acceptance():
+    # mid-cap (base ~0.30); a buyback worth 10% of mkt cap should lift acceptance.
+    base = estimate_acceptance(market_cap_cr=8000, entitlement_small=0.05)
+    boosted = estimate_acceptance(market_cap_cr=8000, entitlement_small=0.05, issue_size_cr=800)
+    assert boosted > base
+
+
+def test_small_relative_buyback_no_boost():
+    base = estimate_acceptance(market_cap_cr=8000, entitlement_small=0.05)
+    tiny = estimate_acceptance(market_cap_cr=8000, entitlement_small=0.05, issue_size_cr=80)  # 1%
+    assert tiny == pytest.approx(base)
+
+
+# --- calibration harness (fits from realized outcomes) ----------------------
+
+def test_mcap_bucket_boundaries():
+    assert mcap_bucket(800) == "small"
+    assert mcap_bucket(8000) == "small_mid"
+    assert mcap_bucket(25000) == "mid"
+    assert mcap_bucket(200000) == "large"
+    assert mcap_bucket(None) == "unknown"
+
+
+def test_calibrate_from_outcomes_means_by_bucket():
+    recs = [
+        {"market_cap_cr": 500, "realized_acceptance": 1.0},
+        {"market_cap_cr": 900, "realized_acceptance": 0.8},   # both 'small'
+        {"market_cap_cr": 200000, "realized_acceptance": 0.1},  # 'large'
+    ]
+    out = calibrate_from_outcomes(recs)
+    assert out["small"]["n"] == 2
+    assert out["small"]["acceptance"] == pytest.approx(0.9)
+    assert out["large"]["acceptance"] == pytest.approx(0.1)
+
+
+def test_calibrate_skips_missing():
+    out = calibrate_from_outcomes([{"market_cap_cr": 500, "realized_acceptance": None},
+                                   {"market_cap_cr": None, "realized_acceptance": 0.9}])
+    assert out == {}
 
 
 # --- acceptance estimation (the selection model) ----------------------------

@@ -36,6 +36,7 @@ create table if not exists buybacks (
   record_date       date,
   close_date        date,
   entitlement_small numeric,                   -- guaranteed-acceptance floor
+  issue_size_cr     numeric,                   -- buyback size (crore); feeds acceptance model
   est_return        numeric,                   -- latest computed floor estimate
   status            text not null default 'open',  -- open|tendered|settled|skipped
   created_at        timestamptz not null default now(),
@@ -97,3 +98,8 @@ create policy "anon read buybacks"     on buybacks     for select to anon using 
 create policy "anon read tenders"      on tenders      for select to anon using (true);
 create policy "anon read outcomes"     on outcomes     for select to anon using (true);
 create policy "anon read market_deals" on market_deals for select to anon using (true);
+
+-- Edge functions (deployed via MCP, source in supabase/functions/): refresh-deals (NSE
+-- bulk/block CSV → market_deals, per-date reload) and refresh-buybacks (chittorgarh id
+-- probe → buybacks upsert). pg_cron job 'refresh-deals-daily' (33 14 * * 1-5 UTC ≈ 20:03
+-- IST) calls refresh-deals via pg_net. Requires: create extension pg_cron; create extension pg_net;

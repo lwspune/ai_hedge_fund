@@ -81,6 +81,26 @@ buybacks (upward id probe from `db.max_buyback_id`) + ranks by an acceptance-est
 (`estimate_acceptance` heuristic prior → after-tax `exp_return`). Next: calibrate the acceptance
 prior from the `outcomes` feedback loop; add issue-size / retail-% features.
 
+## Decisions log
+One dated line per non-obvious decision + the reason. Don't re-litigate without a new reason.
+- **2026-06-23** — Repurposed the concluded `AI_Hedge_Fund` repo (old code deleted, snapshot
+  `30f1f1e`) into this platform, rather than a fresh repo. *Reason:* clean slate, history kept.
+- **2026-06-24** — Structural-edge thesis: only `buyback_arb` survived; drift signals are null,
+  spreads thin. *Reason:* edge needs a barrier retail uniquely sits inside; everything else is
+  arbitraged/competed away. → don't chase drift.
+- **2026-06-24** — Free data stack, not Kite Connect. *Reason:* yfinance/nselib/screener/NSE-static
+  CSVs/chittorgarh cover an EOD scanner; Kite's daily-TOTP + ₹500/mo buys nothing we need.
+- **2026-06-24** — Supabase persistence, RLS **on** (anon read-only, service-role writes), raw
+  PostgREST (no ORM). *Reason:* lets the public Vercel dashboard read safely while CLIs/edge
+  functions write.
+- **2026-06-24** — Prices stay as parquet cache; deals warehoused in Supabase. *Reason:* persist
+  what's hard to re-acquire (NSE serves only today's deal CSV); cache the regenerable (prices,
+  ~100MB+ would blow the 500MB free tier).
+- **2026-06-24** — Refresh runs in Supabase **Edge Functions**. *Reason:* NSE static CSVs +
+  chittorgarh serve datacenter IPs (probed), so cloud refresh works; only NSE's JSON APIs block.
+- **2026-06-24** — Repo under `lwspune` (the machine's GitHub auth), not `vilasvshinde`.
+  *Reason:* avoids a cross-account push 403; plain `git push` works.
+
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
 - **No silent bad data**: every scrape/price path needs sanity guards (we hit warrant

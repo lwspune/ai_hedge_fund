@@ -78,13 +78,47 @@ _MCAP_ACCEPTANCE_PRIOR = [
 ]
 
 
-def estimate_acceptance(market_cap_cr, entitlement_small) -> float:
-    """Estimated retail acceptance fraction, never below the entitlement floor."""
+def mcap_bucket(market_cap_cr) -> str:
+    """Market-cap bucket label (matches the _MCAP_ACCEPTANCE_PRIOR thresholds)."""
+    if market_cap_cr is None:
+        return "unknown"
+    labels = ["small", "small_mid", "mid", "large"]
+    for (cap, _), name in zip(_MCAP_ACCEPTANCE_PRIOR, labels):
+        if market_cap_cr < cap:
+            return name
+    return "large"
+
+
+def estimate_acceptance(market_cap_cr, entitlement_small, issue_size_cr=None) -> float:
+    """Estimated retail acceptance fraction, never below the entitlement floor.
+
+    A large *relative* buyback (issue size >= 5% of market cap) nudges acceptance up —
+    more reserved shares chasing the same small-shareholder float.
+    """
     floor = float(entitlement_small or 0.0)
     if market_cap_cr is None:
         return floor
     base = next(a for cap, a in _MCAP_ACCEPTANCE_PRIOR if market_cap_cr < cap)
+    if issue_size_cr and market_cap_cr and issue_size_cr / market_cap_cr >= 0.05:
+        base = min(0.95, base + 0.15)
     return max(floor, base)
+
+
+def calibrate_from_outcomes(records) -> dict:
+    """Fit the acceptance prior from realized tenders. records: dicts with
+    market_cap_cr + realized_acceptance. Returns {bucket: {n, acceptance(mean)}}.
+
+    Empty until the outcomes table has data — this is what replaces the hardcoded
+    _MCAP_ACCEPTANCE_PRIOR once enough real tenders are logged.
+    """
+    from collections import defaultdict
+    acc = defaultdict(list)
+    for r in records:
+        mc, ra = r.get("market_cap_cr"), r.get("realized_acceptance")
+        if mc is None or ra is None:
+            continue
+        acc[mcap_bucket(mc)].append(float(ra))
+    return {b: {"n": len(v), "acceptance": sum(v) / len(v)} for b, v in acc.items()}
 
 
 def expected_after_tax(price, buyback_price, est_acceptance, record_date, slab=0.30):
@@ -105,7 +139,9 @@ _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 
 def _text(html: str) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+    t = re.sub(r"<[^>]+>", " ", html or "")
+    t = re.sub(r"&#?\w+;", " ", t)  # strip HTML entities (&#8377; etc.) — their digits break regexes
+    return re.sub(r"\s+", " ", t)
 
 
 def parse_symbol(html: str):
@@ -117,6 +153,13 @@ def parse_symbol(html: str):
     clean = (html or "").replace("\\", "")
     m = re.search(r'"nse(?:Code|_symbol)"\s*:\s*"([A-Z0-9&.\-]{2,})"', clean)
     return m.group(1) if m else None
+
+
+def parse_issue_size(text: str):
+    """Buyback issue size in crore from `Issue Size (Amount) ₹60.24 Crores`."""
+    t = re.sub(r"&#?\w+;", " ", text or "")  # strip entities (&#8377; digits would mis-match)
+    m = re.search(r"Issue Size \(Amount\)\D*?([\d,]+(?:\.\d+)?)\s*Crore", t, re.I)
+    return float(m.group(1).replace(",", "")) if m else None
 
 
 _BUYBACK_URL = "https://www.chittorgarh.com/buyback/x/{}/"
@@ -185,6 +228,7 @@ def parse_buyback(html: str, bid: int) -> dict | None:
         "record_date": record_date,
         "close_date": close_date,
         "entitlement_small": entitlement,
+        "issue_size_cr": parse_issue_size(txt),
     }
 
 
@@ -255,7 +299,7 @@ def scan_current_buybacks(start_id=None, max_gap=8, hard_cap=80, session=None,
             mcap = fetch_fundamentals(bb["symbol"]).get("market_cap_cr")
         except Exception:
             mcap = None
-        acc = estimate_acceptance(mcap, bb["entitlement_small"])
+        acc = estimate_acceptance(mcap, bb["entitlement_small"], issue_size_cr=bb.get("issue_size_cr"))
         bb.update(
             cur_price=cur, premium=premium, market_cap_cr=mcap, est_acceptance=acc,
             est_return=arb_return(cur, bb["buyback_price"], cur, bb["entitlement_small"]),

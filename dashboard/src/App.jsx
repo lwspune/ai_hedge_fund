@@ -25,6 +25,15 @@ export default function App() {
     if (!error) setDeals(data || [])
   }, [])
 
+  const loadBuybacks = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('buybacks')
+      .select('*')
+      .order('record_date', { ascending: false })
+      .limit(100)
+    if (!error) setBuybacks(data || [])
+  }, [])
+
   useEffect(() => {
     if (!configured) {
       setError('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — set them in dashboard/.env')
@@ -33,26 +42,24 @@ export default function App() {
     }
     ;(async () => {
       try {
-        const [bb, sr, td] = await Promise.all([
-          supabase.from('buybacks').select('*').order('record_date', { ascending: false }).limit(100),
+        const [sr, td] = await Promise.all([
           supabase.from('scan_runs').select('*').order('run_at', { ascending: false }).limit(25),
           supabase
             .from('tenders')
             .select('*, buybacks(symbol), outcomes(accepted_shares,realized_acceptance,realized_return)')
             .order('decided_on', { ascending: false }),
         ])
-        for (const r of [bb, sr, td]) if (r.error) throw r.error
-        setBuybacks(bb.data || [])
+        for (const r of [sr, td]) if (r.error) throw r.error
         setRuns(sr.data || [])
         setPositions(td.data || [])
-        await loadDeals()
+        await Promise.all([loadBuybacks(), loadDeals()])
       } catch (e) {
         setError(e.message || String(e))
       } finally {
         setLoading(false)
       }
     })()
-  }, [loadDeals])
+  }, [loadDeals, loadBuybacks])
 
   return (
     <div className="app">
@@ -72,7 +79,7 @@ export default function App() {
         <div className="banner">Loading live data…</div>
       ) : (
         <>
-          <BuybackTable rows={buybacks} />
+          <BuybackTable rows={buybacks} onRefresh={loadBuybacks} />
           <DealsView rows={deals} onRefresh={loadDeals} />
           <TrackedPositions rows={positions} />
           <ScanHistory rows={runs} />

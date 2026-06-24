@@ -63,6 +63,7 @@ def buyback_row(bb: dict, est_return=None) -> dict:
             "symbol": bb.get("symbol"), "buyback_price": bb.get("buyback_price"),
             "record_date": _iso(bb.get("record_date")), "close_date": _iso(bb.get("close_date")),
             "entitlement_small": bb.get("entitlement_small"),
+            "issue_size_cr": bb.get("issue_size_cr"),
             "est_return": est_return if est_return is not None else bb.get("est_return")}
 
 
