@@ -40,10 +40,13 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
 - **Validation harness** — `scanner/eventstudy.py` + `scripts/validate_*.py`: the
   event-study engine. Any new signal gets validated here *before* it's trusted.
 - **Persistence (P2)** — `scanner/db.py` (raw PostgREST, no ORM) + `db/schema.sql`
-  (5 tables: scan_runs, candidates, buybacks, tenders, outcomes). `scanner/track.py`
-  is the feedback-loop CLI (record tenders + realized acceptance → calibrates the
-  buyback selection). Inactive until you run `db/schema.sql` in Supabase and set
-  `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` in `.env` (see `.env.example`).
+  (5 tables: scan_runs, candidates, buybacks, tenders, outcomes). LIVE on Supabase
+  project `vgyujznnyuqbhswszzjv`. **RLS is ON**: anon key = read-only; **writes need the
+  service-role key** in `.env` as `SUPABASE_SERVICE_KEY`. `scanner/track.py` is the
+  feedback-loop CLI. Supabase MCP configured in `.mcp.json` for schema/admin.
+- **Dashboard (P3)** — `dashboard/` (Vite + React + supabase-js, read-only). 4 verdict-aware
+  views; `signals.json` generated from `catalog.py` via `scripts/emit_signals_json.py`.
+  Vercel-ready (anon key is read-only). `npm run dev --prefix dashboard`.
 
 ## Data sources (free, proven; residential IP required)
 - **Prices** — yfinance (`.NS`, split-adjusted) primary; **nselib** for historical /
@@ -57,12 +60,14 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
 
 ## Run
 `python -m pytest` (61 tests) · `python -m scanner.run --list` ·
-`python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome`
+`python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
+`npm run dev --prefix dashboard` (dashboard)
 
 ## Stack
 Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · pytest · Supabase
-(raw PostgREST via requests, no ORM/SDK). **P2 persistence layer built** (apply
-`db/schema.sql` + set creds to activate). **P3** (React verdict-aware dashboard) is next.
+(raw PostgREST via requests, no ORM/SDK) · React + Vite + supabase-js (dashboard).
+P0–P3 built. Next: refine `buyback_arb` selection (current-buyback ID range is stale →
+surfaces nothing live; add acceptance-estimation model + market-cap/issue-size/retail-%).
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
