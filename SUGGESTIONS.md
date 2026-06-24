@@ -7,7 +7,12 @@ Each item is outside the scope of the work that surfaced it. Strike through when
 
 ## 2026-06-24
 
-### Calibrate the buyback acceptance prior from the outcomes feedback loop
+### Calibrate the buyback acceptance prior from the outcomes feedback loop — **PARTIAL 2026-06-24**
+
+Shipped the buildable parts (commit: issue-size feature in `estimate_acceptance` + `calibrate_from_outcomes`
+harness + `scanner.calibrate` CLI). The actual *fit* is still gated on logging real tenders/outcomes
+(0 rows). Once ~10–20 outcomes exist, run `scanner.calibrate` and copy the suggested per-bucket means
+into `_MCAP_ACCEPTANCE_PRIOR`. Original entry kept open below for that step.
 
 `estimate_acceptance()` is a hardcoded heuristic prior (small-cap → 90%, large-cap →
 entitlement floor). The whole point of the P2 `outcomes` table is to replace those
@@ -23,7 +28,9 @@ are ~10–20 outcomes, fit acceptance vs (market-cap bucket, entitlement, premiu
 and replace the constants in `_MCAP_ACCEPTANCE_PRIOR`. Add issue-size and retail-shareholding-%
 as features (scrape from chittorgarh / screener) for a sharper estimate.
 
-### Buyback refresh-from-UI (mirror the deals pattern)
+### ~~Buyback refresh-from-UI (mirror the deals pattern)~~ — **DONE 2026-06-24**
+Shipped: `refresh-buybacks` edge function (`supabase/functions/`, regex chittorgarh probe + Yahoo price)
++ a Refresh button on the dashboard Buyback panel. Original spec below.
 
 Deals now refresh from the dashboard via the `refresh-deals` edge function. Buybacks only
 refresh via the CLI (`scanner.run buyback_arb --save`).
@@ -36,7 +43,10 @@ discovery + scoring to Deno, or have it call out) writing to `buybacks`; add a R
 button on the Buyback panel. Note: it also needs prices (yfinance) + market cap (screener)
 from the edge runtime — verify those reach datacenter IPs first (deals only needed NSE).
 
-### Automate the daily refresh
+### ~~Automate the daily refresh~~ — **DONE 2026-06-24 (deals)**
+Shipped: pg_cron job `refresh-deals-daily` (33 14 * * 1-5 UTC ≈ 20:03 IST) calls the refresh-deals
+edge function via pg_net. Buyback refresh isn't scheduled yet (infrequent — manual button is fine);
+add a weekly cron for `refresh-buybacks` if wanted. Original spec below.
 
 Refresh is currently manual (button / CLI). The warehouse goes stale between clicks.
 
@@ -78,7 +88,8 @@ access token, anon key, service-role key.
 `.mcp.json`); rotate the project JWT secret to kill the anon+service_role keys, then update
 `.env` (service-role) + the Vercel `VITE_SUPABASE_ANON_KEY` + redeploy.
 
-### Add a Decisions log to CLAUDE.md
+### ~~Add a Decisions log to CLAUDE.md~~ — **DONE 2026-06-24**
+Shipped: `## Decisions log` in CLAUDE.md with 7 dated decisions + reasons. Original spec below.
 
 The "why" behind key choices (structural-edge thesis, prices-as-cache, RLS read-only +
 service-role writes, edge-functions-reach-datacenter-IPs) is currently scattered across
