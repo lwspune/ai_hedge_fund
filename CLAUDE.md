@@ -35,8 +35,8 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
 - **Runner** — `scanner/run.py`: `python -m scanner.run --list` (all verdicts) or
   `python -m scanner.run <name>` (run one, behind its verdict banner).
 - **Signal logic** — `signals.py` (RSI/200-DMA/quality), `deals.py` (bulk/block
-  smart-money), `buyback.py` (chittorgarh scrape + tender-arb math + Oct-2024 tax),
-  `universe.py` (NIFTY 50 + financials rule).
+  smart-money), `buyback.py` (chittorgarh scrape + id-probe discovery + tender-arb math +
+  acceptance-estimation model + Oct-2024 tax), `universe.py` (NIFTY 50 + financials rule).
 - **Validation harness** — `scanner/eventstudy.py` + `scripts/validate_*.py`: the
   event-study engine. Any new signal gets validated here *before* it's trusted.
 - **Persistence (P2)** — `scanner/db.py` (raw PostgREST, no ORM) + `db/schema.sql`
@@ -54,7 +54,10 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
   generated from `catalog.py` via `scripts/emit_signals_json.py`. Deployed on Vercel
   (https://ai-hedge-fund-gamma.vercel.app/). `npm run dev --prefix dashboard`.
 
-## Data sources (free, proven; residential IP required)
+## Data sources (free, proven)
+Local pulls (prices/fundamentals) run from the residential machine; the **static** sources
+(NSE archive CSVs + chittorgarh) also serve **datacenter IPs**, so the `refresh-deals` edge
+function ingests them server-side — only NSE's JS-gated JSON APIs block.
 - **Prices** — yfinance (`.NS`, split-adjusted) primary; **nselib** for historical /
   delisted symbols (filter `Series=='EQ'`!); jugaad-data fallback.
 - **Fundamentals** — screener.in scrape (market cap, computed debt/equity).
@@ -65,9 +68,10 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
   JS-rendered (not scrapable), so enumerate ids. Symbol is in `nseCode` (double-escaped).
 
 ## Run
-`python -m pytest` (61 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (67 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
-`npm run dev --prefix dashboard` (dashboard)
+`npm run dev --prefix dashboard` (dashboard). One-offs: `scripts/backfill_deals.py`,
+`scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`.
 
 ## Stack
 Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5lib · pytest ·
@@ -82,4 +86,8 @@ prior from the `outcomes` feedback loop; add issue-size / retail-% features.
 - **No silent bad data**: every scrape/price path needs sanity guards (we hit warrant
   series mis-picks, delisted-ticker garbage, 246% "premiums"). Guard, don't surface.
 - Don't trade a `null`/`thin` signal as if it were edge. Don't restart drift signals.
-- Don't add Supabase/React until P2/P3. Keep the validated core clean.
+- Schema + edge-function changes go through the Supabase MCP; keep `db/schema.sql` and
+  `supabase/functions/` in sync with the live project. Anon key is read-only (RLS) — never
+  put the service-role key in any `VITE_` var / client bundle.
+- Persist data that's hard to re-acquire (deals → Supabase); keep regenerable data as cache
+  (prices → parquet, not Supabase — free-tier size).
