@@ -32,44 +32,8 @@ class Signal:
 # --- run adapters (lazy imports: heavy/network deps only load when invoked) --
 
 def _run_buyback(**kw) -> str:
-    import requests
-    import yfinance as yf
-    from scanner.buyback import fetch_buyback, arb_return
-
-    ids = kw.get("ids", range(214, 230))  # recent/current buybacks
-    s = requests.Session()
-    rows = []
-    for bid in ids:
-        try:
-            bb = fetch_buyback(bid, s)
-        except Exception:
-            bb = None
-        if not bb or not bb["symbol"] or not bb["buyback_price"] or not bb["entitlement_small"]:
-            continue
-        try:
-            px = yf.Ticker(f"{bb['symbol']}.NS").history(period="5d")["Close"].dropna()
-            cur = float(px.iloc[-1]) if len(px) else None
-        except Exception:
-            cur = None
-        if not cur:
-            continue
-        ent, bp = bb["entitlement_small"], bb["buyback_price"]
-        premium = bp / cur - 1
-        if not (-0.5 < premium < 1.5):
-            continue  # implausible premium => stale/wrong price, skip (no silent bad data)
-        est = arb_return(cur, bp, cur, ent)  # residual-flat floor estimate
-        rows.append((bb["symbol"], bb["company"][:24], cur, bp, premium, ent, est))
-    rows.sort(key=lambda r: (r[6] or -9), reverse=True)
-    if not rows:
-        return "No current tender buybacks with usable data in the scanned range."
-    head = f"{'SYM':<12}{'PRICE':>9}{'BUYBACK':>9}{'PREMIUM':>9}{'ENTITLE':>9}{'EST_FLOOR':>10}"
-    out = [head, "-" * len(head)]
-    for sym, _, cur, bp, prem, ent, est in rows:
-        out.append(f"{sym:<12}{cur:>9,.1f}{bp:>9,.1f}{prem*100:>8.1f}%"
-                   f"{ent*100:>8.1f}%{(est or 0)*100:>9.1f}%")
-    out.append("\nEST_FLOOR = guaranteed-acceptance floor, residual flat. Real return is "
-               "higher when acceptance > entitlement (small-caps); apply tax overlay before acting.")
-    return "\n".join(out)
+    from scanner.buyback import scan_current_buybacks, format_buyback_table
+    return format_buyback_table(scan_current_buybacks(kw.get("ids", range(214, 230))))
 
 
 def _run_mean_reversion(**kw) -> str:

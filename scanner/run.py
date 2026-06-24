@@ -32,10 +32,37 @@ def banner(name: str) -> str:
             f"{m.summary}\n{bar}")
 
 
+def _save_buyback(rows) -> None:
+    from scanner import db
+    meta = get_signal("buyback_arb").meta
+    cands = [{"symbol": r["symbol"], "score": r["est_return"],
+              "payload": {"premium": r["premium"], "entitlement_small": r["entitlement_small"],
+                          "buyback_price": r["buyback_price"], "cur_price": r["cur_price"],
+                          "record_date": db._iso(r["record_date"]),
+                          "close_date": db._iso(r["close_date"])}}
+             for r in rows]
+    try:
+        db.upsert_buybacks(rows)
+        rid = db.log_scan(meta.name, meta.verdict, cands)
+        print(f"\n[saved] run #{rid} | {len(rows)} buybacks upserted, {len(cands)} candidates")
+    except Exception as e:
+        print(f"\n[save skipped] {e}")
+
+
+def _save_run(meta) -> None:
+    from scanner import db
+    try:
+        rid = db.log_scan(meta.name, meta.verdict, [])
+        print(f"\n[saved] run #{rid} (metadata only)")
+    except Exception as e:
+        print(f"\n[save skipped] {e}")
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Run a validated market-intel signal.")
     p.add_argument("signal", nargs="?", help="signal name (omit with --list)")
     p.add_argument("--list", action="store_true", help="list all signals + verdicts")
+    p.add_argument("--save", action="store_true", help="persist the run to Supabase (needs .env)")
     args = p.parse_args(argv)
 
     if args.list or not args.signal:
@@ -45,7 +72,17 @@ def main(argv=None):
         print(f"Unknown signal '{args.signal}'. Use --list to see options.")
         return
     print(banner(args.signal))
-    print(get_signal(args.signal).run())
+
+    if args.signal == "buyback_arb":
+        from scanner.buyback import scan_current_buybacks, format_buyback_table
+        rows = scan_current_buybacks()
+        print(format_buyback_table(rows))
+        if args.save:
+            _save_buyback(rows)
+    else:
+        print(get_signal(args.signal).run())
+        if args.save:
+            _save_run(get_signal(args.signal).meta)
 
 
 if __name__ == "__main__":

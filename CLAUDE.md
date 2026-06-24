@@ -39,6 +39,11 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
   `universe.py` (NIFTY 50 + financials rule).
 - **Validation harness** — `scanner/eventstudy.py` + `scripts/validate_*.py`: the
   event-study engine. Any new signal gets validated here *before* it's trusted.
+- **Persistence (P2)** — `scanner/db.py` (raw PostgREST, no ORM) + `db/schema.sql`
+  (5 tables: scan_runs, candidates, buybacks, tenders, outcomes). `scanner/track.py`
+  is the feedback-loop CLI (record tenders + realized acceptance → calibrates the
+  buyback selection). Inactive until you run `db/schema.sql` in Supabase and set
+  `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` in `.env` (see `.env.example`).
 
 ## Data sources (free, proven; residential IP required)
 - **Prices** — yfinance (`.NS`, split-adjusted) primary; **nselib** for historical /
@@ -51,13 +56,13 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
   JS-rendered (not scrapable), so enumerate ids. Symbol is in `nseCode` (double-escaped).
 
 ## Run
-`python -m pytest` (53 tests) · `python -m scanner.run --list` ·
-`python -m scanner.run buyback_arb`
+`python -m pytest` (61 tests) · `python -m scanner.run --list` ·
+`python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome`
 
 ## Stack
-Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · pytest. No framework
-yet. Planned: **P2** Supabase persistence + outcome-tracking feedback loop; **P3** React
-dashboard (verdict-aware surfacing). No ORM — raw Supabase when it lands.
+Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · pytest · Supabase
+(raw PostgREST via requests, no ORM/SDK). **P2 persistence layer built** (apply
+`db/schema.sql` + set creds to activate). **P3** (React verdict-aware dashboard) is next.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

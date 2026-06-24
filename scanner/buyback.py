@@ -146,3 +146,52 @@ def fetch_buyback(bid: int, session) -> dict | None:
         "close_date": close_date,
         "entitlement_small": entitlement,
     }
+
+
+def scan_current_buybacks(ids=range(214, 230), session=None) -> list[dict]:
+    """Scrape recent tender buybacks, attach current price + arb estimate, rank.
+
+    Returns structured dicts (id/symbol/company/cur_price/buyback_price/premium/
+    entitlement_small/est_return/dates) for both display and persistence. Skips
+    implausible premiums (stale/wrong price) so no bad data is surfaced.
+    """
+    import requests
+    import yfinance as yf
+
+    s = session or requests.Session()
+    out = []
+    for bid in ids:
+        try:
+            bb = fetch_buyback(bid, s)
+        except Exception:
+            bb = None
+        if not bb or not bb["symbol"] or not bb["buyback_price"] or not bb["entitlement_small"]:
+            continue
+        try:
+            px = yf.Ticker(f"{bb['symbol']}.NS").history(period="5d")["Close"].dropna()
+            cur = float(px.iloc[-1]) if len(px) else None
+        except Exception:
+            cur = None
+        if not cur:
+            continue
+        premium = bb["buyback_price"] / cur - 1
+        if not (-0.5 < premium < 1.5):
+            continue  # implausible premium => stale/wrong price, skip
+        est = arb_return(cur, bb["buyback_price"], cur, bb["entitlement_small"])
+        out.append({**bb, "cur_price": cur, "premium": premium, "est_return": est})
+    out.sort(key=lambda r: (r["est_return"] or -9), reverse=True)
+    return out
+
+
+def format_buyback_table(rows: list[dict]) -> str:
+    if not rows:
+        return "No current tender buybacks with usable data in the scanned range."
+    head = f"{'SYM':<12}{'PRICE':>9}{'BUYBACK':>9}{'PREMIUM':>9}{'ENTITLE':>9}{'EST_FLOOR':>10}"
+    out = [head, "-" * len(head)]
+    for r in rows:
+        out.append(f"{r['symbol']:<12}{r['cur_price']:>9,.1f}{r['buyback_price']:>9,.1f}"
+                   f"{r['premium']*100:>8.1f}%{r['entitlement_small']*100:>8.1f}%"
+                   f"{(r['est_return'] or 0)*100:>9.1f}%")
+    out.append("\nEST_FLOOR = guaranteed-acceptance floor, residual flat. Real return is "
+               "higher when acceptance > entitlement (small-caps); apply tax overlay before acting.")
+    return "\n".join(out)
