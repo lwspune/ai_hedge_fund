@@ -9,3 +9,4 @@ venv/
 cache/
 *.parquet
 .env
+.mcp.json
