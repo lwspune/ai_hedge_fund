@@ -1,7 +1,47 @@
 """Test-first spec for buyback tender-arbitrage math + entitlement parsing."""
 import pytest
 
-from scanner.buyback import parse_entitlement, parse_symbol, arb_return, after_tax_return
+from scanner.buyback import (
+    parse_entitlement, parse_symbol, arb_return, after_tax_return,
+    estimate_acceptance, expected_after_tax,
+)
+
+
+# --- acceptance estimation (the selection model) ----------------------------
+
+def test_estimate_acceptance_small_cap_is_high():
+    # Small-cap: little retail tendering vs the reserved pool -> high acceptance.
+    assert estimate_acceptance(market_cap_cr=800, entitlement_small=0.10) >= 0.8
+
+
+def test_estimate_acceptance_large_cap_is_low_but_at_least_floor():
+    a = estimate_acceptance(market_cap_cr=200000, entitlement_small=0.05)
+    assert a < 0.3
+    assert a >= 0.05  # never below the guaranteed entitlement floor
+
+
+def test_estimate_acceptance_respects_entitlement_floor():
+    # Entitlement higher than the bucket base -> floor wins.
+    assert estimate_acceptance(market_cap_cr=200000, entitlement_small=0.40) == pytest.approx(0.40)
+
+
+def test_estimate_acceptance_unknown_mcap_falls_to_floor():
+    assert estimate_acceptance(market_cap_cr=None, entitlement_small=0.12) == pytest.approx(0.12)
+
+
+def test_estimate_acceptance_monotonic_in_size():
+    small = estimate_acceptance(800, 0.05)
+    mid = estimate_acceptance(8000, 0.05)
+    large = estimate_acceptance(80000, 0.05)
+    assert small >= mid >= large
+
+
+# --- expected after-tax return (regime picked from record date) -------------
+
+def test_expected_after_tax_picks_regime_by_record_date():
+    pre = expected_after_tax(1000, 1400, 0.5, record_date="2024-06-28", slab=0.30)
+    post = expected_after_tax(1000, 1400, 0.5, record_date="2025-06-28", slab=0.30)
+    assert post < pre  # Oct-2024 dividend tax makes the post-period worse
 
 
 # --- NSE symbol parsing (quotes are backslash-escaped in the raw HTML) -------

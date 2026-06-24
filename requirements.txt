@@ -5,4 +5,5 @@ jugaad-data       # EOD prices via official NSE bhavcopy (primary)
 requests          # screener.in scrape
 beautifulsoup4    # screener.in HTML parse
 lxml              # bs4 parser backend
+html5lib          # pandas read_html fallback parser (chittorgarh tables)
 pytest            # tests

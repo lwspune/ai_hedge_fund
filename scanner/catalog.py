@@ -33,7 +33,7 @@ class Signal:
 
 def _run_buyback(**kw) -> str:
     from scanner.buyback import scan_current_buybacks, format_buyback_table
-    return format_buyback_table(scan_current_buybacks(kw.get("ids", range(214, 230))))
+    return format_buyback_table(scan_current_buybacks(start_id=kw.get("start_id")))
 
 
 def _run_mean_reversion(**kw) -> str:

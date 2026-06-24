@@ -135,6 +135,13 @@ def record_outcome(tender_id, **kw) -> dict:
     return insert("outcomes", outcome_row(tender_id, **kw))[0]
 
 
+def max_buyback_id() -> int | None:
+    """Highest chittorgarh_id stored — the frontier for the upward scan probe."""
+    rows = select("buybacks", {"select": "chittorgarh_id",
+                               "order": "chittorgarh_id.desc", "limit": "1"})
+    return rows[0]["chittorgarh_id"] if rows else None
+
+
 def check_connection() -> bool:
     select("buybacks", {"limit": "1"})
     return True

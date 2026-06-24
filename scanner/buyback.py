@@ -64,6 +64,40 @@ def after_tax_return(entry_price, buyback_price, post_price, accept_frac, regime
     return (proceeds - tax) / buy_cost - 1
 
 
+# --- selection model: acceptance estimate + expected return -----------------
+
+# Heuristic PRIOR (not a fitted model — we lack clean realized-acceptance training
+# data). Small-caps see little retail tendering vs the 15% reserved pool, so retail
+# acceptance runs high; large-caps get crowded, collapsing toward the entitlement
+# floor. The P2 outcomes feedback loop is meant to calibrate these over time.
+_MCAP_ACCEPTANCE_PRIOR = [
+    (2_000, 0.90),     # < 2,000 cr  -> small-cap
+    (10_000, 0.55),    # < 10,000 cr -> small/mid
+    (30_000, 0.30),    # < 30,000 cr -> mid
+    (float("inf"), 0.12),  # large-cap
+]
+
+
+def estimate_acceptance(market_cap_cr, entitlement_small) -> float:
+    """Estimated retail acceptance fraction, never below the entitlement floor."""
+    floor = float(entitlement_small or 0.0)
+    if market_cap_cr is None:
+        return floor
+    base = next(a for cap, a in _MCAP_ACCEPTANCE_PRIOR if market_cap_cr < cap)
+    return max(floor, base)
+
+
+def expected_after_tax(price, buyback_price, est_acceptance, record_date, slab=0.30):
+    """After-tax expected return at the estimated acceptance, residual sold flat.
+
+    Tax regime is chosen from the record date (Oct-2024 dividend-tax cutover)."""
+    regime = "pre_oct2024"
+    if record_date is not None and pd.Timestamp(record_date) >= pd.Timestamp("2024-10-01"):
+        regime = "post_oct2024"
+    return after_tax_return(price, buyback_price, price, est_acceptance,
+                            regime=regime, slab=slab)
+
+
 # --- scraper ----------------------------------------------------------------
 
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -85,20 +119,26 @@ def parse_symbol(html: str):
     return m.group(1) if m else None
 
 
-def fetch_buyback(bid: int, session) -> dict | None:
-    """Parse one chittorgarh buyback by id. Returns None unless it's a tender
+_BUYBACK_URL = "https://www.chittorgarh.com/buyback/x/{}/"
+
+
+def _fetch_page(bid: int, session):
+    """(exists, html) for a buyback id. exists=False on 404 / non-buyback pages."""
+    r = session.get(_BUYBACK_URL.format(bid), headers={"User-Agent": _UA}, timeout=25)
+    if r.status_code == 200 and "Buyback" in r.text:
+        return True, r.text
+    return False, None
+
+
+def parse_buyback(html: str, bid: int) -> dict | None:
+    """Parse a chittorgarh buyback page (no network). None unless it's a tender
     offer with a small-shareholder entitlement (the arbable kind)."""
-    r = session.get(f"https://www.chittorgarh.com/buyback/x/{bid}/",
-                    headers={"User-Agent": _UA}, timeout=25)
-    if r.status_code != 200 or "Buyback" not in r.text:
-        return None
-    html = r.text
     txt = _text(html)
 
     try:
         tables = pd.read_html(io.StringIO(html))
-    except ValueError:
-        return None
+    except Exception:
+        return None  # unparseable / no tables -> not a buyback detail page
 
     # Entitlement table identifies a tender offer (open-market buybacks lack it).
     entitlement = None
@@ -148,21 +188,55 @@ def fetch_buyback(bid: int, session) -> dict | None:
     }
 
 
-def scan_current_buybacks(ids=range(214, 230), session=None) -> list[dict]:
-    """Scrape recent tender buybacks, attach current price + arb estimate, rank.
+def fetch_buyback(bid: int, session) -> dict | None:
+    """Fetch + parse one buyback by id. None if the page is gone or not a tender."""
+    exists, html = _fetch_page(bid, session)
+    return parse_buyback(html, bid) if exists else None
 
-    Returns structured dicts (id/symbol/company/cur_price/buyback_price/premium/
-    entitlement_small/est_return/dates) for both display and persistence. Skips
-    implausible premiums (stale/wrong price) so no bad data is surfaced.
-    """
+
+def _default_start_id() -> int:
+    """Begin the upward probe just below the highest buyback id we've stored."""
+    try:
+        from scanner import db
+        m = db.max_buyback_id()
+        if m:
+            return max(m - 3, 200)
+    except Exception:
+        pass
+    return 210
+
+
+def scan_current_buybacks(start_id=None, max_gap=8, hard_cap=80, session=None,
+                          only_open=False) -> list[dict]:
+    """Probe chittorgarh ids upward from the latest-known buyback; enrich each tender
+    offer with price + market cap + estimated acceptance + after-tax expected return,
+    ranked (open tender windows first). Auto-finds new buybacks — no hardcoded range."""
+    import time
+    from datetime import date
     import requests
     import yfinance as yf
+    from scanner.fundamentals import fetch_fundamentals
 
     s = session or requests.Session()
-    out = []
-    for bid in ids:
+    if start_id is None:
+        start_id = _default_start_id()
+    today = pd.Timestamp(date.today())
+
+    out, gap, bid, fetched = [], 0, start_id, 0
+    while gap < max_gap and fetched < hard_cap:
         try:
-            bb = fetch_buyback(bid, s)
+            exists, html = _fetch_page(bid, s)
+        except Exception:
+            exists, html = False, None
+        fetched += 1
+        bid += 1
+        time.sleep(0.2)
+        if not exists:
+            gap += 1
+            continue
+        gap = 0
+        try:
+            bb = parse_buyback(html, bid - 1)
         except Exception:
             bb = None
         if not bb or not bb["symbol"] or not bb["buyback_price"] or not bb["entitlement_small"]:
@@ -177,21 +251,39 @@ def scan_current_buybacks(ids=range(214, 230), session=None) -> list[dict]:
         premium = bb["buyback_price"] / cur - 1
         if not (-0.5 < premium < 1.5):
             continue  # implausible premium => stale/wrong price, skip
-        est = arb_return(cur, bb["buyback_price"], cur, bb["entitlement_small"])
-        out.append({**bb, "cur_price": cur, "premium": premium, "est_return": est})
-    out.sort(key=lambda r: (r["est_return"] or -9), reverse=True)
-    return out
+        try:
+            mcap = fetch_fundamentals(bb["symbol"]).get("market_cap_cr")
+        except Exception:
+            mcap = None
+        acc = estimate_acceptance(mcap, bb["entitlement_small"])
+        bb.update(
+            cur_price=cur, premium=premium, market_cap_cr=mcap, est_acceptance=acc,
+            est_return=arb_return(cur, bb["buyback_price"], cur, bb["entitlement_small"]),
+            exp_return=expected_after_tax(cur, bb["buyback_price"], acc, bb["record_date"]),
+            is_open=bool(pd.notna(bb["close_date"]) and pd.Timestamp(bb["close_date"]) >= today),
+        )
+        out.append(bb)
+    out.sort(key=lambda r: (r["is_open"], r["exp_return"] if r["exp_return"] is not None else -9),
+             reverse=True)
+    return [r for r in out if r["is_open"]] if only_open else out
 
 
 def format_buyback_table(rows: list[dict]) -> str:
     if not rows:
-        return "No current tender buybacks with usable data in the scanned range."
-    head = f"{'SYM':<12}{'PRICE':>9}{'BUYBACK':>9}{'PREMIUM':>9}{'ENTITLE':>9}{'EST_FLOOR':>10}"
+        return ("No tender buybacks found in the probed id range — none live, or the "
+                "start id needs advancing (persist scans so db.max_buyback_id moves up).")
+    head = (f"{'SYM':<11}{'PRICE':>8}{'BUYBACK':>9}{'PREM':>6}{'MCAP_CR':>10}"
+            f"{'ENT':>6}{'ACC~':>6}{'EXP~':>7}  WINDOW")
     out = [head, "-" * len(head)]
     for r in rows:
-        out.append(f"{r['symbol']:<12}{r['cur_price']:>9,.1f}{r['buyback_price']:>9,.1f}"
-                   f"{r['premium']*100:>8.1f}%{r['entitlement_small']*100:>8.1f}%"
-                   f"{(r['est_return'] or 0)*100:>9.1f}%")
-    out.append("\nEST_FLOOR = guaranteed-acceptance floor, residual flat. Real return is "
-               "higher when acceptance > entitlement (small-caps); apply tax overlay before acting.")
+        mc = "-" if r.get("market_cap_cr") is None else f"{r['market_cap_cr']:,.0f}"
+        exp = r.get("exp_return") or 0
+        out.append(
+            f"{r['symbol']:<11}{r['cur_price']:>8,.0f}{r['buyback_price']:>9,.0f}"
+            f"{r['premium']*100:>5.0f}%{mc:>10}{r['entitlement_small']*100:>5.0f}%"
+            f"{r['est_acceptance']*100:>5.0f}%{exp*100:>6.1f}%  "
+            f"{'OPEN' if r.get('is_open') else 'closed'}")
+    out.append("\nACC~ = estimated acceptance (heuristic by mkt-cap; the outcomes feedback "
+               "loop calibrates it). EXP~ = after-tax expected return at ACC~. "
+               "OPEN = tender window still open. Verify before acting.")
     return "\n".join(out)

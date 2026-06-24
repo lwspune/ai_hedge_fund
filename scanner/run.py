@@ -35,10 +35,13 @@ def banner(name: str) -> str:
 def _save_buyback(rows) -> None:
     from scanner import db
     meta = get_signal("buyback_arb").meta
-    cands = [{"symbol": r["symbol"], "score": r["est_return"],
+    cands = [{"symbol": r["symbol"], "score": r.get("exp_return"),
               "payload": {"premium": r["premium"], "entitlement_small": r["entitlement_small"],
-                          "buyback_price": r["buyback_price"], "cur_price": r["cur_price"],
-                          "record_date": db._iso(r["record_date"]),
+                          "market_cap_cr": r.get("market_cap_cr"),
+                          "est_acceptance": r.get("est_acceptance"),
+                          "est_floor": r.get("est_return"), "exp_return": r.get("exp_return"),
+                          "is_open": r.get("is_open"), "buyback_price": r["buyback_price"],
+                          "cur_price": r["cur_price"], "record_date": db._iso(r["record_date"]),
                           "close_date": db._iso(r["close_date"])}}
              for r in rows]
     try:
