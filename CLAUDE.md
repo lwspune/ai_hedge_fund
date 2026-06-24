@@ -40,13 +40,19 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
 - **Validation harness** — `scanner/eventstudy.py` + `scripts/validate_*.py`: the
   event-study engine. Any new signal gets validated here *before* it's trusted.
 - **Persistence (P2)** — `scanner/db.py` (raw PostgREST, no ORM) + `db/schema.sql`
-  (5 tables: scan_runs, candidates, buybacks, tenders, outcomes). LIVE on Supabase
-  project `vgyujznnyuqbhswszzjv`. **RLS is ON**: anon key = read-only; **writes need the
-  service-role key** in `.env` as `SUPABASE_SERVICE_KEY`. `scanner/track.py` is the
-  feedback-loop CLI. Supabase MCP configured in `.mcp.json` for schema/admin.
-- **Dashboard (P3)** — `dashboard/` (Vite + React + supabase-js, read-only). 4 verdict-aware
-  views; `signals.json` generated from `catalog.py` via `scripts/emit_signals_json.py`.
-  Vercel-ready (anon key is read-only). `npm run dev --prefix dashboard`.
+  (6 tables: scan_runs, candidates, buybacks, tenders, outcomes, **market_deals**). LIVE on
+  Supabase `vgyujznnyuqbhswszzjv`. **RLS is ON**: anon key = read-only; **writes need the
+  service-role key** in `.env` as `SUPABASE_SERVICE_KEY`. `scanner/track.py` = feedback CLI.
+  Supabase MCP configured in `.mcp.json` for schema/admin.
+- **Data warehouse** — `market_deals` holds 45k+ bulk/block deals (2024→); backfilled via
+  `scripts/backfill_deals.py`, refreshed by the **`refresh-deals` edge function**
+  (`supabase/functions/`, deployed via MCP) which scrapes today's NSE CSV server-side. NSE
+  static CSVs + chittorgarh reach datacenter IPs, so edge functions can ingest. Prices stay
+  as local parquet cache (too big for the free tier), NOT in Supabase.
+- **Dashboard (P3)** — `dashboard/` (Vite + React + supabase-js, read-only). Verdict-aware
+  views + **Deals view with a Refresh button** (calls the edge function); `signals.json`
+  generated from `catalog.py` via `scripts/emit_signals_json.py`. Deployed on Vercel
+  (https://ai-hedge-fund-gamma.vercel.app/). `npm run dev --prefix dashboard`.
 
 ## Data sources (free, proven; residential IP required)
 - **Prices** — yfinance (`.NS`, split-adjusted) primary; **nselib** for historical /
