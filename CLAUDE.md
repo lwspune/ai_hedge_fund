@@ -64,10 +64,12 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
 `npm run dev --prefix dashboard` (dashboard)
 
 ## Stack
-Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · pytest · Supabase
-(raw PostgREST via requests, no ORM/SDK) · React + Vite + supabase-js (dashboard).
-P0–P3 built. Next: refine `buyback_arb` selection (current-buyback ID range is stale →
-surfaces nothing live; add acceptance-estimation model + market-cap/issue-size/retail-%).
+Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5lib · pytest ·
+Supabase (raw PostgREST, no ORM/SDK) · React + Vite + supabase-js (dashboard). P0–P3 built +
+deployed (https://ai-hedge-fund-gamma.vercel.app/). `buyback_arb` now self-discovers current
+buybacks (upward id probe from `db.max_buyback_id`) + ranks by an acceptance-estimation model
+(`estimate_acceptance` heuristic prior → after-tax `exp_return`). Next: calibrate the acceptance
+prior from the `outcomes` feedback loop; add issue-size / retail-% features.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
