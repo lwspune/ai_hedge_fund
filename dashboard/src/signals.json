@@ -1,0 +1,37 @@
+[
+  {
+    "name": "buyback_arb",
+    "type": "structural",
+    "verdict": "conditional",
+    "role": "primary",
+    "summary": "Small-shareholder tender arb; edge on selected high-acceptance, high-premium small-caps. The one validated edge."
+  },
+  {
+    "name": "mean_reversion",
+    "type": "drift",
+    "verdict": "null",
+    "role": "lens",
+    "summary": "RSI + 20% below 200-DMA + quality. No edge vs buy-and-hold after costs; informational lens only."
+  },
+  {
+    "name": "smart_money_deals",
+    "type": "drift",
+    "verdict": "null",
+    "role": "lens",
+    "summary": "Follow institutional bulk/block buys. Post-disclosure return ~0 (front-run pre-event); informational lens only."
+  },
+  {
+    "name": "merger_arb",
+    "type": "spread",
+    "verdict": "thin",
+    "role": "watch",
+    "summary": "Stock-swap long-target/short-acquirer. Thin, efficiently priced; deal-break tail risk."
+  },
+  {
+    "name": "open_offer_arb",
+    "type": "spread",
+    "verdict": "null",
+    "role": "documented",
+    "summary": "No small-shareholder reservation -> no structural edge. Control that proves the buyback thesis."
+  }
+]

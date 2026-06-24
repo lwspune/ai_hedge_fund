@@ -10,3 +10,6 @@ cache/
 *.parquet
 .env
 .mcp.json
+dashboard/.env
+dashboard/node_modules
+dashboard/dist
