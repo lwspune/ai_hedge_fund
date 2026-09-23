@@ -60,14 +60,38 @@ drift-signal chasing.
   views + **Deals view with a Refresh button** (calls the edge function); `signals.json`
   generated from `catalog.py` via `scripts/emit_signals_json.py`. Deployed on Vercel
   (https://ai-hedge-fund-gamma.vercel.app/). `npm run dev --prefix dashboard`.
+  **Company search + `#/company/:symbol` page** (hash-routed, no router dep): snapshot ratios,
+  sector, events timeline, annual/quarterly results, shareholding, deals, signal activity.
+- **Infra layer (I1–I5)** — the shared data spine every signal/backtest reads from:
+  - **I1 company master** — `scanner/master.py` → `companies` (every NSE equity + historical
+    delistings, industry, index membership, `is_financial`) + `symbol_changes`.
+    `scripts/refresh_companies.py`.
+  - **I2 price store** — `scanner/pricestore.get_closes(sym, start, end, source="yf"|"nse")`:
+    one guarded parquet cache (`cache/px/`). **yf is split/bonus-adjusted — use `source="nse"`
+    (unadjusted) for any premium vs a nominal rupee price.** Replaces per-script caches.
+  - **I3 events calendar** — `scanner/events.py` → `corporate_events` (bonus/split/rights/
+    dividend/buyback/demerger via nselib; F&O ban days; IPO listing + 30/90-day anchor
+    lock-in expiries) + `ipos`. `scripts/refresh_events.py actions|fo-ban|ipos`.
+  - **I4 fundamentals** — `scanner/fundamentals.py` (`parse_company_page`, `pick_view`) → full
+    statement history in `cache/fundamentals/<SYM>.parquet` (`load_statements`) + one
+    `company_snapshot` row/company (ratios, D/E, shareholding, `history` jsonb).
+    `scripts/refresh_fundamentals.py` (~polite, hours for the full market; run weekly).
+  - **I5** — the dashboard company page above.
 
 ## Data sources (free, proven)
 Local pulls (prices/fundamentals) run from the residential machine; the **static** sources
 (NSE archive CSVs + chittorgarh) also serve **datacenter IPs**, so the `refresh-deals` edge
 function ingests them server-side — only NSE's JS-gated JSON APIs block.
 - **Prices** — yfinance (`.NS`, split-adjusted) primary; **nselib** for historical /
-  delisted symbols (filter `Series=='EQ'`!); jugaad-data fallback.
-- **Fundamentals** — screener.in scrape (market cap, computed debt/equity).
+  delisted symbols and unadjusted closes (filter `Series=='EQ'`!); jugaad-data fallback.
+- **Fundamentals** — screener.in company pages (consolidated vs standalone: take the one with
+  the later quarter — consolidated sometimes silently stops updating).
+- **Company master** — NSE static `EQUITY_L.csv`, `symbolchange.csv` (headerless),
+  `delisted.csv` (stale, ~2020); niftyindices `ind_*list.csv` for industry + membership.
+- **Corporate actions** — nselib `corporate_actions_for_equity` (residential IP). **F&O ban** —
+  `nsearchives.../archives/fo/sec_ban/fo_secban_DDMMYYYY.csv`. **IPOs** — chittorgarh
+  `/ipo/x/<id>/` (Next.js payload keys, e.g. `timetable_anchor_lockin_end_dt_1`).
+  **ASM/GSM** — JSON-gated, not available.
 - **Bulk/block deals** — NSE **static archive CSVs** (`nsearchives.../bulk.csv`,
   `block.csv`). NSE's JSON APIs (PIT/insider/historical) are JS-gated → empty/503; the
   static CSVs are the way in.
@@ -75,11 +99,14 @@ function ingests them server-side — only NSE's JS-gated JSON APIs block.
   JS-rendered (not scrapable), so enumerate ids. Symbol is in `nseCode` (double-escaped).
 
 ## Run
-`python -m pytest` (82 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (117 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` (dashboard). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
 `scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
+Infra refresh (weekly): `scripts/refresh_companies.py` · `scripts/refresh_events.py actions|fo-ban|ipos` ·
+`scripts/refresh_fundamentals.py [--limit N] [--symbols A,B] [--stale-days 7]` ·
+`scripts/rebuild_snapshot_history.py` (no re-scrape).
 
 ## Stack
 Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5lib · pytest ·
@@ -115,6 +142,16 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   exist; a known flow doesn't. Event sets curated from **primary niftyindices PDFs** (secondary
   aggregators garbled 2023); promotion/relegation excluded from Next-50 legs as confounded
   (net opposite-direction Nifty-50 flow).
+
+- **2026-09-24** — Infra layer (company master, price store, events calendar, fundamentals,
+  company page), screener-style not Tijori-style. *Reason:* makes each backlog signal cheap to
+  test; Tijori's value is hand-extracted segment/KPI data no free source provides.
+- **2026-09-24** — Full statement history stays local parquet; Supabase gets one
+  `company_snapshot` row + compact `history` jsonb per company. *Reason:* ~2.5k companies ×
+  every line item would eat the 500MB free tier; the dashboard only needs headline series.
+- **2026-09-24** — Old `cache/prices/` abandoned for `cache/px/`. *Reason:* its MILLIS
+  timestamps read back as 1970 under pandas 3 + fastparquet, and it cached failed fetches as
+  empty forever (29 of 77 buyback events silently lost).
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
