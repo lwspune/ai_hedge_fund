@@ -16,13 +16,12 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.pricestore import get_closes  # noqa: E402
 from scanner.buyback import fetch_buyback, arb_return, after_tax_return  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "cache"
-PRICES = CACHE / "prices"
 CACHE.mkdir(exist_ok=True)
-PRICES.mkdir(exist_ok=True)
 
 ID_RANGE = range(90, 226)
 RESIDUAL_LAG = 21          # trading days after close to sell the residual
@@ -51,25 +50,8 @@ def scrape() -> pd.DataFrame:
     return df
 
 
-def get_prices(symbol: str):
-    fp = PRICES / f"{symbol}.parquet"
-    if fp.exists():
-        s = pd.read_parquet(fp)["close"]
-        return s if len(s) else None
-    import yfinance as yf
-    s = pd.Series(dtype="float64")
-    for attempt in range(2):
-        try:
-            h = yf.Ticker(f"{symbol}.NS").history(period="max", interval="1d", auto_adjust=True)
-            s = h["Close"].dropna()
-            if len(s):
-                s.index = s.index.tz_localize(None)
-                break
-        except Exception:
-            pass
-        time.sleep(1 + attempt)
-    pd.DataFrame({"close": s}).to_parquet(fp)
-    return s if len(s) else None
+def get_prices(symbol: str) -> pd.Series | None:
+    return get_closes(symbol)  # infra I2: cached + guarded (scanner/pricestore.py)
 
 
 def price_on_or_before(s, d):

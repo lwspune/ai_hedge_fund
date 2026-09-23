@@ -128,3 +128,34 @@ before trusting) ports directly.
 **How to apply:** build the event set (IPO listing date → 30/90-day anchor + 6-mo pre-IPO
 lock-in dates, from chittorgarh/prospectuses), reuse `scanner.eventstudy` + the `rebalance.py`
 date-to-date math, run short-side abnormal return around expiry, then segment before any verdict.
+
+---
+
+## Backfill ledger
+
+Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
+before touching the shipped artifact.
+
+### `buyback_arb` validation compares a nominal buyback price to split-adjusted entry prices — **OPEN (surfaced 2026-09-24, infra I2)**
+
+**Learning:** yfinance closes are split/bonus-adjusted backwards, so any "premium vs a nominal
+price" (buyback price, open-offer price, delisting floor) is wrong for stocks that later split or
+issued bonuses. Re-running `scripts/validate_buyback_arb.py` through the new price store shows
+it: SPORTKING premium +1282% (1:10 split), GPIL +568%, GARFIBRES +477%, WIPRO/BSE bonuses; mean
+premium +76% vs median +28%. The old run *also* lost 29 of 77 events to cached-empty Yahoo
+fetches (n=48 recorded vs 77 now).
+
+**360:**
+- *Scope:* `scripts/validate_buyback_arb.py` (entry/post prices), CONCLUSIONS §buyback table,
+  possibly `validate_merger_arb.py` / open-offer (nselib = unadjusted → likely fine; verify).
+- *Blast radius:* the evidence behind the platform's **only** "conditional edge" verdict; the
+  live scanner's current-price premium is unaffected (no split between price and record date).
+- *Does it really apply:* yes for every event with a later split/bonus (≥5 of 77 visibly).
+  Direction: inflates gross mean; median much less; after-tax post-Oct-2024 already negative.
+- *Risk / reversibility:* re-running is read-only; only CONCLUSIONS text changes. Reversible.
+- *Cost:* small — switch entry/post prices to `get_closes(sym, source="nse")` (unadjusted EQ),
+  add a premium sanity guard (e.g. drop |premium| > 150%, as the edge function already does),
+  re-run, update the table.
+- *Recommendation:* **do** — the primary signal's evidence should be reproducible; expect the
+  verdict ("conditional edge on high-acceptance small-caps, post-Oct-2024 tax kills the floor")
+  to survive, with smaller gross numbers.

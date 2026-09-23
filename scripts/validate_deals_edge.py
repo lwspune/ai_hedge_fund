@@ -18,14 +18,13 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.pricestore import get_closes  # noqa: E402
 from scanner.deals import classify_client, NOTABLE          # noqa: E402
 from scanner.eventstudy import forward_abnormal_return, summarize  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "cache"
-PRICES = CACHE / "prices"
 CACHE.mkdir(exist_ok=True)
-PRICES.mkdir(exist_ok=True)
 
 FROM, TO = "01-01-2024", "31-12-2025"   # events; all have T+60 within yfinance range
 HORIZONS = [5, 20, 60]
@@ -106,24 +105,7 @@ def build_events(norm: pd.DataFrame, categories) -> pd.DataFrame:
 # --- prices (yfinance, cached per symbol) -----------------------------------
 
 def get_prices(symbol: str) -> pd.Series | None:
-    fp = PRICES / f"{symbol}.parquet"
-    if fp.exists():
-        s = pd.read_parquet(fp)["close"]
-        return s if len(s) else None
-    import yfinance as yf
-    s = pd.Series(dtype="float64")
-    for attempt in range(2):
-        try:
-            h = yf.Ticker(f"{symbol}.NS").history(period="max", interval="1d", auto_adjust=True)
-            s = h["Close"].dropna()
-            if len(s):
-                s.index = s.index.tz_localize(None)
-                break
-        except Exception:
-            pass
-        time.sleep(1 + attempt)
-    pd.DataFrame({"close": s}).to_parquet(fp)
-    return s if len(s) else None
+    return get_closes(symbol)  # infra I2: cached + guarded (scanner/pricestore.py)
 
 
 def run_study(events: pd.DataFrame, bench: pd.Series, label: str) -> dict:
