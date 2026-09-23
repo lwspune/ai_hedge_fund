@@ -139,3 +139,50 @@ alter table companies      enable row level security;
 alter table symbol_changes enable row level security;
 create policy "anon read companies"      on companies      for select to anon using (true);
 create policy "anon read symbol_changes" on symbol_changes for select to anon using (true);
+
+-- ============================================================================
+-- Infra I3 — events calendar (scanner/events.py, loaded by scripts/refresh_events.py)
+-- ============================================================================
+create table if not exists ipos (
+  id               bigint generated always as identity primary key,
+  chittorgarh_id   integer not null unique,
+  symbol           text not null,
+  company          text,
+  board            text not null check (board in ('mainboard','sme')),
+  listing_at       text,
+  issue_open       date,
+  issue_close      date,
+  boa_date         date,                     -- basis of allotment
+  listing_date     date not null,
+  issue_price      numeric not null check (issue_price > 0),
+  listing_close    numeric check (listing_close is null or listing_close > 0),
+  anchor_shares    bigint check (anchor_shares is null or anchor_shares >= 0),
+  shares_allotted  bigint check (shares_allotted is null or shares_allotted >= 0),
+  anchor_lockin_30 date,                     -- 50% of anchor shares unlock
+  anchor_lockin_90 date,                     -- remaining anchor shares unlock
+  updated_at       timestamptz not null default now(),
+  check (anchor_lockin_30 is null or anchor_lockin_30 >= listing_date - 7),
+  check (anchor_lockin_90 is null or anchor_lockin_30 is null or anchor_lockin_90 >= anchor_lockin_30)
+);
+create index if not exists idx_ipos_symbol on ipos(symbol);
+create index if not exists idx_ipos_listing on ipos(listing_date);
+
+create table if not exists corporate_events (
+  id          bigint generated always as identity primary key,
+  symbol      text not null,
+  event_type  text not null check (event_type in ('bonus','split','consolidation','rights',
+                'dividend','buyback','demerger','fo_ban','ipo_listing','anchor_lockin_30','anchor_lockin_90')),
+  event_date  date not null,                 -- ex-date / ban trade date / listing / unlock date
+  record_date date,
+  details     jsonb not null default '{}',   -- ratio, amounts, face values, anchor size, ...
+  source      text not null check (source in ('nse_ca','nse_fo','chittorgarh')),
+  created_at  timestamptz not null default now(),
+  unique (symbol, event_type, event_date, source)
+);
+create index if not exists idx_events_date on corporate_events(event_date);
+create index if not exists idx_events_type_date on corporate_events(event_type, event_date);
+
+alter table ipos             enable row level security;
+alter table corporate_events enable row level security;
+create policy "anon read ipos"             on ipos             for select to anon using (true);
+create policy "anon read corporate_events" on corporate_events for select to anon using (true);
