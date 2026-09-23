@@ -106,3 +106,35 @@ def test_snapshot_row_latest_values_and_debt_to_equity():
 def test_snapshot_row_guards_out_of_range_percentages():
     bad = PAGE.replace("71.77%", "171.77%")
     assert snapshot_row("TCS", parse_company_page(bad), consolidated=True)["promoter_pct"] is None
+
+
+def test_history_compact_series_for_dashboard():
+    from scanner.fundamentals import history_json
+    h = history_json(parse_company_page(PAGE))
+    assert h["annual"] == [
+        {"period": "Mar 2025", "revenue": 240000.0, "net_profit": 48000.0},
+        {"period": "Mar 2026", "revenue": 250000.0, "net_profit": 50000.0},
+        {"period": "TTM", "revenue": 255000.0, "net_profit": 51000.0},
+    ]
+    assert h["quarterly"][-1] == {"period": "Jun 2026", "revenue": 62000.0, "opm": 25.0}
+    assert h["shareholding"][-1] == {"period": "Jun 2026", "promoter": 71.77, "fii": 11.2,
+                                     "dii": 10.4, "public": 6.58, "holders": 2480000.0}
+
+
+def test_snapshot_row_includes_history():
+    row = snapshot_row("TCS", parse_company_page(PAGE), consolidated=True)
+    assert row["history"]["annual"][-1]["period"] == "TTM"
+
+
+def test_pick_view_prefers_the_fresher_statements():
+    """3M India: the consolidated view stopped at Jun 2024 while standalone is current."""
+    from scanner.fundamentals import latest_quarter, pick_view
+    stale = parse_company_page(PAGE.replace("Mar 2026", "Mar 2024").replace("Jun 2026", "Jun 2024"))
+    fresh = parse_company_page(PAGE)
+    assert latest_quarter(fresh) == "2026-06-30"
+    assert pick_view(stale, fresh) == (fresh, False)
+    assert pick_view(fresh, stale) == (fresh, True)
+    assert pick_view(fresh, fresh) == (fresh, True)      # tie -> consolidated
+    assert pick_view(None, fresh) == (fresh, False)
+    assert pick_view(fresh, None) == (fresh, True)
+    assert pick_view(None, None) is None

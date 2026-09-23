@@ -232,25 +232,73 @@ def snapshot_row(symbol: str, page: dict, consolidated: bool) -> dict:
         "shp_period": shp_last,
         "sector": page["sector"], "broad_industry": page["broad_industry"],
         "industry": page["industry"], "basic_industry": page["basic_industry"],
+        "history": history_json(page),
     }
 
 
-def fetch_company_page(symbol: str, session=None, retries: int = 3):
-    """(page, consolidated) — consolidated view if it has financials, else standalone.
-    None if screener has neither. Backs off on HTTP 429."""
-    s = session or requests
-    for path, consol in ((f"{symbol}/consolidated", True), (symbol, False)):
-        for attempt in range(retries):
-            r = s.get(f"https://www.screener.in/company/{path}/", headers=_HEADERS, timeout=30)
-            if r.status_code == 429:
-                time.sleep(30 * (attempt + 1))
-                continue
-            break
-        if r.status_code == 200:
-            page = parse_company_page(r.text)
-            if has_financials(page):
-                return page, consol
+_HISTORY = {
+    "annual": ("profit-loss", {"Sales": "revenue", "Revenue": "revenue", "Net Profit": "net_profit",
+                               "EPS in Rs": "eps", "OPM %": "opm"}),
+    "quarterly": ("quarters", {"Sales": "revenue", "Revenue": "revenue", "Net Profit": "net_profit",
+                               "EPS in Rs": "eps", "OPM %": "opm"}),
+    "shareholding": ("shareholding", {"Promoters": "promoter", "FIIs": "fii", "DIIs": "dii",
+                                      "Public": "public", "No. of Shareholders": "holders"}),
+}
+
+
+def history_json(page: dict) -> dict:
+    """Compact per-period series for the dashboard company page (a few KB per company).
+    Works from `page["statements"]`, so it can be rebuilt from the local parquet cache."""
+    out = {}
+    for key, (section, fields) in _HISTORY.items():
+        periods: dict[str, dict] = {}
+        for r in page["statements"]:
+            if r["section"] == section and r["line_item"] in fields:
+                periods.setdefault(r["period"], {"period": r["period"]})[fields[r["line_item"]]] = r["value"]
+        out[key] = list(periods.values())
+    return out
+
+
+def latest_quarter(page: dict | None):
+    """Most recent dated quarterly-results period ('YYYY-MM-DD'), or None."""
+    if not page:
+        return None
+    return max((r["period_end"] for r in page["statements"]
+                if r["section"] == "quarters" and r["period_end"]), default=None)
+
+
+def pick_view(consolidated: dict | None, standalone: dict | None):
+    """(page, is_consolidated): consolidated unless standalone reports a later quarter —
+    some companies' consolidated statements silently stop updating (e.g. 3M India, 2024)."""
+    if consolidated is None and standalone is None:
+        return None
+    if standalone is None:
+        return consolidated, True
+    if consolidated is None:
+        return standalone, False
+    if (latest_quarter(standalone) or "") > (latest_quarter(consolidated) or ""):
+        return standalone, False
+    return consolidated, True
+
+
+def _get_page(s, path: str, retries: int):
+    for attempt in range(retries):
+        r = s.get(f"https://www.screener.in/company/{path}/", headers=_HEADERS, timeout=30)
+        if r.status_code == 429:
+            time.sleep(30 * (attempt + 1))
+            continue
+        if r.status_code != 200:
+            return None
+        page = parse_company_page(r.text)
+        return page if has_financials(page) else None
     return None
+
+
+def fetch_company_page(symbol: str, session=None, retries: int = 3):
+    """(page, consolidated) via `pick_view` of both views; None if screener has neither.
+    Backs off on HTTP 429."""
+    s = session or requests
+    return pick_view(_get_page(s, f"{symbol}/consolidated", retries), _get_page(s, symbol, retries))
 
 
 STATEMENTS_DIR = Path(__file__).resolve().parent.parent / "cache" / "fundamentals"
