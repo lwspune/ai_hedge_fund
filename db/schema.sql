@@ -103,3 +103,39 @@ create policy "anon read market_deals" on market_deals for select to anon using 
 -- bulk/block CSV → market_deals, per-date reload) and refresh-buybacks (chittorgarh id
 -- probe → buybacks upsert). pg_cron job 'refresh-deals-daily' (33 14 * * 1-5 UTC ≈ 20:03
 -- IST) calls refresh-deals via pg_net. Requires: create extension pg_cron; create extension pg_net;
+
+-- ============================================================================
+-- Infra I1 — company master (scanner/master.py, loaded by scripts/refresh_companies.py)
+-- ============================================================================
+create table if not exists companies (
+  symbol       text primary key,
+  isin         text unique check (isin ~ '^IN[A-Z0-9]{10}$'),
+  name         text,
+  series       text,                         -- EQ | BE | BZ (NSE EQUITY_L)
+  listing_date date,
+  face_value   numeric check (face_value is null or face_value > 0),
+  industry     text,                         -- niftyindices (Total Market coverage)
+  indices      text[] not null default '{}', -- nifty50, niftynext50, midcap150, ...
+  is_financial boolean,                      -- industry = 'Financial Services'; null = unknown
+  status       text not null default 'listed' check (status in ('listed','delisted')),
+  delisted_on  date,
+  updated_at   timestamptz not null default now(),
+  check ((status = 'delisted') = (delisted_on is not null))
+);
+create index if not exists idx_companies_industry on companies(industry);
+create index if not exists idx_companies_indices on companies using gin(indices);
+
+create table if not exists symbol_changes (
+  id         bigint generated always as identity primary key,
+  company    text,
+  old_symbol text not null,
+  new_symbol text not null,
+  changed_on date not null,
+  unique (old_symbol, new_symbol, changed_on)
+);
+create index if not exists idx_symchg_old on symbol_changes(old_symbol);
+
+alter table companies      enable row level security;
+alter table symbol_changes enable row level security;
+create policy "anon read companies"      on companies      for select to anon using (true);
+create policy "anon read symbol_changes" on symbol_changes for select to anon using (true);
