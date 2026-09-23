@@ -33,5 +33,12 @@
     "verdict": "null",
     "role": "documented",
     "summary": "No small-shareholder reservation -> no structural edge. Control that proves the buyback thesis."
+  },
+  {
+    "name": "index_rebalance",
+    "type": "structural",
+    "verdict": "null",
+    "role": "lens",
+    "summary": "Front-run NIFTY 50/Next 50 reconstitution forced flows. Null: the change is publicly pre-announced ~4wks out, so the flow is arbitraged before a follower can act (n=151 Next 50; tight window flat; the lone deletion-rebound was a 2021-22 regime artifact). Pre-announced forced flow has no barrier keeping competitors out -- contrast the buyback quota."
   }
 ]

@@ -38,3 +38,13 @@ def test_get_signal_has_callable_run():
 def test_get_unknown_signal_raises():
     with pytest.raises(KeyError):
         get_signal("does_not_exist")
+
+
+def test_dashboard_signals_json_in_sync_with_catalog():
+    """The dashboard's verdict badges must match the registry (re-run scripts/emit_signals_json.py)."""
+    import json
+    from dataclasses import asdict
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "dashboard" / "src" / "signals.json"
+    assert json.loads(path.read_text(encoding="utf-8")) == [asdict(m) for m in list_signals()]
