@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import time
+from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -91,3 +92,181 @@ def fetch_fundamentals(symbol: str, polite_seconds: float = 1.5) -> dict:
             de = round(borrowings / net_worth, 3)
 
     return {"market_cap_cr": mcap, "debt_to_equity": de, "source": "screener"}
+
+
+# --- Full company page (infra I4) ---------------------------------------------
+# Everything screener.in shows publicly: top ratios, sector hierarchy, and every
+# statement table in long format (section, line_item, period, value). The full
+# history goes to a local parquet cache; a one-row `company_snapshot` goes to Supabase.
+
+_SECTIONS = ("quarters", "profit-loss", "balance-sheet", "cash-flow", "ratios", "shareholding")
+_RATIO_KEYS = {"Market Cap": "market_cap_cr", "Current Price": "price", "Stock P/E": "pe",
+               "Book Value": "book_value", "Dividend Yield": "dividend_yield", "ROCE": "roce",
+               "ROE": "roe", "Face Value": "face_value"}
+_MONTH_END = {"Jan": 31, "Feb": 28, "Mar": 31, "Apr": 30, "May": 31, "Jun": 30, "Jul": 31,
+              "Aug": 31, "Sep": 30, "Oct": 31, "Nov": 30, "Dec": 31}
+_MONTH_NUM = {m: i for i, m in enumerate(_MONTH_END, 1)}
+_SKIP_ITEMS = {"Raw PDF"}
+
+
+def parse_number(text):
+    """'₹ 7,55,677 Cr.' -> 755677.0; '3.06 %' -> 3.06; blank/dash -> None."""
+    if text is None:
+        return None
+    m = re.search(r"-?\d[\d,]*(?:\.\d+)?", str(text))
+    return float(m.group(0).replace(",", "")) if m else None
+
+
+def period_end(label: str):
+    """'Mar 2026' -> '2026-03-31' (leap-aware); 'TTM' / junk -> None."""
+    m = re.match(r"^([A-Z][a-z]{2}) (\d{4})$", (label or "").strip())
+    if not m or m.group(1) not in _MONTH_END:
+        return None
+    y, mon = int(m.group(2)), m.group(1)
+    day = 29 if mon == "Feb" and y % 4 == 0 and (y % 100 or y % 400 == 0) else _MONTH_END[mon]
+    return f"{y:04d}-{_MONTH_NUM[mon]:02d}-{day:02d}"
+
+
+def _clean_item(name: str) -> str:
+    return re.sub(r"\s*\+\s*$", "", name.replace("\xa0", " ")).strip()
+
+
+def _section_table(section):
+    if section.get("id") == "shareholding":
+        q = section.find("div", id="quarterly-shp")
+        if q is not None and q.find("table"):
+            return q.find("table")
+    for t in section.find_all("table"):
+        if t.select("thead th"):
+            return t
+    return None
+
+
+def parse_statements(soup: BeautifulSoup) -> list[dict]:
+    rows = []
+    for sid in _SECTIONS:
+        sec = soup.find("section", id=sid)
+        table = _section_table(sec) if sec else None
+        if table is None:
+            continue
+        periods = [th.get_text(" ", strip=True) for th in table.select("thead th")][1:]
+        for tr in table.select("tbody tr"):
+            cells = tr.find_all("td")
+            if not cells:
+                continue
+            item = _clean_item(cells[0].get_text(" ", strip=True))
+            if not item or item in _SKIP_ITEMS:
+                continue
+            for per, td in zip(periods, cells[1:]):
+                v = parse_number(td.get_text(" ", strip=True))
+                if v is not None:
+                    rows.append({"section": sid, "line_item": item, "period": per,
+                                 "period_end": period_end(per), "value": v})
+    return rows
+
+
+def parse_company_page(html: str) -> dict:
+    soup = BeautifulSoup(html, "lxml")
+    ratios = {}
+    for li in soup.select("#top-ratios li"):
+        name, val = li.find("span", class_="name"), li.find("span", class_="value")
+        if not name or not val:
+            continue
+        label, text = name.get_text(" ", strip=True), val.get_text(" ", strip=True)
+        if label in _RATIO_KEYS:
+            ratios[_RATIO_KEYS[label]] = parse_number(text)
+        elif label.startswith("High / Low"):
+            nums = [float(x.replace(",", "")) for x in re.findall(r"\d[\d,]*(?:\.\d+)?", text)]
+            if len(nums) == 2:
+                ratios["high_52w"], ratios["low_52w"] = nums
+    levels = {}
+    for a in soup.select("#peers a[href^='/market/']"):
+        depth = len([p for p in a["href"].split("/") if p]) - 1  # /market/IN08/ -> 1
+        levels.setdefault(depth, a.get_text(" ", strip=True))
+    return {"ratios": ratios, "sector": levels.get(1), "broad_industry": levels.get(2),
+            "industry": levels.get(3), "basic_industry": levels.get(4),
+            "statements": parse_statements(soup)}
+
+
+def has_financials(page: dict) -> bool:
+    return any(r["section"] in ("quarters", "profit-loss") for r in page["statements"])
+
+
+def _latest(statements, section, items, period=None):
+    cand = [r for r in statements if r["section"] == section and r["line_item"] in items
+            and (period is None or r["period"] == period) and (period or r["period_end"])]
+    return max(cand, key=lambda r: r["period_end"] or "")["value"] if cand else None
+
+
+def _pct(v):
+    return v if v is not None and 0 <= v <= 100 else None
+
+
+def snapshot_row(symbol: str, page: dict, consolidated: bool) -> dict:
+    st, r = page["statements"], page["ratios"]
+    pl_items = ("Sales", "Revenue")
+    rev = _latest(st, "profit-loss", pl_items, "TTM") or _latest(st, "profit-loss", pl_items)
+    np_ = _latest(st, "profit-loss", ("Net Profit",), "TTM") or _latest(st, "profit-loss", ("Net Profit",))
+    de = None
+    if page["sector"] != "Financial Services":
+        bs = [x for x in st if x["section"] == "balance-sheet" and x["period_end"]]
+        last = max((x["period_end"] for x in bs), default=None)
+        vals = {x["line_item"]: x["value"] for x in bs if x["period_end"] == last}
+        borrow = vals.get("Borrowings", vals.get("Borrowing"))
+        nw = (vals.get("Equity Capital") or 0) + (vals.get("Reserves") or 0)
+        if borrow is not None and nw > 0:
+            de = round(borrow / nw, 3)
+    shp = [x for x in st if x["section"] == "shareholding" and x["period_end"]]
+    shp_last = max((x["period_end"] for x in shp), default=None)
+    sh = {x["line_item"]: x["value"] for x in shp if x["period_end"] == shp_last}
+    nsh = sh.get("No. of Shareholders")
+    return {
+        "symbol": symbol, "consolidated": consolidated,
+        **{k: r.get(k) for k in ("market_cap_cr", "price", "pe", "book_value", "dividend_yield",
+                                 "roce", "roe", "face_value", "high_52w", "low_52w")},
+        "revenue_ttm": rev, "net_profit_ttm": np_, "debt_to_equity": de,
+        "promoter_pct": _pct(sh.get("Promoters")), "fii_pct": _pct(sh.get("FIIs")),
+        "dii_pct": _pct(sh.get("DIIs")), "govt_pct": _pct(sh.get("Government")),
+        "public_pct": _pct(sh.get("Public")),
+        "n_shareholders": int(nsh) if nsh is not None and nsh >= 0 else None,
+        "shp_period": shp_last,
+        "sector": page["sector"], "broad_industry": page["broad_industry"],
+        "industry": page["industry"], "basic_industry": page["basic_industry"],
+    }
+
+
+def fetch_company_page(symbol: str, session=None, retries: int = 3):
+    """(page, consolidated) — consolidated view if it has financials, else standalone.
+    None if screener has neither. Backs off on HTTP 429."""
+    s = session or requests
+    for path, consol in ((f"{symbol}/consolidated", True), (symbol, False)):
+        for attempt in range(retries):
+            r = s.get(f"https://www.screener.in/company/{path}/", headers=_HEADERS, timeout=30)
+            if r.status_code == 429:
+                time.sleep(30 * (attempt + 1))
+                continue
+            break
+        if r.status_code == 200:
+            page = parse_company_page(r.text)
+            if has_financials(page):
+                return page, consol
+    return None
+
+
+STATEMENTS_DIR = Path(__file__).resolve().parent.parent / "cache" / "fundamentals"
+
+
+def save_statements(symbol: str, page: dict, directory: Path = STATEMENTS_DIR) -> Path:
+    import pandas as pd
+    directory.mkdir(parents=True, exist_ok=True)
+    fp = directory / f"{symbol.replace('&', '_and_')}.parquet"
+    pd.DataFrame(page["statements"], columns=["section", "line_item", "period", "period_end",
+                                             "value"]).to_parquet(fp, index=False)
+    return fp
+
+
+def load_statements(symbol: str, directory: Path = STATEMENTS_DIR):
+    """Full statement history (long format) from the local cache; None if never fetched."""
+    import pandas as pd
+    fp = directory / f"{symbol.replace('&', '_and_')}.parquet"
+    return pd.read_parquet(fp) if fp.exists() else None

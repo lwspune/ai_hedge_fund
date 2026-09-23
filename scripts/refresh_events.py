@@ -83,7 +83,17 @@ def run_ipos(from_id: int | None, to_id: int | None) -> None:
 def _flush_ipos(rows: list[dict]) -> None:
     if not rows:
         return
-    db.insert("ipos", rows, on_conflict="chittorgarh_id", return_rows=False)
+    try:
+        db.insert("ipos", rows, on_conflict="chittorgarh_id", return_rows=False)
+    except requests.HTTPError:  # a DB constraint rejected a row: keep the good ones, log the bad
+        good = []
+        for r in rows:
+            try:
+                db.insert("ipos", r, on_conflict="chittorgarh_id", return_rows=False)
+                good.append(r)
+            except requests.HTTPError as e:
+                print(f"  rejected ipo {r['chittorgarh_id']} {r['symbol']}: {str(e)[-160:]}")
+        rows = good
     n = upsert_events([e for r in rows for e in ipo_events(r)])
     print(f"  ipos: +{len(rows)} (last id {rows[-1]['chittorgarh_id']}), {n} events")
 

@@ -186,3 +186,40 @@ alter table ipos             enable row level security;
 alter table corporate_events enable row level security;
 create policy "anon read ipos"             on ipos             for select to anon using (true);
 create policy "anon read corporate_events" on corporate_events for select to anon using (true);
+
+-- ============================================================================
+-- Infra I4 — fundamentals snapshot (scanner/fundamentals.py, scripts/refresh_fundamentals.py).
+-- Full statement history stays local: cache/fundamentals/<SYM>.parquet (free-tier size).
+-- ============================================================================
+create table if not exists company_snapshot (
+  symbol          text primary key references companies(symbol) on update cascade,
+  consolidated    boolean not null,
+  market_cap_cr   numeric check (market_cap_cr is null or market_cap_cr >= 0),
+  price           numeric check (price is null or price > 0),
+  pe              numeric,
+  book_value      numeric,
+  dividend_yield  numeric check (dividend_yield is null or dividend_yield >= 0),
+  roce            numeric,
+  roe             numeric,
+  face_value      numeric check (face_value is null or face_value > 0),
+  high_52w        numeric,
+  low_52w         numeric,
+  revenue_ttm     numeric,
+  net_profit_ttm  numeric,
+  debt_to_equity  numeric check (debt_to_equity is null or debt_to_equity >= 0),  -- null for financials
+  promoter_pct    numeric check (promoter_pct between 0 and 100),
+  fii_pct         numeric check (fii_pct between 0 and 100),
+  dii_pct         numeric check (dii_pct between 0 and 100),
+  govt_pct        numeric check (govt_pct between 0 and 100),
+  public_pct      numeric check (public_pct between 0 and 100),   -- retail-holding proxy
+  n_shareholders  bigint check (n_shareholders is null or n_shareholders >= 0),
+  shp_period      date,
+  sector          text,                      -- screener 4-level taxonomy
+  broad_industry  text,
+  industry        text,
+  basic_industry  text,
+  fetched_at      timestamptz not null default now()
+);
+create index if not exists idx_snapshot_sector on company_snapshot(sector);
+alter table company_snapshot enable row level security;
+create policy "anon read company_snapshot" on company_snapshot for select to anon using (true);
