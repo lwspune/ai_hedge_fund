@@ -42,6 +42,13 @@ def _headers(key: str, prefer: str) -> dict:
             "Content-Type": "application/json", "Prefer": prefer}
 
 
+def _check(r: requests.Response) -> None:
+    """raise_for_status, but keep PostgREST's body (which constraint / column failed)."""
+    if not r.ok:
+        raise requests.HTTPError(f"{r.status_code} {r.reason} for {r.url}: {r.text[:500]}",
+                                 response=r)
+
+
 def _iso(v):
     return v.isoformat() if hasattr(v, "isoformat") and not isinstance(v, str) else v
 
@@ -96,7 +103,7 @@ def insert(table: str, rows, on_conflict: str | None = None,
         params = {"on_conflict": on_conflict}
     r = requests.post(f"{url}/rest/v1/{table}", headers=_headers(key, prefer),
                       params=params, json=rows, timeout=30)
-    r.raise_for_status()
+    _check(r)
     return r.json() if return_rows else []
 
 
@@ -104,7 +111,7 @@ def select(table: str, params: dict | None = None) -> list[dict]:
     url, key = config()
     r = requests.get(f"{url}/rest/v1/{table}", headers=_headers(key, "count=none"),
                      params=params or {}, timeout=20)
-    r.raise_for_status()
+    _check(r)
     return r.json()
 
 

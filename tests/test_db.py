@@ -57,3 +57,19 @@ def test_config_raises_without_credentials(monkeypatch):
     monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
     with pytest.raises(RuntimeError, match="SUPABASE_URL"):
         db.config()
+
+
+def test_http_errors_carry_postgrest_message():
+    """Constraint violations must say which constraint — a bare '400 Bad Request' hides it."""
+    import pytest
+    import requests
+    from scanner.db import _check
+
+    r = requests.Response()
+    r.status_code, r.reason, r.url = 400, "Bad Request", "https://x/rest/v1/ipos"
+    r._content = b'{"code":"23514","message":"violates check constraint \\"ipos_check\\""}'
+    with pytest.raises(requests.HTTPError, match="ipos_check"):
+        _check(r)
+    ok = requests.Response()
+    ok.status_code = 201
+    _check(ok)  # no raise
