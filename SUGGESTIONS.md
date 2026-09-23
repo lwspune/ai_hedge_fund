@@ -67,7 +67,7 @@ ones is noise on the operational view.
 **How to apply:** default `only_open=True` for the live `scanner.run buyback_arb` surface
 (keep all for `--save`/history), or add an OPEN filter toggle in the dashboard Buyback panel.
 
-### Finish the Vercel cutover to `main` + delete stale `master`
+### ~~Finish the Vercel cutover to `main` + delete stale `master`~~ — **DONE 2026-09-24**
 
 Code was pushed to `main`; the remote still has an old `master` and Vercel's production
 branch may still point at it.
