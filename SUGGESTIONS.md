@@ -129,6 +129,35 @@ before trusting) ports directly.
 lock-in dates, from chittorgarh/prospectuses), reuse `scanner.eventstudy` + the `rebalance.py`
 date-to-date math, run short-side abnormal return around expiry, then segment before any verdict.
 
+## 2026-09-24 (infra layer)
+
+### Backfill the market_deals gap (2026-09-12 → 2026-09-23) and keep the project awake
+
+The `refresh-deals-daily` pg_cron job's last run was 2026-09-11 although it is still active —
+consistent with the free-tier project being paused for inactivity (pausing stops pg_cron).
+NSE's static CSV only serves *today*, so those days are missing from `market_deals`.
+
+**Why:** a warehouse with silent holes misleads any deals-based study.
+
+**How to apply:** backfill the gap with nselib `bulk_deal_data` / `block_deals_data` for the date
+range (same normaliser as `scripts/backfill_deals.py`); then either upgrade the plan or add a
+keep-alive (e.g. a GitHub Action pinging the REST API a few times a week).
+
+### Schedule the infra refreshes
+
+`refresh_companies.py`, `refresh_events.py actions|fo-ban|ipos` and `refresh_fundamentals.py`
+are manual. nselib + screener need the residential IP, so cloud cron can't run them.
+
+**Why:** the company page and events calendar go stale without a cadence.
+
+**How to apply:** Windows Task Scheduler — events (actions + fo-ban + ipos) daily after 8pm IST;
+companies + fundamentals weekly (fundamentals takes hours: default `--stale-days 7`).
+
+### ASM/GSM surveillance lists (backlog signal #5)
+
+Not ingested: NSE serves them only via JS-gated JSON. **How to apply:** probe BSE's equivalents
+or a headless-browser fetch before testing signal #5.
+
 ---
 
 ## Backfill ledger
