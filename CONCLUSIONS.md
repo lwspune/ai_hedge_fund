@@ -1,6 +1,6 @@
 # CONCLUSIONS — Indian Market Inefficiency Validations
 
-**Status: active platform. Four signals validated (2026-06-23). One real edge found.**
+**Status: active platform. Five signals validated. One real edge found.**
 
 The question that started this: *are there real, past-tested inefficiencies in Indian
 markets exploitable for quick gains?* We tested four, with honest event studies and
@@ -15,7 +15,7 @@ gets arbitraged or competed away after costs.
 - Efficiently-priced spreads (merger arb on safe deals) → **thin** (~risk-free).
 - Structural reservation (buyback small-shareholder quota) → **conditional edge**.
 
-## The four validations
+## The validations
 
 ### 1. Mean reversion (RSI<35 + 20% below 200-DMA + quality) — NULL
 Built and runnable, but the prior project already proved this signal family loses to
@@ -55,6 +55,30 @@ real headwind; mitigate with lower brackets / family ₹2L accounts / high-accep
 deal-break tail (Zee-Sony). Unattractive for retail. (Open-offer arb, Form A, is a
 structural null — no small-shareholder reservation — kept only as the control that proves
 why buybacks work.)
+
+### 5. Index-rebalance front-run (NIFTY 50 / Next 50 reconstitution) — NULL
+Buy index additions / short deletions on the announcement, exit at the effective date.
+Event study over **151 verified NIFTY Next 50 clean entries/exits, 2018→2025** (announce +
+effective dates extracted verbatim from niftyindices.com press-release PDFs; promotion/
+relegation and ad-hoc/merger events excluded as confounded), benchmark-adjusted vs NIFTY:
+
+| Window | Adds (long) | Drops (short) | Combined |
+|---|---|---|---|
+| announce+1 → effective | +0.83% (t=0.5) | −0.12% (t=−0.1) | +0.36% (t=0.4) |
+| **effective−5 → effective** (forced-flow window) | −0.11% | −0.03% | **−0.07% (t=−0.1)** |
+| effective → effective+5 (reversal) | −0.38% | −1.54% (t=−2.4) | −0.95% (t=−2.0) |
+
+The front-run is **null** — even the tight window where funds are forced to trade is flat.
+**Why:** NSE pre-announces reconstitutions ~4 weeks out, so the forced flow is *anticipated*
+and arbitraged before a public follower can act. The lone significant effect (deletions
+rebound post-effective) **failed segmentation**: the liquidity gradient runs opposite to the
+overshoot mechanism, and the rebound is almost entirely a **2021–22 regime artifact** (−4.2%
+that era, ~0 in 2023–25) — a ghost, not an edge. (`scripts/validate_index_rebalance.py`,
+`scripts/segment_index_rebalance.py`; data `data/next50_rebalance_events.csv`.)
+
+This is the cleanest confirmation of the meta-thesis yet: a forced flow with **no barrier
+keeping competitors out** (anyone can read the announcement) gets arbitraged to zero — the
+exact mirror of the buyback small-shareholder quota that *does* fence institutions out.
 
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter

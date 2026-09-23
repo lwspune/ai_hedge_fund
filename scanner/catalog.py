@@ -64,6 +64,15 @@ def _run_open_offer(**kw) -> str:
             "explains why buyback_arb works.")
 
 
+def _run_index_rebalance(**kw) -> str:
+    return ("index_rebalance is NULL: front-running NIFTY 50 / Next 50 reconstitution forced "
+            "flows earns ~0 abnormal return (n=151 Next 50; tight effective-window flat). The "
+            "change is publicly pre-announced ~4 weeks out, so the flow is arbitraged before a "
+            "follower can act -- no barrier keeps competitors out (contrast the buyback quota). "
+            "The lone deletion-rebound flicker was a 2021-22 regime artifact (gone by 2023-25). "
+            "Run scripts/validate_index_rebalance.py + scripts/segment_index_rebalance.py.")
+
+
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
@@ -90,6 +99,14 @@ SIGNALS: dict[str, Signal] = {
                    "No small-shareholder reservation -> no structural edge. Control "
                    "that proves the buyback thesis."),
         _run_open_offer),
+    "index_rebalance": Signal(
+        SignalMeta("index_rebalance", "structural", "null", "lens",
+                   "Front-run NIFTY 50/Next 50 reconstitution forced flows. Null: the "
+                   "change is publicly pre-announced ~4wks out, so the flow is arbitraged "
+                   "before a follower can act (n=151 Next 50; tight window flat; the lone "
+                   "deletion-rebound was a 2021-22 regime artifact). Pre-announced forced "
+                   "flow has no barrier keeping competitors out -- contrast the buyback quota."),
+        _run_index_rebalance),
 }
 
 

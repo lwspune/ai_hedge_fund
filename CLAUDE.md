@@ -13,8 +13,9 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Four signals were validated this way; only one
-survived. See `CONCLUSIONS.md` for the evidence.
+falsified signal is never read as edge. Six signals validated this way; only one
+survived. See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
+of untested ideas, ordered by the thesis.
 
 | Signal | Type | Verdict | Role |
 |---|---|---|---|
@@ -23,11 +24,14 @@ survived. See `CONCLUSIONS.md` for the evidence.
 | `mean_reversion` | drift | **null** | lens (informational only) |
 | `smart_money_deals` | drift | **null** | lens (informational only) |
 | `open_offer_arb` | spread | **null** | documented control |
+| `index_rebalance` | structural | **null** | lens (informational only) |
 
-**The through-line:** edge survives only where there's a *structural barrier* retail
-uniquely sits inside (the buyback 15% small-shareholder reservation institutions are
-barred from). Drift-prediction signals get arbitraged away; efficiently-priced spreads
-(merger arb) get competed to ~risk-free. Do **not** restart drift-signal chasing.
+**The through-line:** edge survives only where a *structural barrier excludes competitors*
+(the buyback 15% small-shareholder reservation institutions are legally barred from). A
+*publicly pre-announced* forced flow (index rebalancing) is arbitraged away just like a
+drift signal — being structural isn't enough if everyone can see and front-run it.
+Efficiently-priced spreads (merger arb) get competed to ~risk-free. Do **not** restart
+drift-signal chasing.
 
 ## Architecture
 - **Signal registry** — `scanner/catalog.py`: every signal + its `SignalMeta`
@@ -39,6 +43,9 @@ barred from). Drift-prediction signals get arbitraged away; efficiently-priced s
   acceptance-estimation model + Oct-2024 tax), `universe.py` (NIFTY 50 + financials rule).
 - **Validation harness** — `scanner/eventstudy.py` + `scripts/validate_*.py`: the
   event-study engine. Any new signal gets validated here *before* it's trusted.
+  `scanner/rebalance.py` = index-rebalance leg math + Next-50 event loader (events in
+  `data/next50_rebalance_events.csv`, curated from primary niftyindices PDFs);
+  `scripts/segment_index_rebalance.py` = the liquidity/era segmentation falsifier.
 - **Persistence (P2)** — `scanner/db.py` (raw PostgREST, no ORM) + `db/schema.sql`
   (6 tables: scan_runs, candidates, buybacks, tenders, outcomes, **market_deals**). LIVE on
   Supabase `vgyujznnyuqbhswszzjv`. **RLS is ON**: anon key = read-only; **writes need the
@@ -68,10 +75,11 @@ function ingests them server-side — only NSE's JS-gated JSON APIs block.
   JS-rendered (not scrapable), so enumerate ids. Symbol is in `nseCode` (double-escaped).
 
 ## Run
-`python -m pytest` (67 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (82 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` (dashboard). One-offs: `scripts/backfill_deals.py`,
-`scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`.
+`scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
+`scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
 
 ## Stack
 Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5lib · pytest ·
@@ -100,6 +108,13 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   chittorgarh serve datacenter IPs (probed), so cloud refresh works; only NSE's JSON APIs block.
 - **2026-06-24** — Repo under `lwspune` (the machine's GitHub auth), not `vilasvshinde`.
   *Reason:* avoids a cross-account push 403; plain `git push` works.
+- **2026-06-24** — `index_rebalance` front-run validated **null** (n=151 Next-50 events). The
+  reconstitution is publicly pre-announced ~4wks out, so the forced flow is arbitraged before
+  a follower can act; the lone deletion-rebound was a 2021-22 regime artifact (segmentation
+  killed it). *Reason:* sharpens the thesis — a barrier must *exclude competitors*, not just
+  exist; a known flow doesn't. Event sets curated from **primary niftyindices PDFs** (secondary
+  aggregators garbled 2023); promotion/relegation excluded from Next-50 legs as confounded
+  (net opposite-direction Nifty-50 flow).
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

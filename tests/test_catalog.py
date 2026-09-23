@@ -6,7 +6,7 @@ from scanner.catalog import (
 )
 
 EXPECTED = {"buyback_arb", "mean_reversion", "smart_money_deals",
-            "merger_arb", "open_offer_arb"}
+            "merger_arb", "open_offer_arb", "index_rebalance"}
 
 
 def test_all_validated_signals_registered():

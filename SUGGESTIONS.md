@@ -100,3 +100,31 @@ settled calls.
 
 **How to apply:** add a `## Decisions log` section to CLAUDE.md with one dated line per
 decision + a one-clause reason.
+
+### ~~Commit the index-rebalance validation work~~ — **DONE 2026-09-23**
+
+The signal #1 work is complete and tests pass (82) but is uncommitted: `CANDIDATE_SIGNALS.md`,
+`scanner/rebalance.py`, `tests/test_rebalance.py`, `data/next50_rebalance_events.csv`,
+`scripts/validate_index_rebalance.py`, `scripts/segment_index_rebalance.py`, plus the null
+registration in `scanner/catalog.py` / `tests/test_catalog.py` / `CONCLUSIONS.md` / CLAUDE.md.
+
+**Why:** a clean, atomic commit captures the null verdict + its evidence before the working
+tree drifts; the curated Next-50 event set (151 events from primary niftyindices PDFs) is
+expensive to reproduce and worth preserving in history.
+
+**How to apply:** one `feat:`/`docs:` commit, e.g. `feat: validate index_rebalance (null, n=151 Next 50) + signal backlog`.
+Note the Next-50 CSV is the auditable record — keep it in the commit.
+
+### Test candidate signal #2 — lock-in expiry overhang
+
+`CANDIDATE_SIGNALS.md` #2 (anchor / pre-IPO lock-in expiry → forced supply, short side) is the
+recommended next test. Unlike index rebalancing, lock-in expiries aren't a 4-week-pre-announced
+trade everyone front-runs, so the structural thesis doesn't pre-doom it.
+
+**Why:** it's the next-highest-value 🟢 structural/forced-flow candidate, and the harness +
+event-set curation pattern from signal #1 (primary-source dates, pure leg math, TDD, segment
+before trusting) ports directly.
+
+**How to apply:** build the event set (IPO listing date → 30/90-day anchor + 6-mo pre-IPO
+lock-in dates, from chittorgarh/prospectuses), reuse `scanner.eventstudy` + the `rebalance.py`
+date-to-date math, run short-side abnormal return around expiry, then segment before any verdict.
