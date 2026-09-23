@@ -221,5 +221,10 @@ create table if not exists company_snapshot (
   fetched_at      timestamptz not null default now()
 );
 create index if not exists idx_snapshot_sector on company_snapshot(sector);
+-- Infra I5: compact per-period series for the dashboard company page (history_json)
+alter table company_snapshot add column if not exists history jsonb;
+alter table company_snapshot add constraint company_snapshot_history_shape
+  check (history is null or (jsonb_typeof(history) = 'object'
+         and history ? 'annual' and history ? 'quarterly' and history ? 'shareholding'));
 alter table company_snapshot enable row level security;
 create policy "anon read company_snapshot" on company_snapshot for select to anon using (true);

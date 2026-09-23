@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { companyHref } from '../useHashRoute'
 
 const pct = (v) => (v == null ? '—' : (v * 100).toFixed(1) + '%')
 const num = (v) =>
@@ -55,7 +56,7 @@ export default function BuybackTable({ rows, onRefresh }) {
             <tbody>
               {rows.map((b) => (
                 <tr key={b.id}>
-                  <td><code>{b.symbol}</code></td>
+                  <td>{b.symbol ? <a href={companyHref(b.symbol)}><code>{b.symbol}</code></a> : '—'}</td>
                   <td className="dim">{b.company}</td>
                   <td className="r">{num(b.buyback_price)}</td>
                   <td className="r">{pct(b.entitlement_small)}</td>

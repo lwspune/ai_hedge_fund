@@ -100,3 +100,24 @@ tbody tr:hover { background: var(--panel-2); }
 
 /* accessibility: visible focus for keyboard nav */
 a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* company search + page (infra I5) */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.search { width: 100%; font-family: var(--mono); font-size: 14px; color: var(--text-h); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+.search:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.search-results, .plain { list-style: none; margin: 10px 0 0; padding: 0; }
+.search-results li a { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 6px; text-decoration: none; color: var(--text); }
+.search-results li a:hover { background: var(--panel-2); }
+.search-results .dim, p.dim { color: var(--dim); }
+.plain li { padding: 4px 0; color: var(--dim); }
+.note.error { color: var(--danger); }
+.small { font-size: 12px; margin: 10px 0 0; }
+.back { display: inline-block; margin-bottom: 14px; font-size: 13px; }
+.co-head h1 { margin: 0 0 4px; font-size: 22px; color: var(--text-h); }
+.co-sym { font-size: 14px; color: var(--accent); margin-left: 6px; }
+.tags { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--dim); }
+.ratios { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 16px; margin: 0; }
+.ratio dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+.ratio dd { margin: 2px 0 0; color: var(--text-h); font-size: 15px; }
+tbody th { color: var(--dim); text-transform: none; font-size: 13px; font-weight: 400; letter-spacing: 0; }

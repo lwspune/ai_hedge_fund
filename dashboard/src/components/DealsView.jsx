@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { companyHref } from '../useHashRoute'
 
 const cr = (v) => (v == null ? '—' : '₹' + (v / 1e7).toFixed(2) + ' cr')
 const qty = (v) => (v == null ? '—' : Number(v).toLocaleString('en-IN'))
@@ -49,7 +50,7 @@ export default function DealsView({ rows, onRefresh }) {
               {rows.map((d) => (
                 <tr key={d.id}>
                   <td className="dim">{d.deal_date}</td>
-                  <td><code>{d.symbol}</code></td>
+                  <td><a href={companyHref(d.symbol)}><code>{d.symbol}</code></a></td>
                   <td className="dim" title={d.client}>{(d.client || '').slice(0, 30)}</td>
                   <td><span className={`side side-${(d.side || '').toLowerCase()}`}>{d.side}</span></td>
                   <td className="r">{qty(d.qty)}</td>

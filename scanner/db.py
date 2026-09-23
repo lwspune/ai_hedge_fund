@@ -115,6 +115,25 @@ def select(table: str, params: dict | None = None) -> list[dict]:
     return r.json()
 
 
+def select_all(table: str, params: dict | None = None, page: int = 1000) -> list[dict]:
+    """`select` paged past PostgREST's max-rows cap (1000)."""
+    out, off = [], 0
+    while True:
+        rows = select(table, {**(params or {}), "limit": str(page), "offset": str(off)})
+        out += rows
+        if len(rows) < page:
+            return out
+        off += page
+
+
+def update(table: str, filters: dict, values: dict) -> None:
+    """PATCH rows matching PostgREST filters, e.g. update("t", {"symbol": "eq.TCS"}, {...})."""
+    url, key = config()
+    r = requests.patch(f"{url}/rest/v1/{table}", headers=_headers(key, "return=minimal"),
+                       params=filters, json=values, timeout=30)
+    _check(r)
+
+
 # --- high-level helpers ------------------------------------------------------
 
 def log_scan(signal_name: str, verdict: str, candidates: list[dict] | None = None,

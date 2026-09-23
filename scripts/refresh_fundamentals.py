@@ -24,16 +24,6 @@ from scanner.fundamentals import fetch_company_page, save_statements, snapshot_r
 BATCH = 25
 
 
-def select_all(table: str, params: dict, page: int = 1000) -> list[dict]:
-    out, off = [], 0
-    while True:
-        rows = db.select(table, {**params, "limit": str(page), "offset": str(off)})
-        out += rows
-        if len(rows) < page:
-            return out
-        off += page
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--symbols")
@@ -45,10 +35,10 @@ def main():
     if a.symbols:
         symbols = [s.strip().upper() for s in a.symbols.split(",") if s.strip()]
     else:
-        listed = select_all("companies", {"select": "symbol", "status": "eq.listed",
+        listed = db.select_all("companies", {"select": "symbol", "status": "eq.listed",
                                           "series": "in.(EQ,BE)", "order": "symbol"})
         cutoff = (datetime.now(timezone.utc) - timedelta(days=a.stale_days)).isoformat()
-        fresh = {r["symbol"] for r in select_all(
+        fresh = {r["symbol"] for r in db.select_all(
             "company_snapshot", {"select": "symbol", "fetched_at": f"gte.{cutoff}"})}
         symbols = [r["symbol"] for r in listed if r["symbol"] not in fresh]
     if a.limit:

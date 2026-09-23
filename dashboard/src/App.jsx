@@ -6,8 +6,12 @@ import BuybackTable from './components/BuybackTable'
 import DealsView from './components/DealsView'
 import TrackedPositions from './components/TrackedPositions'
 import ScanHistory from './components/ScanHistory'
+import CompanySearch from './components/CompanySearch'
+import CompanyPage from './components/CompanyPage'
+import useHashRoute from './useHashRoute'
 
 export default function App() {
+  const route = useHashRoute()
   const [buybacks, setBuybacks] = useState([])
   const [deals, setDeals] = useState([])
   const [runs, setRuns] = useState([])
@@ -73,6 +77,12 @@ export default function App() {
 
       {error && <div className="banner error" role="alert">⚠ {error}</div>}
 
+      {configured && route.page === 'company' ? (
+        <CompanyPage symbol={route.symbol} />
+      ) : (
+      <>
+      <CompanySearch />
+
       <SignalsOverview signals={signals} />
 
       {loading ? (
@@ -85,10 +95,12 @@ export default function App() {
           <ScanHistory rows={runs} />
         </>
       )}
+      </>
+      )}
 
       <footer className="app-footer">
         Read-only surfacing · data from Supabase (RLS read-only) · writes via the <code>track</code> CLI ·
-        deals refresh via Supabase Edge Function
+        deals refresh via Supabase Edge Function · fundamentals from screener.in
       </footer>
     </div>
   )
