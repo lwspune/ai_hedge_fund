@@ -65,6 +65,10 @@ drift-signal chasing.
   (`supabase/functions/`, deployed via MCP) which scrapes today's NSE CSV server-side. NSE
   static CSVs + chittorgarh reach datacenter IPs, so edge functions can ingest. Prices live in
   the cloud price store (I2 below): a 2-year table + the full raw history in a Storage bucket.
+- **Alerts** — `scanner/notify.py` (pure: which candidates alert + text) + `scripts/notify_telegram.py`
+  (daily, after the scans): a newly open buyback tender or a `BUY RE` rights entitlement → one Telegram
+  message, once per opportunity (`alerts_sent`, unique `(signal_name, alert_key)`; key recorded only after
+  Telegram accepts). Secrets `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`; `--dry-run`, `--test`.
 - **Dashboard (P3)** — `dashboard/` (Vite + React + supabase-js, read-only, hash-routed, no
   router/UI kit). Views: **Desk** `#/` (freshness strip · Act: open buybacks from the latest scan's
   `payload.is_open` + rights entitlements · Avoid: anchor unlocks, 14 d), **Signals** `#/signals`
@@ -185,7 +189,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (425 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (433 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -193,7 +197,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
 **Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):
 `refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, IPOs +
 120-day re-check, rights, board meetings/results, band changes, ASM/GSM snapshot, PIT insider
-filings, preferential issues, filings + KPIs, 10-day deals refill, buyback + rights scans) and
+filings, preferential issues, filings + KPIs, 10-day deals refill, buyback + rights scans, Telegram alerts) and
 `refresh-weekly` (Sun 10:00 IST: trading calendar, price prune, company master + index membership,
 fundamentals + snapshot history, shareholding/pledge (2 new quarters per symbol), filings archive;
 `smoke` input for a 5-company test). Both call `scripts/scheduled_refresh.py`;
@@ -322,6 +326,10 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   allottees. Thesis refined, not broken.
 - **2026-09-24** — BSE JSON stays out: 403 from GitHub runners (works only residential). *Reason:*
   the laptop must never be a dependency; delisting RBB remains parked.
+
+- **2026-09-24** — Telegram alerts for **new Act candidates only** (no digest, no failure pings —
+  GitHub already emails those). Every open buyback alerts (not gated on `exp_return`): the verdict is
+  tax-slab conditional, so the call stays manual. *Reason:* signal over noise; dedup is a DB constraint.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
