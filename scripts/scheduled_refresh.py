@@ -30,7 +30,8 @@ def steps(mode: str, today: date) -> list[list[str]]:
                 ["-m", "scanner.run", "rights_re", "--save"], ["check_freshness.py"]]
     if mode == "weekly":  # fundamentals rows carry `history`, so no separate rebuild step
         return [["refresh_events.py", "holidays"], ["refresh_prices.py", "--prune"],
-                ["refresh_companies.py"], ["refresh_fundamentals.py"], ["check_freshness.py"]]
+                ["refresh_companies.py"], ["refresh_fundamentals.py"], ["archive_filings.py"],
+                ["check_freshness.py"]]
     raise ValueError(f"unknown mode {mode!r}")
 
 

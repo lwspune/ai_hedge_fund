@@ -3,7 +3,7 @@ filing done so runs resume. The daily cloud job runs it with a cap, so the histo
 clears itself over a couple of weeks while new filings are covered the same day.
 
     python scripts/extract_kpis.py --limit 1500
-    python scripts/extract_kpis.py --since 2025-07-01 --limit 200
+    python scripts/extract_kpis.py --since 2025-07-01 --limit 200   # default floor: 2024-01-01
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def pending(limit: int, since: str, orders_only: bool = False) -> list[dict]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=1500)
-    ap.add_argument("--since", default="2025-07-01")
+    ap.add_argument("--since", default="2024-01-01")  # WP8: KPI history from the order-win category start
     ap.add_argument("--orders-only", action="store_true", help="only order-win disclosures (event studies)")
     a = ap.parse_args()
     todo = pending(a.limit, a.since, a.orders_only)

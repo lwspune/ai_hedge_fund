@@ -35,6 +35,8 @@ KEEP = {
     "Qualified Institutional Placement", "Issue of Securities",
     "Reply to Clarification- Financial results", "Clarification - Financial Results",
 }
+SUBJECT_MAX = 300   # the table's biggest column (free-tier size); the full text is in the PDF
+
 # Catch-alls kept only when the subject is about the business.
 CATCH_ALL = {"General Updates", "Updates", "Others"}
 _BUSINESS = re.compile(r"order|contract|letter of (award|intent)|\bLOA\b|\bLOI\b|capacity|plant|"
@@ -72,7 +74,7 @@ def parse_announcements(raw: list[dict]) -> list[dict]:
         out.append({
             "seq_id": int(sid), "symbol": sym, "isin": (r.get("sm_isin") or None),
             "company": (r.get("sm_name") or None), "category": (r.get("desc") or "").strip(),
-            "subject": ((r.get("attchmntText") or "").strip()[:600] or None),
+            "subject": ((r.get("attchmntText") or "").strip()[:SUBJECT_MAX] or None),
             "disclosed_at": ts.strftime("%Y-%m-%dT%H:%M:%S") + "+05:30",
             "attachment_url": url if url.startswith("http") else None,
             "size_kb": _size_kb(r.get("attFileSize") or r.get("fileSize")),

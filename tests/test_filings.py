@@ -43,3 +43,16 @@ def test_keep_material_categories_and_keyword_filtered_catch_alls():
     assert keep({"category": "General Updates", "subject": "Company received Letter of Award worth Rs 120 Cr"})
     assert keep({"category": "Updates", "subject": "Commissioning of new plant capacity"})
     assert not keep({"category": "General Updates", "subject": "Loss of share certificate"})
+
+
+def test_subject_capped_at_300_chars():
+    """WP8: the table's biggest column; the full text lives in the PDF."""
+    rows = parse_announcements([_raw(attchmntText="x" * 700)])
+    assert len(rows[0]["subject"]) == 300
+
+
+def test_kpi_extraction_floor_is_2024():
+    """WP8: order-win / KPI history back to the category's start (order_wins full n)."""
+    import inspect
+    import scripts.extract_kpis as ek
+    assert '"2024-01-01"' in inspect.getsource(ek.main)

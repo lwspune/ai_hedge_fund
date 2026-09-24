@@ -30,6 +30,7 @@ def test_weekly_steps_refresh_master_before_fundamentals():
     assert s.index(["refresh_companies.py"]) < s.index(["refresh_fundamentals.py"])
     assert ["refresh_events.py", "holidays"] in s          # trading calendar (WP6)
     assert ["refresh_prices.py", "--prune"] in s           # daily_prices retention (WP3)
+    assert ["archive_filings.py"] in s                     # filings retention (WP8)
     assert s[-1] == ["check_freshness.py"]
 
 
