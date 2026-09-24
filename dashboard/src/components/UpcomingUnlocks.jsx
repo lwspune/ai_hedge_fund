@@ -16,7 +16,7 @@ const COLUMNS = [
     render: (r) => <>{fmtDate(r.event_date)} <span className="rel">{fmtRelative(r.event_date)}</span></>,
   },
   { key: 'symbol', header: 'Company', render: (r) => <SymbolLink symbol={r.symbol} /> },
-  { key: 'event_type', header: 'Unlock', render: (r) => (r.event_type === 'anchor_lockin_90' ? 'Rest at 90 d' : '50% at 30 d') },
+  { key: 'event_type', header: 'Unlock', nowrap: true, render: (r) => (r.event_type === 'anchor_lockin_90' ? 'Rest at 90 d' : '50% at 30 d') },
   { key: 'board', header: 'Board', render: (r) => (r.details?.board === 'sme' ? 'SME' : r.details?.board ? 'Mainboard' : null) },
   { key: 'anchor_shares', header: 'Anchor shares', align: 'right', render: (r) => fmtQty(r.details?.anchor_shares) },
 ]
@@ -34,7 +34,7 @@ export default function UpcomingUnlocks() {
   }, [])
 
   return (
-    <Section id="unlocks" title={`Anchor unlocks, next ${DAYS} days`}
+    <Section id="unlocks" title={`Anchor unlocks, next ${DAYS} days`} level={3}
              info={`${signalHeadline('lockin_expiry')}. Avoid buying into it; consider exiting a recent IPO before T−1.`}
              infoHref="#/signals">
       {loading ? <Loading label="Loading anchor unlocks"><SkeletonTable rows={3} cols={5} /></Loading>

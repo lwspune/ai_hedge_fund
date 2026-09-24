@@ -12,6 +12,9 @@ const missing = (v) => v == null || (typeof v === 'number' && Number.isNaN(v)) |
 export const dash = (v, fn) => (missing(v) ? DASH : fn(v))
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+// '2025-12-24T00:00:00' with no Z / offset (Python isoformat of a naive datetime): the
+// scanner writes these in IST, so read the wall time as-is, never through the browser zone.
+const NAIVE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/
 
 const istParts = new Intl.DateTimeFormat('en-GB', {
   timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -23,6 +26,11 @@ function parts(v) {
   if (typeof v === 'string' && DATE_ONLY.test(v)) {
     const [y, m, d] = v.split('-').map(Number)
     return { y, m, d, hh: 0, mm: 0 }
+  }
+  const n = typeof v === 'string' && NAIVE.exec(v)
+  if (n) {
+    const [y, m, d, hh, mm] = n.slice(1).map(Number)
+    return { y, m, d, hh, mm }
   }
   const t = v instanceof Date ? v : new Date(v)
   if (Number.isNaN(t.getTime())) return null

@@ -42,7 +42,7 @@ const COLUMNS = [
 export default function RightsPanel() {
   const { loading, error, data } = useLoad(() => latestScan('rights_re'), [])
   return (
-    <Section id="rights" title="Rights entitlements trading"
+    <Section id="rights" title="Rights entitlements trading" level={3}
              meta={data?.runAt ? `as of ${fmtDateTime(data.runAt)}` : null}
              info={`${signalHeadline('rights_re')}. Only worth it if you want the stock anyway.`}
              infoHref="#/signals">

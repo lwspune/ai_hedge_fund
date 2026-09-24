@@ -32,6 +32,10 @@ describe('fmtDate', () => {
   it('shows the year otherwise', () => {
     expect(fmtDate('2025-09-24', TODAY)).toBe('24 Sep 2025')
   })
+  it('reads a zone-less timestamp (scanner payloads) as a calendar date, not browser-local', () => {
+    expect(fmtDate('2025-12-24T00:00:00', TODAY)).toBe('24 Dec 2025')
+    expect(fmtRelative('2026-09-25T00:00:00', TODAY)).toBe('tomorrow')
+  })
   it('reads a timestamp as its IST calendar date', () => {
     // 20:00 UTC on 23 Sep is 01:30 IST on 24 Sep
     expect(fmtDate('2026-09-23T20:00:00+00:00', TODAY)).toBe('24 Sep')
@@ -42,6 +46,9 @@ describe('fmtDateTime', () => {
   it('converts UTC to IST explicitly', () => {
     expect(fmtDateTime('2026-09-24T10:30:00+00:00', TODAY)).toBe('24 Sep, 16:00 IST')
     expect(fmtDateTime('2026-09-24T10:30:00Z', TODAY)).toBe('24 Sep, 16:00 IST')
+  })
+  it('reads a zone-less timestamp as IST wall time', () => {
+    expect(fmtDateTime('2026-09-24T16:00:00', TODAY)).toBe('24 Sep, 16:00 IST')
   })
   it('crosses midnight into the next IST day', () => {
     expect(fmtDateTime('2026-09-23T20:00:00Z', TODAY)).toBe('24 Sep, 01:30 IST')
