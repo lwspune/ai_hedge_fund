@@ -35,13 +35,21 @@ PLACEBO = {"placebo_pre": (-20, -17), "placebo_post": (15, 18)}
 OUT = Path(__file__).resolve().parent.parent / "cache" / "lockin_results.csv"
 
 
-def fmt(label: str, xs) -> str:
-    s = summarize(list(xs))
+def fmt(label: str, xs, clusters=None) -> str:
+    """clusters: one label per value (expiry week) -> adds the cluster-robust t; unlocks in the
+    same week share market shocks, so the iid t overstates the evidence."""
+    s = summarize(list(xs), clusters=None if clusters is None else list(clusters))
     if not s["n"]:
         return f"  {label:<34} n=  0"
     t = f"{s['t_stat']:+5.1f}" if s["t_stat"] is not None else "  n/a"
+    tc = (f"  t_wk={s['t_cluster']:+5.1f} ({s['n_clusters']} wks)"
+          if s.get("t_cluster") is not None else "")
     return (f"  {label:<34} n={s['n']:>4}  mean={s['mean']*100:+6.2f}%  "
-            f"median={s['median']*100:+6.2f}%  up={s['pct_positive']*100:4.0f}%  t={t}")
+            f"median={s['median']*100:+6.2f}%  up={s['pct_positive']*100:4.0f}%  t={t}{tc}")
+
+
+def _weeks(sub: pd.DataFrame) -> pd.Series:
+    return pd.to_datetime(sub["expiry"]).dt.to_period("W").astype(str)
 
 
 def build() -> pd.DataFrame:
@@ -95,7 +103,8 @@ def report(df: pd.DataFrame) -> None:
         sub = ok[ok["kind"] == kind]
         print(f"-- {kind} expiry --")
         for w, (a, b) in WINDOWS.items():
-            print(fmt(f"{w:<6} T{a:+d}->T{b:+d}", sub[w].dropna()))
+            ok_w = sub[sub[w].notna()]
+            print(fmt(f"{w:<6} T{a:+d}->T{b:+d}", ok_w[w], clusters=_weeks(ok_w)))
 
     print("\n=== CONTROL: event window vs same-length placebo windows (same stocks) ===")
     for kind in ("30d", "90d"):

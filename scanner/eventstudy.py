@@ -45,21 +45,39 @@ def forward_abnormal_return(stock: pd.Series, bench: pd.Series, t0,
     return float(s_ret - b_ret)
 
 
-def summarize(cars: list) -> dict:
-    """Aggregate a list of abnormal returns into headline stats."""
-    vals = np.array([c for c in cars if c is not None], dtype="float64")
+def summarize(cars: list, clusters: list | None = None) -> dict:
+    """Aggregate a list of abnormal returns into headline stats.
+
+    `t_stat` treats events as independent. Events that share a date (an index review, a
+    volatile week) share market shocks, which overstates it; pass `clusters` (one label per
+    car, e.g. the review id or the expiry week) to also get `t_cluster`, the cluster-robust
+    (Liang-Zeger) t for the mean, and `n_clusters`. Needs >= 2 clusters.
+    """
+    pairs = [(c, None if clusters is None else clusters[i]) for i, c in enumerate(cars) if c is not None]
+    vals = np.array([c for c, _ in pairs], dtype="float64")
     if len(vals) == 0:
-        return {"n": 0, "mean": None, "median": None, "pct_positive": None, "t_stat": None}
+        out = {"n": 0, "mean": None, "median": None, "pct_positive": None, "t_stat": None}
+        if clusters is not None:
+            out.update(n_clusters=0, t_cluster=None)
+        return out
     mean = float(vals.mean())
     std = float(vals.std(ddof=1)) if len(vals) > 1 else float("nan")
     t_stat = float(mean / (std / np.sqrt(len(vals)))) if std and not np.isnan(std) else None
-    return {
+    out = {
         "n": int(len(vals)),
         "mean": mean,
         "median": float(np.median(vals)),
         "pct_positive": float((vals > 0).mean()),
         "t_stat": t_stat,
     }
+    if clusters is not None:
+        sums: dict = {}
+        for c, g in pairs:
+            sums[g] = sums.get(g, 0.0) + (c - mean)
+        se = float(np.sqrt(sum(v * v for v in sums.values())) / len(vals))
+        out["n_clusters"] = len(sums)
+        out["t_cluster"] = float(mean / se) if len(sums) >= 2 and se > 0 else None
+    return out
 
 
 def window_return(stock: pd.Series | None, bench: pd.Series, event_date, a: int, b: int):
