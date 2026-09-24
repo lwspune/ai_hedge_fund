@@ -34,6 +34,9 @@ def main():
         from_date=(date.today() - timedelta(days=10)).strftime("%d-%m-%Y"), to_date=date.today().strftime("%d-%m-%Y"))))
     probe("nselib prices (RELIANCE)", lambda: len(_fetch_nse("RELIANCE", start=(date.today() - timedelta(days=30)).isoformat())))
     probe("yfinance ^CRSLDX", lambda: len(_fetch_yf("^CRSLDX", raw=True)))
+    probe("NSE SAST reg29 JSON", lambda: len(__import__("scanner.insider", fromlist=["x"]).fetch_reg29(
+        date.today() - timedelta(days=14), date.today())))
+    probe("chittorgarh rights page", lambda: events.fetch_rights(454)[1]["symbol"])
     probe("screener.in TCS", lambda: fundamentals.fetch_company_page("TCS")[0]["ratios"].get("market_cap_cr"))
 
 
