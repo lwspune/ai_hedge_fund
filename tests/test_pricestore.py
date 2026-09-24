@@ -78,3 +78,31 @@ def test_get_closes_refetches_when_cache_is_behind_requested_end(tmp_path, monke
 def test_get_closes_returns_none_when_source_has_nothing(tmp_path, monkeypatch):
     monkeypatch.setitem(ps.FETCHERS, "yf", lambda symbol: pd.Series(dtype="float64"))
     assert ps.get_closes("NOPE", cache_dir=tmp_path, today=pd.Timestamp("2024-01-10")) is None
+
+
+def test_nse_frame_keeps_equity_series_and_prefers_eq():
+    df = pd.DataFrame({
+        "Date": ["02-Jan-2024", "02-Jan-2024", "03-Jan-2024", "04-Jan-2024", "05-Jan-2024"],
+        "Series": ["SM", "EQ", "ST", "W1", "BE"],
+        "ClosePrice": ["10", "11", "1,012.5", "999", "12"],
+    })
+    s = ps.nse_frame_to_series(df)
+    assert list(s.index) == list(pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-05"]))
+    assert list(s.values) == [11.0, 1012.5, 12.0]  # EQ wins the 2nd; warrant (W1) dropped
+
+
+def test_get_closes_refetches_when_request_starts_before_cached_coverage(tmp_path, monkeypatch):
+    calls = []
+    full = _s(pd.date_range("2020-01-01", "2024-01-10", freq="D"), 1.0)
+
+    def fake(symbol, start="2010-01-01"):
+        calls.append(start)
+        return full[full.index >= pd.Timestamp(start)]
+
+    monkeypatch.setitem(ps.FETCHERS, "nse", fake)
+    today = pd.Timestamp("2024-01-10")
+    a = ps.get_closes("X", "2023-06-01", source="nse", cache_dir=tmp_path, today=today)
+    ps.get_closes("X", "2023-07-01", source="nse", cache_dir=tmp_path, today=today)  # covered
+    b = ps.get_closes("X", "2021-01-01", source="nse", cache_dir=tmp_path, today=today)  # earlier
+    assert calls == ["2023-06-01", "2021-01-01"]
+    assert a.index.min() == pd.Timestamp("2023-06-01") and b.index.min() == pd.Timestamp("2021-01-01")

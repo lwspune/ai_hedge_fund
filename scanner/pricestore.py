@@ -4,7 +4,8 @@ and validation script.
 Sources (FETCHERS):
   "yf"  — yfinance `.NS`, split/bonus-adjusted, full history. Default; also serves
           benchmarks (pass the raw Yahoo ticker, e.g. "^NSEI", with raw=True).
-  "nse" — nselib bhavcopy-derived closes, EQ series only, UNADJUSTED. For delisted /
+  "nse" — nselib closes, equity series only (EQ preferred; BE/BZ/SME SM/ST/SZ kept), UNADJUSTED,
+          fetched from the requested `start` (coverage tracked in `_fetched.json`). For delisted /
           historical symbols Yahoo lacks, and for ANY comparison against a nominal rupee
           price (buyback / open-offer / delisting price): Yahoo's back-adjustment for later
           splits and bonuses makes such premiums wrong (SPORTKING 1:10 split -> "+1282%").
@@ -74,7 +75,26 @@ def _fetch_yf(symbol: str, raw: bool = False) -> pd.Series:
     return s
 
 
-def _fetch_nse(symbol: str, start: str = "2010-01-01") -> pd.Series:
+# Real equity series, in preference order when one date prints in several (EQ first).
+# Excludes warrants (W*), rights entitlements (E*/RE), debt, etc. SM/ST/SZ = SME board.
+NSE_SERIES = ("EQ", "BE", "BZ", "SM", "ST", "SZ")
+NSE_FROM = "2010-01-01"
+
+
+def nse_frame_to_series(df: pd.DataFrame) -> pd.Series:
+    """nselib price frame -> close series: allowed series only, one print per date (EQ first)."""
+    if df is None or len(df) == 0:
+        return pd.Series(dtype="float64")
+    ser = df["Series"].astype(str).str.strip() if "Series" in df else pd.Series("EQ", index=df.index)
+    rank = ser.map({s: i for i, s in enumerate(NSE_SERIES)})
+    d = pd.to_datetime(df["Date"], format="%d-%b-%Y", errors="coerce")
+    c = pd.to_numeric(df["ClosePrice"].astype(str).str.replace(",", ""), errors="coerce")
+    f = pd.DataFrame({"d": d, "c": c, "r": rank}).dropna().sort_values(["d", "r"])
+    f = f.drop_duplicates("d", keep="first")
+    return pd.Series(f["c"].values, index=pd.DatetimeIndex(f["d"].values), dtype="float64")
+
+
+def _fetch_nse(symbol: str, start: str = NSE_FROM) -> pd.Series:
     from nselib import capital_market as cm
     parts = []
     for y in range(pd.Timestamp(start).year, pd.Timestamp.today().year + 1):
@@ -85,12 +105,8 @@ def _fetch_nse(symbol: str, start: str = "2010-01-01") -> pd.Series:
                 symbol=symbol, from_date=f.strftime("%d-%m-%Y"), to_date=t.strftime("%d-%m-%Y"))
         except Exception:
             continue
-        if df is None or len(df) == 0:
-            continue
-        df = df[df["Series"].astype(str).str.strip() == "EQ"] if "Series" in df else df
-        d = pd.to_datetime(df["Date"], format="%d-%b-%Y", errors="coerce")
-        c = pd.to_numeric(df["ClosePrice"].astype(str).str.replace(",", ""), errors="coerce")
-        parts.append(pd.Series(c.values, index=d.values))
+        parts.append(nse_frame_to_series(df))
+    parts = [x for x in parts if len(x)]
     return pd.concat(parts) if parts else pd.Series(dtype="float64")
 
 
@@ -117,17 +133,28 @@ def get_closes(symbol: str, start=None, end=None, source: str = "yf",
     safe = symbol.replace("^", "_").replace("&", "_and_")
     fp = d / f"{safe}.parquet"
     log = _fetched_log(d)
+    entry = log.get(symbol)
+    if isinstance(entry, str):  # legacy log format: fetch date only, full history
+        entry = {"on": entry, "from": NSE_FROM}
+    # nse fetches are windowed (one request per year): only pull from the requested start.
+    need_from = (pd.Timestamp(start).date().isoformat() if start is not None else NSE_FROM)         if source == "nse" else None
+    covered = need_from is None or (entry and entry.get("from") and entry["from"] <= need_from)
 
     s = read_cache(fp) if fp.exists() else None
-    fresh = s is not None and (
+    fresh = s is not None and covered and (
         (len(s) and s.index.max() >= target - pd.Timedelta(days=STALE_DAYS))
-        or log.get(symbol) == today.date().isoformat())
+        or (entry or {}).get("on") == today.date().isoformat())
     if not fresh:
         fetch = FETCHERS[source]
-        raw = fetch(symbol, raw=True) if (source == "yf" and symbol.startswith("^")) else fetch(symbol)
+        if source == "yf" and symbol.startswith("^"):
+            raw = fetch(symbol, raw=True)
+        elif source == "nse":
+            raw = fetch(symbol, start=need_from)
+        else:
+            raw = fetch(symbol)
         s = clean_series(raw) if len(raw) else pd.Series(dtype="float64")
         write_cache(fp, s)
-        log[symbol] = today.date().isoformat()
+        log[symbol] = {"on": today.date().isoformat(), "from": need_from}
         (d / "_fetched.json").write_text(json.dumps(log, indent=0), encoding="utf-8")
     if s is None or not len(s):
         return None
