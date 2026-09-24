@@ -1,0 +1,36 @@
+name: refresh-weekly
+# Sunday 10:00 IST: company master + full-market screener fundamentals (~3-4 h, polite).
+on:
+  schedule:
+    - cron: "30 4 * * 0"        # 04:30 UTC = 10:00 IST Sunday
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: "Smoke test: company master + fundamentals for 5 companies only"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350        # GitHub hard limit is 360
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - if: ${{ !inputs.smoke }}
+        run: python scripts/scheduled_refresh.py weekly
+      - if: ${{ inputs.smoke }}
+        run: |
+          python -u scripts/refresh_companies.py
+          python -u scripts/refresh_fundamentals.py --symbols TCS,3MINDIA,NECLIFE,M&M,VIGOR --stale-days 0

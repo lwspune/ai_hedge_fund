@@ -1,0 +1,35 @@
+name: refresh-daily
+# Weekdays 20:30 IST: corporate actions, F&O bans, IPOs (+ recent re-check), 10-day deals
+# refill, buyback scan. A failed step fails the run -> GitHub emails the owner.
+on:
+  schedule:
+    - cron: "0 15 * * 1-5"      # 15:00 UTC = 20:30 IST
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write               # keepalive: re-enable schedules (public repos idle out at 60d)
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python scripts/scheduled_refresh.py daily
+      - name: keepalive
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow enable refresh-daily.yml --repo "$GITHUB_REPOSITORY"
+          gh workflow enable refresh-weekly.yml --repo "$GITHUB_REPOSITORY"
