@@ -75,21 +75,23 @@ drift-signal chasing.
     lock-in expiries) + `ipos`. `scripts/refresh_events.py actions|fo-ban|ipos`.
   - **I4 fundamentals** — `scanner/fundamentals.py` (`parse_company_page`, `pick_view`) → full
     statement history in `cache/fundamentals/<SYM>.parquet` (`load_statements`) + one
-    `company_snapshot` row/company (ratios, D/E, shareholding, `history` jsonb).
+    `company_snapshot` row/company (ratios, D/E, shareholding, `history` jsonb). Statement
+    parquet is also kept in the private Storage bucket `fundamentals` (the durable copy).
     `scripts/refresh_fundamentals.py` (~polite, hours for the full market; run weekly).
   - **I5** — the dashboard company page above.
 
 ## Data sources (free, proven)
-Local pulls (prices/fundamentals) run from the residential machine; the **static** sources
-(NSE archive CSVs + chittorgarh) also serve **datacenter IPs**, so the `refresh-deals` edge
-function ingests them server-side — only NSE's JS-gated JSON APIs block.
+**Every source below works from datacenter IPs** — verified from a GitHub Actions runner
+(`scripts/probe_sources.py`, workflow `probe-sources`), incl. nselib and screener.in. Only NSE's
+JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
 - **Prices** — yfinance (`.NS`, split-adjusted) primary; **nselib** for historical /
   delisted symbols and unadjusted closes (filter `Series=='EQ'`!); jugaad-data fallback.
 - **Fundamentals** — screener.in company pages (consolidated vs standalone: take the one with
   the later quarter — consolidated sometimes silently stops updating).
-- **Company master** — NSE static `EQUITY_L.csv`, `symbolchange.csv` (headerless),
+- **Company master** — NSE static `EQUITY_L.csv` (mainboard) + Emerge `SME_EQUITY_L.csv`
+  (underscored headers, 2-digit years), `symbolchange.csv` (headerless),
   `delisted.csv` (stale, ~2020); niftyindices `ind_*list.csv` for industry + membership.
-- **Corporate actions** — nselib `corporate_actions_for_equity` (residential IP). **F&O ban** —
+- **Corporate actions** — nselib `corporate_actions_for_equity`. **F&O ban** —
   `nsearchives.../archives/fo/sec_ban/fo_secban_DDMMYYYY.csv`. **IPOs** — chittorgarh
   `/ipo/x/<id>/` (Next.js payload keys, e.g. `timetable_anchor_lockin_end_dt_1`).
   **ASM/GSM** — JSON-gated, not available.
@@ -98,16 +100,24 @@ function ingests them server-side — only NSE's JS-gated JSON APIs block.
   static CSVs are the way in.
 - **Buybacks** — chittorgarh detail pages by id (`/buyback/x/<id>/`); list page is
   JS-rendered (not scrapable), so enumerate ids. Symbol is in `nseCode` (double-escaped).
+  **chittorgarh 307-redirects unknown ids** to a listing page that contains the marker text —
+  always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (117 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (141 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` (dashboard). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
 `scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
-Infra refresh (weekly): `scripts/refresh_companies.py` · `scripts/refresh_events.py actions|fo-ban|ipos` ·
-`scripts/refresh_fundamentals.py [--limit N] [--symbols A,B] [--stale-days 7]` ·
-`scripts/rebuild_snapshot_history.py` (no re-scrape).
+**Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):
+`refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, IPOs + 120-day re-check,
+10-day deals refill, buyback scan) and `refresh-weekly` (Sun 10:00 IST: company master +
+fundamentals; `smoke` input for a 5-company test). Both call `scripts/scheduled_refresh.py`;
+secrets `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` live in repo Actions secrets; a failed step
+fails the run → GitHub emails the owner. Manual: `gh workflow run refresh-daily.yml`.
+Individual loaders: `scripts/refresh_companies.py` · `scripts/refresh_events.py actions|fo-ban|ipos` ·
+`scripts/refresh_fundamentals.py [--symbols A,B] [--stale-days 7]` · `scripts/refill_deals.py --from`
+· `scripts/validate_lockin.py` · `scripts/rebuild_snapshot_history.py` (no re-scrape).
 
 ## Stack
 Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5lib · pytest ·
@@ -160,6 +170,12 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   out → use it to avoid buying into / exit ahead of unlocks.
 - **2026-09-24** — buyback_arb verdict now tax-slab conditional. *Reason:* re-validated on unadjusted
   prices (n=81): at a 30% slab the high-acceptance case is ~0 after tax; works at ≤20%.
+
+- **2026-09-24** — Scheduled refresh on **GitHub Actions**, not the laptop or edge functions.
+  *Reason:* every source (incl. nselib + screener) works from GitHub runners; Actions reuses the
+  Python unchanged (edge functions would mean re-porting parsers to TS, with minutes-long caps);
+  the public repo gets free minutes; failure emails come free; daily writes keep the free-tier
+  Supabase project from pausing. Keepalive step defeats the 60-day idle schedule disable.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

@@ -131,7 +131,7 @@ date-to-date math, run short-side abnormal return around expiry, then segment be
 
 ## 2026-09-24 (infra layer)
 
-### Backfill the market_deals gap (2026-09-12 → 2026-09-23) and keep the project awake
+### ~~Backfill the market_deals gap (2026-09-12 → 2026-09-23) and keep the project awake~~ — **DONE 2026-09-24** (refilled Jan–Sep 2026 via `scripts/refill_deals.py`; daily GitHub Actions writes + 10-day refill keep it whole and the project awake)
 
 The `refresh-deals-daily` pg_cron job's last run was 2026-09-11 although it is still active —
 consistent with the free-tier project being paused for inactivity (pausing stops pg_cron).
@@ -143,7 +143,7 @@ NSE's static CSV only serves *today*, so those days are missing from `market_dea
 range (same normaliser as `scripts/backfill_deals.py`); then either upgrade the plan or add a
 keep-alive (e.g. a GitHub Action pinging the REST API a few times a week).
 
-### Schedule the infra refreshes
+### ~~Schedule the infra refreshes~~ — **DONE 2026-09-24** (GitHub Actions `refresh-daily` / `refresh-weekly`; no laptop)
 
 `refresh_companies.py`, `refresh_events.py actions|fo-ban|ipos` and `refresh_fundamentals.py`
 are manual. nselib + screener need the residential IP, so cloud cron can't run them.
@@ -189,7 +189,7 @@ fetches (n=48 recorded vs 77 now).
   verdict ("conditional edge on high-acceptance small-caps, post-Oct-2024 tax kills the floor")
   to survive, with smaller gross numbers.
 
-### Buyback id probe follows chittorgarh redirects — **OPEN (surfaced 2026-09-24)**
+### ~~Buyback id probe follows chittorgarh redirects~~ — **DONE 2026-09-24** (CLI + edge fn v4; scan now stops after 46 pages)
 
 **Learning:** chittorgarh 307-redirects unknown ids to a listing page; `requests` follows it and
 the page contains the marker text, so a missing id looks real. Fixed for IPOs
