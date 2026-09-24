@@ -18,6 +18,9 @@ on:
           - validate_index_rebalance.py
           - validate_merger_arb.py
           - validate_deals_edge.py
+          - validate_pref_lockin.py
+          - validate_promoter_sells.py
+          - validate_turn_of_month.py
       args:
         description: "extra args, e.g. --exclude-results-window 2"
         required: false
