@@ -21,10 +21,13 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     assert ["refresh_surveillance.py"] in s              # daily ASM/GSM snapshot (history only exists if captured)
     assert ["refresh_insider.py"] in s                   # PIT disclosures (forward feed)
     assert ["refresh_prefissues.py"] in s                # preferential allotments + lock-in expiries
+    assert ["refresh_ofs.py"] in s                       # OFS retail-reservation events (candidate #23)
     assert s.index(["extract_kpis.py", "--limit", "1500"]) > s.index(["refresh_filings.py"])
     assert ["refill_deals.py", "--from", "2026-09-14"] in s  # 10-day lookback heals pauses
     assert ["-m", "scanner.run", "buyback_arb", "--save"] in s  # primary signal refreshed daily
     assert ["-m", "scanner.run", "rights_re", "--save"] in s   # RE panel data
+    # realized acceptance runs after the scan settled the rows it reads
+    assert s.index(["refresh_buyback_results.py"]) > s.index(["-m", "scanner.run", "buyback_arb", "--save"])
     n = s.index(["notify_telegram.py"])                  # alerts read the scans just saved
     assert n > s.index(["-m", "scanner.run", "buyback_arb", "--save"])
     assert n > s.index(["-m", "scanner.run", "rights_re", "--save"])

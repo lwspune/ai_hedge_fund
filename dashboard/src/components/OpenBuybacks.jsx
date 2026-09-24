@@ -39,7 +39,11 @@ const COLUMNS = [
   { key: 'cur_price', header: 'Price', align: 'right', render: (r) => fmtInr(p(r).cur_price) },
   { key: 'buyback_price', header: 'Buyback', align: 'right', render: (r) => fmtInr(p(r).buyback_price) },
   { key: 'premium', header: 'Premium', align: 'right', sortable: true, sortValue: (r) => p(r).premium, render: (r) => fmtPct(p(r).premium) },
-  { key: 'entitlement', header: 'Entitlement', align: 'right', render: (r) => fmtPct(p(r).entitlement_small, 0) },
+  {
+    key: 'entitlement', header: 'Entitlement', align: 'right', title: '~ = estimated from the small-holder float; the letter of offer is not out yet',
+    render: (r) => p(r).entitlement_small != null ? fmtPct(p(r).entitlement_small, 0)
+      : p(r).est_entitlement != null ? `${fmtPct(p(r).est_entitlement, 0)}~` : fmtPct(null),
+  },
   { key: 'acceptance', header: 'Est. acceptance', align: 'right', render: (r) => fmtPct(p(r).est_acceptance, 0) },
   {
     key: 'exp_return', header: 'After-tax est.', align: 'right', sortable: true, title: 'At the 30% slab; see Signals',

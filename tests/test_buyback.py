@@ -27,7 +27,7 @@ def test_parse_issue_size_strips_rupee_entity():
 
 
 def test_large_relative_buyback_boosts_acceptance():
-    # mid-cap (base ~0.30); a buyback worth 10% of mkt cap should lift acceptance.
+    # a buyback worth 10% of mkt cap should lift acceptance above the flat prior (untested nudge).
     base = estimate_acceptance(market_cap_cr=8000, entitlement_small=0.05)
     boosted = estimate_acceptance(market_cap_cr=8000, entitlement_small=0.05, issue_size_cr=800)
     assert boosted > base
@@ -69,27 +69,28 @@ def test_calibrate_skips_missing():
 
 # --- acceptance estimation (the selection model) ----------------------------
 
-def test_estimate_acceptance_small_cap_is_high():
-    # Small-cap: little retail tendering vs the reserved pool -> high acceptance.
-    assert estimate_acceptance(market_cap_cr=800, entitlement_small=0.10) >= 0.8
-
-
-def test_estimate_acceptance_large_cap_is_low_but_at_least_floor():
-    a = estimate_acceptance(market_cap_cr=200000, entitlement_small=0.05)
-    assert a < 0.3
-    assert a >= 0.05  # never below the guaranteed entitlement floor
+def test_estimate_acceptance_prior_is_flat_and_calibrated():
+    """2026-09-24: 24 published post-buyback response tables (2023-26) put small-shareholder
+    acceptance at 52% / 59% / 16% / 51% by cap bucket (median 42%, mean 51%) -- no market-cap
+    gradient. The old 90% small-cap / 12% large-cap guess is gone; the prior is flat until the
+    calibration says otherwise (`python -m scanner.calibrate`)."""
+    from scanner.buyback import _MCAP_ACCEPTANCE_PRIOR, CALIBRATED_ACCEPTANCE
+    assert {a for _, a in _MCAP_ACCEPTANCE_PRIOR} == {CALIBRATED_ACCEPTANCE}
+    assert 0.40 <= CALIBRATED_ACCEPTANCE <= 0.55
+    assert estimate_acceptance(market_cap_cr=800, entitlement_small=0.10) == pytest.approx(CALIBRATED_ACCEPTANCE)
+    assert estimate_acceptance(market_cap_cr=200000, entitlement_small=0.05) == pytest.approx(CALIBRATED_ACCEPTANCE)
 
 
 def test_estimate_acceptance_respects_entitlement_floor():
-    # Entitlement higher than the bucket base -> floor wins.
-    assert estimate_acceptance(market_cap_cr=200000, entitlement_small=0.40) == pytest.approx(0.40)
+    # Entitlement higher than the prior -> floor wins (it is guaranteed).
+    assert estimate_acceptance(market_cap_cr=200000, entitlement_small=0.60) == pytest.approx(0.60)
 
 
 def test_estimate_acceptance_unknown_mcap_falls_to_floor():
     assert estimate_acceptance(market_cap_cr=None, entitlement_small=0.12) == pytest.approx(0.12)
 
 
-def test_estimate_acceptance_monotonic_in_size():
+def test_estimate_acceptance_never_decreases_with_size():
     small = estimate_acceptance(800, 0.05)
     mid = estimate_acceptance(8000, 0.05)
     large = estimate_acceptance(80000, 0.05)
@@ -345,3 +346,96 @@ def test_entitlement_floor_prefers_published_ratio():
     bb["entitlement_small"] = None
     assert entitlement_floor(bb, 10000, 800, 10) == (pytest.approx(0.012), "estimated")
     assert entitlement_floor(bb, 10000, 800, None) == (None, None)
+
+
+# --- pre-letter-of-offer tenders (the record-date blind spot, 2026-09-24) -------------
+
+def test_parse_buyback_keeps_tender_before_letter_of_offer():
+    """Global Pet (id 248): tender offer, record date announced, entitlement not yet published.
+    This is exactly when a buyer must act, so the row must survive with entitlement None."""
+    from scanner.buyback import parse_buyback
+    bb = parse_buyback(_fx(248), 248)
+    assert bb is not None
+    assert bb["symbol"] == "GLOBALPET"
+    assert bb["buyback_price"] == 160
+    assert bb["record_date"] == pd.Timestamp("2026-09-25")
+    assert pd.isna(bb["close_date"])
+    assert bb["entitlement_small"] is None
+    assert bb["issue_type"] == "tender"
+    assert bb["issue_size_cr"] == pytest.approx(13.56)
+
+
+def test_parse_buyback_open_market_still_rejected():
+    from scanner.buyback import parse_buyback
+    assert parse_buyback(_fx(245), 245) is None          # Man Infra: open market
+
+
+def test_parse_buyback_unknown_type_without_entitlement_rejected():
+    from scanner.buyback import parse_buyback
+    assert parse_buyback("<html><title>Buyback Detail</title><table><tr><td>x</td></tr></table></html>", 1) is None
+
+
+def test_discover_keeps_pre_lof_tender_and_counts_it_parsed():
+    from scanner.buyback import discover_buybacks
+
+    pages = {300: _fx(248), 301: _fx(245)}
+
+    class R:
+        def __init__(self, bid):
+            self.status_code = 200 if bid in pages else 307
+            self.text = pages.get(bid, "<title>Buyback list</title>")
+
+    class S:
+        def get(self, url, **kw):
+            return R(int(url.rstrip("/").rsplit("/", 1)[1]))
+
+    stats = {}
+    out = discover_buybacks(300, max_gap=2, session=S(), stats=stats, delay=0)
+    assert [b["id"] for b in out] == [300]
+    assert out[0]["entitlement_small"] is None
+    assert stats == {"pages_seen": 2, "tender_parsed": 1, "rejected": 1}
+
+
+def test_enrich_uses_estimated_floor_when_entitlement_unpublished():
+    from scanner.buyback import enrich_buyback
+    bb = {"id": 248, "symbol": "GLOBALPET", "buyback_price": 160.0, "record_date": pd.Timestamp("2026-09-25"),
+          "close_date": pd.NaT, "entitlement_small": None, "issue_size_cr": 13.56, "issue_type": "tender"}
+    r = enrich_buyback(bb, cur=140.0, market_cap_cr=120.0, small_holder_pct=40.0, today=pd.Timestamp("2026-09-24"))
+    assert r["premium"] == pytest.approx(160 / 140 - 1)
+    assert r["entitlement_source"] == "estimated"
+    assert 0 < r["est_entitlement"] <= 1
+    assert r["est_acceptance"] >= r["est_entitlement"]
+    assert r["est_return"] is not None and r["exp_return"] is not None
+    assert r["is_open"] is True                      # no close date yet = window not over
+
+
+def test_enrich_without_any_floor_still_ranks_on_acceptance_prior():
+    from scanner.buyback import enrich_buyback
+    bb = {"id": 1, "symbol": "X", "buyback_price": 120.0, "record_date": pd.Timestamp("2026-09-25"),
+          "close_date": pd.NaT, "entitlement_small": None, "issue_size_cr": None, "issue_type": "tender"}
+    r = enrich_buyback(bb, cur=100.0, market_cap_cr=500.0, small_holder_pct=None, today=pd.Timestamp("2026-09-24"))
+    assert r["entitlement_source"] is None and r["est_entitlement"] is None
+    assert r["est_return"] is None                   # no floor -> no floor estimate
+    from scanner.buyback import CALIBRATED_ACCEPTANCE
+    assert r["est_acceptance"] == pytest.approx(CALIBRATED_ACCEPTANCE)  # flat calibrated prior
+    assert r["exp_return"] is not None
+
+
+def test_enrich_published_entitlement_wins():
+    from scanner.buyback import enrich_buyback
+    bb = {"id": 2, "symbol": "Y", "buyback_price": 120.0, "record_date": pd.Timestamp("2026-09-01"),
+          "close_date": pd.Timestamp("2026-09-17"), "entitlement_small": 0.25, "issue_size_cr": 50.0,
+          "issue_type": "tender"}
+    r = enrich_buyback(bb, cur=100.0, market_cap_cr=500.0, small_holder_pct=40.0, today=pd.Timestamp("2026-09-24"))
+    assert r["entitlement_source"] == "published"
+    assert r["est_return"] == pytest.approx(__import__("scanner.buyback", fromlist=["arb_return"]).arb_return(100, 120, 100, 0.25))
+    assert r["is_open"] is False
+
+
+def test_format_table_marks_estimated_entitlement():
+    from scanner.buyback import format_buyback_table
+    row = {"symbol": "GLOBALPET", "cur_price": 140.0, "buyback_price": 160.0, "premium": 0.1429,
+           "market_cap_cr": 120.0, "entitlement_small": None, "est_entitlement": 0.31, "entitlement_source": "estimated",
+           "est_acceptance": 0.9, "exp_return": 0.05, "is_open": True}
+    out = format_buyback_table([row])
+    assert "GLOBALPET" in out and "31%~" in out and "OPEN" in out

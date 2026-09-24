@@ -56,3 +56,19 @@ def test_kpi_extraction_floor_is_2024():
     import inspect
     import scripts.extract_kpis as ek
     assert '"2024-01-01"' in inspect.getsource(ek.main)
+
+
+def test_keep_buyback_lifecycle_categories():
+    """The buyback lifecycle on NSE: record date -> public announcement -> letter of offer ->
+    post-buyback announcement (realized acceptance) -> closure. All kept (2026-09-24)."""
+    assert keep({"category": "Post Buyback Public Announcement", "subject": "x"})
+    assert keep({"category": "Closure of Buy Back", "subject": "x"})
+    assert keep({"category": "Buyback", "subject": "x"})
+    assert keep({"category": "Public Announcement - Buyback of Shares", "subject": "x"})
+    # generic categories only when the subject is about a buyback
+    assert keep({"category": "Record Date", "subject": "Record date for the purpose of Buyback is 21-Aug-2026"})
+    assert not keep({"category": "Record Date", "subject": "Record date for the purpose of Dividend"})
+    assert keep({"category": "Copy of Newspaper Publication", "subject": "Post Buyback Newspaper advertisement"})
+    assert keep({"category": "Copy of Newspaper Publication", "subject": "Post Buy-back Public Announcement"})
+    assert not keep({"category": "Copy of Newspaper Publication", "subject": "Notice of AGM"})
+    assert keep({"category": "Updates", "subject": "Submission of Letter of Offer for buy back of shares"})

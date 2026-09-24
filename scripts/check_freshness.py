@@ -49,6 +49,9 @@ def queries(today: date) -> dict:
         "insider_trades": ("insider_trades", "broadcast_at", {}, 5),       # ~35 PIT filings / trading day
         "pref_issues": ("pref_issues", "updated_at", {}, 5),               # daily 45-day window re-upserted
         "pref_lockin": ("corporate_events", "created_at", {"source": "eq.nse_pref"}, 21),  # ~2 listings / day
+        # ~2 tenders/month settle; a result lands ~3 weeks after each close
+        "buyback_results": ("buyback_results", "updated_at", {}, 120),
+        "ofs_events": ("ofs_events", "updated_at", {}, 7),   # daily probe re-touches the newest ids
         # evaluated by frontier_stuck(), not stale(): a new buyback row = the frontier advanced
         "buyback_frontier": ("buybacks", "created_at", {}, FRONTIER_MAX_DAYS),
     }

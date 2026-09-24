@@ -25,9 +25,11 @@ def steps(mode: str, today: date) -> list[list[str]]:
                 ["refresh_events.py", "ipos"], ["refresh_events.py", "rights"],
                 ["refresh_events.py", "board-meetings"], ["refresh_events.py", "bands"],
                 ["refresh_surveillance.py"], ["refresh_insider.py"], ["refresh_prefissues.py"],
+                ["refresh_ofs.py"],
                 ["refresh_filings.py"], ["extract_kpis.py", "--limit", "1500"],
                 ["refill_deals.py", "--from", (today - timedelta(days=DEALS_LOOKBACK_DAYS)).isoformat()],
                 ["-m", "scanner.run", "buyback_arb", "--save"],
+                ["refresh_buyback_results.py"],  # after the scan: needs the settled rows it upserted
                 ["-m", "scanner.run", "rights_re", "--save"],
                 ["notify_telegram.py"],  # after the scans: alerts read the runs just saved
                 ["check_freshness.py"]]

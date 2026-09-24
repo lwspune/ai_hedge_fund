@@ -22,16 +22,20 @@ def main():
         outcomes = db.select("outcomes", {
             "select": "realized_acceptance,tenders(buybacks(symbol,record_date))",
         })
+        # every tender's published response table (scripts/refresh_buyback_results.py) — the
+        # market-wide sample; your own outcomes are a subset of the same numbers
+        results = db.select_all("buyback_results", {
+            "select": "ss_acceptance,buybacks(symbol,record_date)", "ss_acceptance": "not.is.null"})
     except Exception as e:
         print(f"[error] {e}")
         return
 
     from datetime import date
     from scanner.pointintime import mcap_at_symbol
+    pairs = [(((o.get("tenders") or {}).get("buybacks")) or {}, o.get("realized_acceptance")) for o in outcomes]
+    pairs += [(r.get("buybacks") or {}, r.get("ss_acceptance")) for r in results]
     recs = []
-    for o in outcomes:
-        ra = o.get("realized_acceptance")
-        bb = ((o.get("tenders") or {}).get("buybacks")) or {}
+    for bb, ra in pairs:
         sym, rd = bb.get("symbol"), bb.get("record_date")
         if ra is None or not sym or not rd:
             continue
@@ -39,13 +43,15 @@ def main():
             mc = mcap_at_symbol(sym, date.fromisoformat(rd))
         except Exception:
             mc = None
-        recs.append({"market_cap_cr": mc, "realized_acceptance": ra})
+        recs.append({"symbol": sym, "record_date": rd, "market_cap_cr": mc, "realized_acceptance": float(ra)})
 
     cal = calibrate_from_outcomes(recs)
-    print(f"Outcomes with realized acceptance: {len(recs)}")
+    print(f"Tenders with realized small-shareholder acceptance: {len(recs)} "
+          f"({len(results)} published results, {len(outcomes)} own outcomes; "
+          f"{sum(r['market_cap_cr'] is None for r in recs)} without an as-of market cap)")
     if not cal:
-        print("Nothing to calibrate yet — log tenders+outcomes via `scanner.track`, "
-              "then re-run. The prior stays the hardcoded heuristic until then.")
+        print("Nothing to calibrate yet — run scripts/refresh_buyback_results.py --all, or log "
+              "tenders+outcomes via `scanner.track`, then re-run. The prior stays the heuristic until then.")
         return
 
     prior = dict(zip(_LABELS, [a for _, a in _MCAP_ACCEPTANCE_PRIOR]))

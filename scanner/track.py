@@ -51,6 +51,38 @@ def cmd_outcome(a):
           f"(realized acceptance {a.acceptance}).")
 
 
+def cmd_result(a):
+    """Hand-entered response table (the post-buyback PDF was a newspaper scan)."""
+    from scanner.buyback_results import results_row
+    parsed = {"ss_reserved": a.ss_reserved, "ss_tendered": a.ss_tendered, "ss_bids": a.ss_bids,
+              "total_reserved": a.total_reserved, "total_tendered": a.total_tendered,
+              "ss_response_pct": round(a.ss_tendered / a.ss_reserved * 100, 2) if a.ss_reserved else None}
+    row = results_row(a.buyback_id, parsed, url=a.url, parsed_by="manual")
+    good, bad = db.upsert_resilient("buyback_results", [row], "buyback_id")
+    if bad:
+        print(f"rejected: {bad[0][1][-160:]}")
+        return
+    print(f"Recorded result for buyback {a.buyback_id}: small-shareholder acceptance "
+          f"{row['ss_acceptance']:.0%} (reserved {a.ss_reserved:,}, tendered {a.ss_tendered:,}).")
+
+
+def cmd_results(_):
+    rows = db.select("buyback_results", {"select": "buyback_id,ss_acceptance,ss_response_pct,needs_manual,"
+                                                   "source_url,buybacks(symbol,record_date)",
+                                         "order": "buyback_id.desc", "limit": "40"})
+    if not rows:
+        print("No results stored. Run: python scripts/refresh_buyback_results.py --all")
+        return
+    print(f"{'ID':>4}  {'SYM':<12}{'RECORD':>12}{'RESP%':>8}{'ACCEPT':>8}  NOTE")
+    for r in rows:
+        bb = r.get("buybacks") or {}
+        acc = f"{r['ss_acceptance']*100:.0f}%" if r.get("ss_acceptance") is not None else "-"
+        resp = f"{r['ss_response_pct']:.1f}" if r.get("ss_response_pct") is not None else "-"
+        note = f"MANUAL: {r.get('source_url')}" if r.get("needs_manual") else ""
+        print(f"{r['buyback_id']:>4}  {(bb.get('symbol') or '?'):<12}{str(bb.get('record_date') or '')[:10]:>12}"
+              f"{resp:>8}{acc:>8}  {note}")
+
+
 def cmd_tenders(_):
     rows = db.select("tenders", {"select": "id,buyback_id,decided_on,shares_bought,capital,tendered",
                                  "order": "decided_on.desc", "limit": "30"})
@@ -79,6 +111,17 @@ def main(argv=None):
     t.add_argument("--not-tendered", action="store_true", help="bought but did not tender")
     t.add_argument("--notes")
     t.set_defaults(fn=cmd_tender)
+
+    sub.add_parser("results", help="list realized acceptance results").set_defaults(fn=cmd_results)
+    rs = sub.add_parser("result", help="hand-enter a post-buyback response table (scanned PDF)")
+    rs.add_argument("--buyback-id", type=int, required=True)
+    rs.add_argument("--ss-reserved", type=int, required=True, help="shares reserved for small shareholders")
+    rs.add_argument("--ss-tendered", type=int, required=True, help="shares validly tendered by them")
+    rs.add_argument("--ss-bids", type=int)
+    rs.add_argument("--total-reserved", type=int)
+    rs.add_argument("--total-tendered", type=int)
+    rs.add_argument("--url", help="the announcement PDF")
+    rs.set_defaults(fn=cmd_result)
 
     o = sub.add_parser("outcome", help="record a realized outcome")
     o.add_argument("--tender-id", type=int, required=True)

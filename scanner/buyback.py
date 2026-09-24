@@ -74,15 +74,19 @@ def after_tax_return(entry_price, buyback_price, post_price, accept_frac, regime
 
 # --- selection model: acceptance estimate + expected return -----------------
 
-# Heuristic PRIOR (not a fitted model — we lack clean realized-acceptance training
-# data). Small-caps see little retail tendering vs the 15% reserved pool, so retail
-# acceptance runs high; large-caps get crowded, collapsing toward the entitlement
-# floor. The P2 outcomes feedback loop is meant to calibrate these over time.
+# Acceptance PRIOR by market-cap bucket. Calibrated 2026-09-24 on 24 published post-buyback
+# response tables (`buyback_results`, 2023-26): realized small-shareholder acceptance 52% /
+# 59% / 16% / 51% by bucket (median 42%, mean 51%, range 6%-100%) -- NO market-cap gradient.
+# The earlier guess (90% small-cap, 12% large-cap) is retired; the prior is flat until
+# `python -m scanner.calibrate` shows a bucket diverging on a decent n. What does move
+# acceptance (hint from the 2026 tenders: a bigger premium draws more retail tendering) is the
+# next calibration question, not a rule yet.
+CALIBRATED_ACCEPTANCE = 0.45
 _MCAP_ACCEPTANCE_PRIOR = [
-    (2_000, 0.90),     # < 2,000 cr  -> small-cap
-    (10_000, 0.55),    # < 10,000 cr -> small/mid
-    (30_000, 0.30),    # < 30,000 cr -> mid
-    (float("inf"), 0.12),  # large-cap
+    (2_000, CALIBRATED_ACCEPTANCE),     # < 2,000 cr  -> small-cap
+    (10_000, CALIBRATED_ACCEPTANCE),    # < 10,000 cr -> small/mid
+    (30_000, CALIBRATED_ACCEPTANCE),    # < 30,000 cr -> mid
+    (float("inf"), CALIBRATED_ACCEPTANCE),  # large-cap
 ]
 
 
@@ -222,7 +226,8 @@ def parse_buyback(html: str, bid: int) -> dict | None:
     """Parse a chittorgarh buyback page (no network). None unless it's a tender
     offer with a small-shareholder entitlement (the arbable kind)."""
     txt = _text(html)
-    if parse_issue_type(html) == "open_market":
+    issue_type = parse_issue_type(html)
+    if issue_type == "open_market":
         return None  # only tender offers carry the small-shareholder reservation
 
     try:
@@ -247,8 +252,12 @@ def parse_buyback(html: str, bid: int) -> dict | None:
     if entitlement is None:
         entitlement = parse_entitlement(
             txt[txt.find("Small Shareholders"):] if "Small Shareholders" in txt else "")
-    if entitlement is None:
+    if entitlement is None and issue_type != "tender":
         return None  # not an arbable tender offer
+    # A tender offer whose entitlement is not yet published (chittorgarh fills it from the
+    # letter of offer, which lands AFTER the record date) is kept with entitlement None: the
+    # scan estimates the floor from the small-shareholder float instead. Dropping it here is
+    # how Global Pet (id 248, record date 2026-09-25) went unseen the day before its record date.
 
     title = ""
     m = re.search(r"<title>(.*?)</title>", html, re.S)
@@ -282,6 +291,7 @@ def parse_buyback(html: str, bid: int) -> dict | None:
         "close_date": close_date,
         "entitlement_small": entitlement,
         "issue_size_cr": parse_issue_size(txt),
+        "issue_type": issue_type or "tender",   # an entitlement table only exists on tenders
     }
 
 
@@ -333,7 +343,8 @@ def discover_buybacks(start_id: int, max_gap: int = 12, hard_cap: int = 120, ses
             bb = parse_buyback(html, bid - 1)
         except Exception:
             bb = None
-        if not bb or not bb["symbol"] or not bb["buyback_price"] or not bb["entitlement_small"]:
+        if (not bb or not bb["symbol"] or not bb["buyback_price"]
+                or (not bb["entitlement_small"] and bb.get("issue_type") != "tender")):
             st["rejected"] += 1
             continue
         st["tender_parsed"] += 1
@@ -356,13 +367,55 @@ def latest_small_holder(symbol: str) -> dict:
         return {}
 
 
+def enrich_buyback(bb: dict, cur: float, market_cap_cr, small_holder_pct, today,
+                   small_holder_quarter=None) -> dict:
+    """Pure per-offer enrichment (no network): premium vs the unadjusted close, the entitlement
+    floor (published, else estimated from the small-shareholder float, else none), the acceptance
+    prior and the after-tax expected return. A tender without a close date yet (pre letter of
+    offer) is `is_open`: the window has not closed, and the record date is the moment to act."""
+    floor, floor_src = entitlement_floor(bb, market_cap_cr, cur, small_holder_pct)
+    acc = estimate_acceptance(market_cap_cr, floor, issue_size_cr=bb.get("issue_size_cr"))
+    r = dict(bb)
+    r.update(
+        cur_price=cur, premium=bb["buyback_price"] / cur - 1, market_cap_cr=market_cap_cr,
+        est_acceptance=acc, small_holder_pct=small_holder_pct, small_holder_quarter=small_holder_quarter,
+        est_entitlement=floor if floor_src == "estimated" else estimate_entitlement(
+            bb.get("issue_size_cr"), bb["buyback_price"], market_cap_cr, cur, small_holder_pct),
+        entitlement_source=floor_src,
+        est_return=arb_return(cur, bb["buyback_price"], cur, floor) if floor is not None else None,
+        exp_return=expected_after_tax(cur, bb["buyback_price"], acc, bb.get("record_date")),
+        is_open=bool(pd.isna(bb.get("close_date")) or pd.Timestamp(bb["close_date"]) >= pd.Timestamp(today)),
+    )
+    return r
+
+
+def market_cap_for(symbol: str, max_age_days: int = 14) -> float | None:
+    """Market cap (crore) for the acceptance prior: the weekly `company_snapshot` row when it is
+    recent (no scrape inside the scan), else a live screener read. None on a miss — the scan
+    must not fail on a missing feature (SME names often miss on screener)."""
+    try:
+        from scanner import db
+        rows = db.select("company_snapshot", {"select": "market_cap_cr,fetched_at", "symbol": f"eq.{symbol}",
+                                              "limit": "1"})
+        if rows and rows[0].get("market_cap_cr") is not None:
+            age = pd.Timestamp.now(tz="UTC") - pd.Timestamp(rows[0]["fetched_at"])
+            if age <= pd.Timedelta(days=max_age_days):
+                return float(rows[0]["market_cap_cr"])
+    except Exception:
+        pass
+    try:
+        from scanner.fundamentals import fetch_fundamentals
+        return fetch_fundamentals(symbol).get("market_cap_cr")
+    except Exception:
+        return None
+
+
 def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
                           only_open=False, stats: dict | None = None) -> list[dict]:
     """Probe chittorgarh ids upward from the latest-known buyback; enrich each tender
     offer with price + market cap + estimated acceptance + after-tax expected return,
     ranked (open tender windows first). Auto-finds new buybacks — no hardcoded range."""
     from datetime import date
-    from scanner.fundamentals import fetch_fundamentals
     from scanner.pricestore import get_closes
 
     if start_id is None:
@@ -379,27 +432,12 @@ def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
             cur = None
         if not cur:
             continue
-        premium = bb["buyback_price"] / cur - 1
-        if not (-0.5 < premium < 1.5):
+        if not (-0.5 < bb["buyback_price"] / cur - 1 < 1.5):
             continue  # implausible premium => stale/wrong price, skip
-        try:
-            mcap = fetch_fundamentals(bb["symbol"]).get("market_cap_cr")
-        except Exception:
-            mcap = None
+        mcap = market_cap_for(bb["symbol"])
         shp = latest_small_holder(bb["symbol"])
-        floor, floor_src = entitlement_floor(bb, mcap, cur, shp.get("small_holder_pct"))
-        acc = estimate_acceptance(mcap, floor, issue_size_cr=bb.get("issue_size_cr"))
-        bb.update(
-            cur_price=cur, premium=premium, market_cap_cr=mcap, est_acceptance=acc,
-            small_holder_pct=shp.get("small_holder_pct"), small_holder_quarter=shp.get("quarter_end"),
-            est_entitlement=estimate_entitlement(bb.get("issue_size_cr"), bb["buyback_price"], mcap, cur,
-                                                 shp.get("small_holder_pct")),
-            entitlement_source=floor_src,
-            est_return=arb_return(cur, bb["buyback_price"], cur, bb["entitlement_small"]),
-            exp_return=expected_after_tax(cur, bb["buyback_price"], acc, bb["record_date"]),
-            is_open=bool(pd.notna(bb["close_date"]) and pd.Timestamp(bb["close_date"]) >= today),
-        )
-        out.append(bb)
+        out.append(enrich_buyback(bb, cur, mcap, shp.get("small_holder_pct"), today,
+                                  small_holder_quarter=shp.get("quarter_end")))
     out.sort(key=lambda r: (r["is_open"], r["exp_return"] if r["exp_return"] is not None else -9),
              reverse=True)
     return [r for r in out if r["is_open"]] if only_open else out
@@ -415,12 +453,20 @@ def format_buyback_table(rows: list[dict]) -> str:
     for r in rows:
         mc = "-" if r.get("market_cap_cr") is None else f"{r['market_cap_cr']:,.0f}"
         exp = r.get("exp_return") or 0
+        if r.get("entitlement_small") is not None:
+            ent = f"{r['entitlement_small']*100:>5.0f}%"
+        elif r.get("est_entitlement") is not None:
+            ent = f"{r['est_entitlement']*100:>4.0f}%~"       # estimated: letter of offer not out
+        else:
+            ent = f"{'?':>6}"
         out.append(
             f"{r['symbol']:<11}{r['cur_price']:>8,.0f}{r['buyback_price']:>9,.0f}"
-            f"{r['premium']*100:>5.0f}%{mc:>10}{r['entitlement_small']*100:>5.0f}%"
+            f"{r['premium']*100:>5.0f}%{mc:>10}{ent}"
             f"{r['est_acceptance']*100:>5.0f}%{exp*100:>6.1f}%  "
             f"{'OPEN' if r.get('is_open') else 'closed'}")
-    out.append("\nACC~ = estimated acceptance (heuristic by mkt-cap; the outcomes feedback "
-               "loop calibrates it). EXP~ = after-tax expected return at ACC~. "
-               "OPEN = tender window still open. Verify before acting.")
+    out.append("\nENT = published small-shareholder entitlement; a trailing ~ = estimated from the "
+               "small-holder float (letter of offer not yet out; ? = no estimate). ACC~ = estimated "
+               "acceptance (heuristic by mkt-cap; the outcomes feedback loop calibrates it). "
+               "EXP~ = after-tax expected return at ACC~. OPEN = tender window not yet closed. "
+               "Verify before acting.")
     return "\n".join(out)

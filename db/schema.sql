@@ -719,3 +719,60 @@ create table if not exists alerts_sent (
   unique (signal_name, alert_key)
 );
 alter table alerts_sent enable row level security;
+
+-- ============================================================================
+-- Realized buyback acceptance (scanner/buyback_results.py, scripts/refresh_buyback_results.py):
+-- the response table of each tender's NSE "Post Buyback Public Announcement". One row per
+-- tender; needs_manual = the PDF is a newspaper scan (enter by hand: `scanner.track result`).
+-- ss_acceptance = the fraction of a small shareholder's tendered shares accepted — the
+-- number `_MCAP_ACCEPTANCE_PRIOR` guesses; `python -m scanner.calibrate` compares them.
+-- ============================================================================
+create table if not exists buyback_results (
+  buyback_id       bigint primary key references buybacks(id) on delete cascade,
+  ss_reserved      bigint check (ss_reserved is null or ss_reserved >= 0),
+  ss_bids          integer,
+  ss_tendered      bigint check (ss_tendered is null or ss_tendered >= 0),
+  ss_response_pct  numeric,
+  gen_reserved     bigint,
+  gen_tendered     bigint,
+  total_reserved   bigint,
+  total_tendered   bigint,
+  times_subscribed numeric,
+  ss_acceptance    numeric check (ss_acceptance is null or (ss_acceptance >= 0 and ss_acceptance <= 1)),
+  source_url       text check (source_url is null or source_url like 'https://%'),
+  source_seq_id    bigint,
+  parsed_by        text check (parsed_by is null or parsed_by in ('rule_v1', 'manual')),
+  needs_manual     boolean not null default false,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+alter table buyback_results enable row level security;
+create policy "anon read buyback_results" on buyback_results for select to anon using (true);
+
+-- ============================================================================
+-- OFS (offer for sale) events — candidate #23, the retail 10% reservation (scanner/ofs.py,
+-- scripts/refresh_ofs.py: chittorgarh /ofs/x/<id>/, Jan-2025 ->). Study scripts/validate_ofs_retail.py.
+-- ============================================================================
+create table if not exists ofs_events (
+  chittorgarh_id    integer primary key,
+  symbol            text not null,
+  company           text,
+  seller            text,
+  floor_price       numeric not null check (floor_price > 0),
+  cutoff_price      numeric check (cutoff_price is null or cutoff_price > 0),
+  base_shares       bigint,
+  oversub_shares    bigint,
+  total_shares      bigint,
+  retail_shares     bigint,
+  non_retail_shares bigint,
+  non_retail_date   date,
+  retail_date       date not null,
+  pct_equity        numeric,
+  listing_at        text,
+  last_modified     date,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+create index if not exists idx_ofs_symbol on ofs_events(symbol, retail_date desc);
+alter table ofs_events enable row level security;
+create policy "anon read ofs_events" on ofs_events for select to anon using (true);

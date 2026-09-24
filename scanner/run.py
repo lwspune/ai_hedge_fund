@@ -37,6 +37,8 @@ def _save_buyback(rows, stats=None) -> None:
     meta = get_signal("buyback_arb").meta
     cands = [{"symbol": r["symbol"], "score": r.get("exp_return"),
               "payload": {"premium": r["premium"], "entitlement_small": r["entitlement_small"],
+                          "est_entitlement": r.get("est_entitlement"),
+                          "entitlement_source": r.get("entitlement_source"),
                           "market_cap_cr": r.get("market_cap_cr"),
                           "est_acceptance": r.get("est_acceptance"),
                           "est_floor": r.get("est_return"), "exp_return": r.get("exp_return"),

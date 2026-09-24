@@ -34,6 +34,10 @@ KEEP = {
     "Credit Rating", "Credit Rating- Revision", "Credit Rating- New", "Credit Rating- Others",
     "Qualified Institutional Placement", "Issue of Securities",
     "Reply to Clarification- Financial results", "Clarification - Financial Results",
+    # the buyback lifecycle (2026-09-24): public announcement -> letter of offer -> post-buyback
+    # announcement (the realized acceptance table, scanner/buyback_results.py) -> closure
+    "Buyback", "Public Announcement - Buyback of Shares", "Post Buyback Public Announcement",
+    "Closure of Buy Back",
 }
 SUBJECT_MAX = 300   # the table's biggest column (free-tier size); the full text is in the PDF
 
@@ -42,13 +46,19 @@ CATCH_ALL = {"General Updates", "Updates", "Others"}
 _BUSINESS = re.compile(r"order|contract|letter of (award|intent)|\bLOA\b|\bLOI\b|capacity|plant|"
                        r"commission|acqui|merger|expansion|capex|guidance|business update",
                        re.I)
+# Generic categories that carry buyback steps only when the subject says so (record dates are
+# mostly dividends; newspaper copies are mostly AGM notices).
+BUYBACK_CATCH_ALL = {"Record Date", "Copy of Newspaper Publication", "Updates", "General Updates"}
+_BUYBACK = re.compile(r"buy[\s-]*back", re.I)
 
 
 def keep(row: dict) -> bool:
-    cat = row.get("category") or ""
+    cat, subject = row.get("category") or "", row.get("subject") or ""
     if cat in KEEP:
         return True
-    return cat in CATCH_ALL and bool(_BUSINESS.search(row.get("subject") or ""))
+    if cat in BUYBACK_CATCH_ALL and _BUYBACK.search(subject):
+        return True
+    return cat in CATCH_ALL and bool(_BUSINESS.search(subject))
 
 
 def _size_kb(s) -> float | None:
