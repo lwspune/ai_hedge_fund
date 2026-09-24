@@ -3,7 +3,9 @@
 
 Source: NSE `api/corporate-further-issues-pref?index=FIPREFIP` (in-principle stage: allottee
 category) and `?index=FIPREFLS` (listing stage: allotment date, price, shares). Date windows
-filter on the submission date; the listing list starts in Mar-2023. The listing XBRL
+filter on the filing's *latest status date* (`systemDate`), not `dateOfSubmission`, which can be
+months earlier — a 45-day window returns filings submitted up to ~6 months back. The listing list
+starts in Mar-2023. The listing XBRL
 (`in-capmkt` taxonomy) carries the lock-in per tranche (`PeriodOfLockInShares` under the
 `LockInOfSharesAxis` Option contexts), e.g. "Equity shares for 6 months".
 

@@ -91,7 +91,9 @@ FLOORS = {
     "insider_trades": {"table": "insider_trades", "col": "broadcast_at", "filters": {}, "days": 3, "min": 30},
     # ~135 long-term + ~75 short-term ASM + ~75 GSM rows per snapshot
     "surveillance": {"table": "surveillance_daily", "col": "as_of", "filters": {}, "days": 2, "min": 100},
-    "pref_issues": {"table": "pref_issues", "col": "submission_date", "filters": {}, "days": 21, "min": 15},
+    # the daily 45-day window re-touches ~140 rows; NSE filters that window on the filing's latest
+    # status date, so submission_date undercounts recent weeks and is not a usable floor column
+    "pref_issues": {"table": "pref_issues", "col": "updated_at", "filters": {}, "days": 2, "min": 40},
 }
 
 
