@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from scanner.eventstudy import window_return  # noqa: F401  (re-exported; generic)
+
 # Pre-specified windows, (from, to) in trading days relative to T.
 WINDOWS = {"pre": (-10, -1), "event": (-1, 2), "post": (2, 10), "full": (-10, 10)}
 # SEBI split anchor lock-in into 50% @30d + 50% @90d for issues opening from 1-Apr-2022.
@@ -35,24 +37,6 @@ def lockin_events(ipos: list[dict]) -> list[dict]:
                         "anchor_frac": frac,
                         "era": "post_apr2022" if listing >= ERA_CUTOFF else "pre_apr2022"})
     return out
-
-
-def window_return(stock: pd.Series | None, bench: pd.Series, event_date, a: int, b: int):
-    """Benchmark-adjusted return from close T+a to close T+b (T = first trading day >=
-    event_date). None if either end falls outside the series."""
-    if stock is None or len(stock) == 0:
-        return None
-    stock = stock.sort_index()
-    t = stock.index.searchsorted(pd.Timestamp(event_date))
-    i, j = t + a, t + b
-    if i < 0 or j >= len(stock) or t >= len(stock) or j <= i:
-        return None
-    d_i, d_j = stock.index[i], stock.index[j]
-    bb = bench.sort_index()
-    b_i, b_j = bb.asof(d_i), bb.asof(d_j)
-    if pd.isna(b_i) or pd.isna(b_j) or b_i == 0 or stock.iloc[i] == 0:
-        return None
-    return float(stock.iloc[j] / stock.iloc[i] - 1 - (b_j / b_i - 1))
 
 
 def blocking_action(actions: list[dict], symbol: str, lo, hi) -> bool:

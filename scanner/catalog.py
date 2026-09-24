@@ -88,6 +88,15 @@ def _run_lockin(**kw) -> str:
             % days) + format_unlocks(rows)
 
 
+def _run_fno_ban(**kw) -> str:
+    return ("fno_ban is NULL: stocks entering the NSE F&O ban (OI > 95% of MWPL) do not reverse "
+            "their pre-ban move -- entry, during, exit and post windows are all ~0 and no better "
+            "than same-stock control dates (n=920 episodes, 96 stocks, 2020-26). The ban only "
+            "blocks new derivative positions; the cash market is open to all, so there is no "
+            "barrier. The one clean effect (stocks sold into the ban keep falling during it) is "
+            "unshortable. Run scripts/validate_fno_ban.py.")
+
+
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
@@ -130,6 +139,14 @@ SIGNALS: dict[str, Signal] = {
                    "2022-26. Not shortable by retail (new IPOs aren't in F&O) -> use as an "
                    "avoid / exit-timing rule for recent IPOs, not a trade."),
         _run_lockin),
+    "fno_ban": Signal(
+        SignalMeta("fno_ban", "structural", "null", "lens",
+                   "F&O ban (95% MWPL) reversal. Null: n=920 episodes 2020-26 -- the pre-ban move "
+                   "does not reverse at entry, during, exit or after (all |t|<1, no better than "
+                   "same-stock controls). The ban blocks fresh derivatives but the cash market stays "
+                   "open to everyone, so nothing is fenced off. Real-looking effects (sold-into-ban "
+                   "names keep falling during the ban) sit where retail can't short."),
+        _run_fno_ban),
 }
 
 

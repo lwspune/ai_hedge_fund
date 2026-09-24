@@ -6,7 +6,8 @@ from scanner.catalog import (
 )
 
 EXPECTED = {"buyback_arb", "mean_reversion", "smart_money_deals",
-            "merger_arb", "open_offer_arb", "index_rebalance", "lockin_expiry"}
+            "merger_arb", "open_offer_arb", "index_rebalance", "lockin_expiry",
+            "fno_ban"}
 
 
 def test_all_validated_signals_registered():
@@ -53,3 +54,8 @@ def test_dashboard_signals_json_in_sync_with_catalog():
 def test_lockin_expiry_is_a_conditional_lens_not_a_trade():
     m = get_signal("lockin_expiry").meta
     assert (m.type, m.verdict, m.role) == ("structural", "conditional", "lens")
+
+
+def test_fno_ban_is_a_null_lens():
+    m = get_signal("fno_ban").meta
+    assert (m.verdict, m.role) == ("null", "lens")

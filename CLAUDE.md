@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Seven signals validated this way; one tradable edge,
+falsified signal is never read as edge. Eight signals validated this way; one tradable edge,
 plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -26,6 +26,7 @@ of untested ideas, ordered by the thesis.
 | `open_offer_arb` | spread | **null** | documented control |
 | `index_rebalance` | structural | **null** | lens (informational only) |
 | `lockin_expiry` | structural | **conditional** | lens (avoid/exit rule — real dip, unshortable) |
+| `fno_ban` | structural | **null** | lens (informational only) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -176,6 +177,10 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   Python unchanged (edge functions would mean re-porting parsers to TS, with minutes-long caps);
   the public repo gets free minutes; failure emails come free; daily writes keep the free-tier
   Supabase project from pausing. Keepalive step defeats the 60-day idle schedule disable.
+
+- **2026-09-24** — `fno_ban` reversal validated **null** (n=920 episodes, same-stock control).
+  *Reason:* the ban only blocks fresh derivatives; the cash market stays open to all, so no one is
+  fenced out — consistent with the thesis. Next structural candidate: delisting RBB (#3).
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

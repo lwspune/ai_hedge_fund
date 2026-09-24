@@ -47,5 +47,12 @@
     "verdict": "conditional",
     "role": "lens",
     "summary": "Anchor lock-in unlock dip: T-1->T+2 vs NIFTY 500 = -1.25% at the 90-day unlock (t=-4.6, n=573), -0.7% at 30d; same-stock placebo windows ~0; holds 2022-26. Not shortable by retail (new IPOs aren't in F&O) -> use as an avoid / exit-timing rule for recent IPOs, not a trade."
+  },
+  {
+    "name": "fno_ban",
+    "type": "structural",
+    "verdict": "null",
+    "role": "lens",
+    "summary": "F&O ban (95% MWPL) reversal. Null: n=920 episodes 2020-26 -- the pre-ban move does not reverse at entry, during, exit or after (all |t|<1, no better than same-stock controls). The ban blocks fresh derivatives but the cash market stays open to everyone, so nothing is fenced off. Real-looking effects (sold-into-ban names keep falling during the ban) sit where retail can't short."
   }
 ]

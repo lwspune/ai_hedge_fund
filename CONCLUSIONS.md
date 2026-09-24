@@ -1,6 +1,6 @@
 # CONCLUSIONS — Indian Market Inefficiency Validations
 
-**Status: active platform. Seven signals validated. One tradable edge; one real but unshortable effect.**
+**Status: active platform. Eight signals validated. One tradable edge; one real but unshortable effect.**
 
 The question that started this: *are there real, past-tested inefficiencies in Indian
 markets exploitable for quick gains?* We tested four, with honest event studies and
@@ -125,6 +125,29 @@ on/after expiry; windows fixed in advance.
 Fits the thesis from the other side: the effect persists *because* a barrier (short-sale
 constraints on fresh IPOs) keeps arbitrageurs out — but the same barrier keeps retail out.
 (`scanner/lockin.py`, `scripts/validate_lockin.py`, results `cache/lockin_results.csv`.)
+
+### 7. F&O ban reversal — NULL
+Stocks whose open interest crosses 95% of MWPL enter the F&O ban (no fresh derivative positions).
+Hypothesis: the forced unwind overshoots, so the pre-ban 5-day move reverses. 1,035 ban episodes
+(96 stocks, NSE ban archive 2020→2026), 920 usable; reversal measured against a **same-stock
+control** (same windows 60 trading days away, ≥20 days from any ban) because short-term reversal
+is generic.
+
+| Reversal of pre-ban move | Ban | Control |
+|---|---|---|
+| entry E-1→E+2 | −0.08% (t=−0.5) | +0.34% |
+| during the ban | −0.20% (t=−1.0) | +0.18% |
+| exit X-1→X+5 | −0.23% (t=−0.6) | −0.03% |
+| post X→X+10 | −0.28% (t=−0.9) | −0.03% |
+
+No reversal anywhere, and no better than control. Segment flickers fail the robustness bar:
+names that ran *up* into the ban gain after exit on the mean (+1.0%, t=3.1) but the **median is
++0.1%** (fat-tail driven); the exit effect shows in 2022-23 only (t=−2.3), not 2024-26 (t=−0.6).
+The one clean effect — stocks *sold* into the ban keep falling during it (−0.7%, median −0.7%,
+39% up) — is continuation, not reversal, and sits in the ban window where no fresh short can be
+opened. Thesis check: the ban blocks new derivatives but the cash market stays open to all — no
+competitor is excluded, so nothing is left for retail. (`scanner/fnoban.py`,
+`scripts/validate_fno_ban.py`, results `cache/fnoban_results.csv`.)
 
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
