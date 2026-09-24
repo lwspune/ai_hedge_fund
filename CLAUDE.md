@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Ten signals validated this way; two actionable edges
+falsified signal is never read as edge. Eleven signals validated this way; two actionable edges
 (buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -29,6 +29,7 @@ of untested ideas, ordered by the thesis.
 | `fno_ban` | structural | **null** | lens (informational only) |
 | `rights_re` | spread | **conditional** | watch (buy RE instead of stock — ~3% discount) |
 | `promoter_buying` | drift | **null** | lens (decayed after 2023) |
+| `order_wins` | drift | **null** | lens (priced on announcement day) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A

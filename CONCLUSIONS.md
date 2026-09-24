@@ -1,6 +1,6 @@
 # CONCLUSIONS — Indian Market Inefficiency Validations
 
-**Status: active platform. Ten signals validated. Two actionable edges (buyback tender, rights-entitlement discount); one real but unshortable effect.**
+**Status: active platform. Eleven signals validated. Two actionable edges (buyback tender, rights-entitlement discount); one real but unshortable effect.**
 
 The question that started this: *are there real, past-tested inefficiencies in Indian
 markets exploitable for quick gains?* We tested four, with honest event studies and
@@ -205,6 +205,25 @@ Same decay as `index_rebalance` / `smart_money_deals`: a public drift signal. Re
 *sells* look negative, but that leg flips sign across eras and was a contrast, not a hypothesis —
 logged in the backlog to pre-register, not claimed. (`scanner/insider.py`,
 `scripts/validate_promoter_buys.py`, results `cache/promoter_buys_results.csv`.)
+
+### 11. Order wins (Reg 30 disclosures) — NULL
+1,638 order-win events (NSE "Bagging/Receiving of orders/contracts", clustered per stock, 5-day
+gap), 2024→2026 — the category only exists from 2024; earlier wins were filed under general
+categories and are not in this sample. Order values extracted from the PDFs (rule_v1, 1,524 of
+2,519 filings); size = value / last already-public fiscal-year revenue. Follower enters the day
+after disclosure; vs NIFTY 500; same-stock control 60 trading days away.
+
+| | All | Orders ≥25% of revenue |
+|---|---|---|
+| Announcement day T-1→T0 (not tradable) | **+0.86%** (t=10.4) | **+2.0%** (t=7.2), 66% up |
+| Follower +1d | −0.15% (t=−2.1) | — |
+| Follower +5d | −0.25%, median −1.0% | median −1.0% |
+| Follower +20d | −0.17%, median −1.9% | median −1.3% |
+| Control +20d | +0.36%, median −1.5% | |
+
+Priced on the day — even the biggest surprises — and a follower does slightly worse than the
+control. Public news with no barrier, like `index_rebalance`. (`scanner/orderwins.py`,
+`scripts/validate_order_wins.py`, results `cache/order_wins_results.csv`.)
 
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter

@@ -73,3 +73,8 @@ Prior = honest expectation before testing.
 - Net **realistic costs** (≈30 bps round-trip + STT + impact for small-caps) before any verdict.
 - Add a **placebo/control** leg where possible (the `smart_money_deals` prop-buy placebo is the template).
 - Register the result in `scanner/catalog.py` with its `SignalMeta` verdict — **null results get logged, not deleted.**
+
+## Tested from the filings layer
+| # | Signal | Verdict |
+|---|---|---|
+| 9 | ~~**Order-win drift**~~ (Reg 30 order disclosures, sized vs revenue) | **NULL (2026-09-25)** — priced on announcement day (+0.9%; +2.0% for orders ≥25% of revenue); follower +1/+5/+20d ≈ 0 to negative, below controls; n=1,638 (2024-26). `CONCLUSIONS.md` §11. |

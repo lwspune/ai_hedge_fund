@@ -114,6 +114,14 @@ def _run_promoter_buying(**kw) -> str:
             "scripts/validate_promoter_buys.py.")
 
 
+def _run_order_wins(**kw) -> str:
+    return ("order_wins is NULL: disclosed order wins (NSE 'Bagging/Receiving of orders/contracts', "
+            "2024-26, n=1,638 events) are priced on announcement day (+0.9% abnormal; +2.0% when the "
+            "order is >=25% of the prior year's revenue). Entering the next day earns ~0 to slightly "
+            "negative over 1/5/20 days, below same-stock controls. Public news, no barrier. Run "
+            "scripts/validate_order_wins.py.")
+
+
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
@@ -178,6 +186,13 @@ SIGNALS: dict[str, Signal] = {
                    "pooled +8% mean is a small-cap fat tail (median +0.9%). Decayed drift signal "
                    "-- informational lens only."),
         _run_promoter_buying),
+    "order_wins": Signal(
+        SignalMeta("order_wins", "drift", "null", "lens",
+                   "Follow disclosed order wins (Reg 30). The market prices them on the day (+0.9%, "
+                   "+2.0% for orders >=25% of revenue) and a follower gets nothing: +1/+5/+20d "
+                   "abnormal ~0 to slightly negative, below same-stock controls (n=1,638, 2024-26). "
+                   "Informational lens only."),
+        _run_order_wins),
 }
 
 
