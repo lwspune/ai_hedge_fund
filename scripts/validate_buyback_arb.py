@@ -23,6 +23,7 @@ from scanner.pointintime import mcap_bucket_at  # noqa: E402
 RESIDUAL_LAG = 21          # trading days after close to sell the residual
 TAX_CUTOVER = pd.Timestamp("2024-10-01")
 SLAB = 0.30
+LOW_SLABS = (0.20, 0.05, 0.0)   # the post-Oct-2024 verdict depends on the slab
 PREMIUM_BOUNDS = (-0.5, 1.5)   # outside = stale/mis-matched price, not a real offer (as edge fn)
 DB_FROM = pd.Timestamp("2020-02-01")   # first month safely inside the cloud price store
 
@@ -92,6 +93,10 @@ def main(args) -> dict | None:
             "aftertax_now": after_tax_return(entry, bp, post, ent, regime="post_oct2024", slab=SLAB),
             "aftertax_full_now": after_tax_return(entry, bp, post, min(ent * 3, 1.0),
                                                   regime="post_oct2024", slab=SLAB),
+            # today's rules at 3x entitlement for lower slabs (the verdict is slab-conditional)
+            **{f"aftertax_full_now_{int(sl * 100)}": after_tax_return(
+                entry, bp, post, min(ent * 3, 1.0), regime="post_oct2024", slab=sl)
+               for sl in LOW_SLABS},
         })
     if dropped:
         print(f"Dropped {len(dropped)} implausible premiums: {dropped}")
@@ -107,13 +112,16 @@ def main(args) -> dict | None:
         print(f"  {label:<34} n={len(x):>3}  mean={x.mean()*100:+6.2f}%  "
               f"median={x.median()*100:+6.2f}%  win={ (x>0).mean()*100:4.0f}%")
 
-    print(f"\n=== BUYBACK TENDER ARB ({len(d)} events, ~Rs 2L, entitlement-floor acceptance) ===")
+    print(f"\n=== BUYBACK TENDER ARB ({len(d)} events, record dates {d.record_date.min():%b-%Y} -> "
+          f"{d.record_date.max():%b-%Y}, ~Rs 2L, entitlement-floor acceptance) ===")
     show("Avg buyback premium vs entry", "premium")
     show("GROSS return (entitlement floor)", "gross_floor")
     show("GROSS return (3x entitlement)", "gross_full")
     show("AFTER-TAX (regime of the day)", "aftertax_floor")
     show("AFTER-TAX (today's rules, 30% slab)", "aftertax_now")
     show("AFTER-TAX today's rules @ 3x entitl.", "aftertax_full_now")
+    for sl in LOW_SLABS:
+        show(f"  ... same at a {int(sl * 100)}% slab", f"aftertax_full_now_{int(sl * 100)}")
     print("\n  -- by tax regime (gross floor) --")
     show("pre-Oct-2024 events", "gross_floor", d[d.regime == "pre_oct2024"])
     show("post-Oct-2024 events", "gross_floor", d[d.regime == "post_oct2024"])
