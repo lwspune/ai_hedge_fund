@@ -39,18 +39,19 @@ the institutional signal itself carries no follower edge.
 *Evidence:* `evidence/smart_money_deals/2026-09-24` (the raw 2024-25 deals the study used) · sha 4f552e3 (laptop baseline).
 
 ### 3. Buyback small-shareholder tender arb — CONDITIONAL EDGE (the keeper)
-81 tender buybacks (Dec-2022 → Dec-2025), ₹2L, **unadjusted NSE closes** (corrected
-2026-09-24 — see note), residual sold 21 trading days after close:
+101 tender buybacks (record dates Dec-2022 → Jul-2026, incl. the 2026 tenders recovered by the
+chittorgarh format fix), ₹2L, **unadjusted closes** (cloud price store; see correction note),
+residual sold 21 trading days after close. Re-run on GitHub Actions 2026-09-24:
 
 | Scenario | Mean | Median | Win |
 |---|---|---|---|
-| Buyback premium vs entry | +24% | +22% | 99% |
-| Gross @ entitlement floor | +1.5% | **+0.4%** | 51% |
-| Gross @ 3× entitlement (high-acceptance) | +6.4% | **+5.4%** | 69% |
-| After-tax today's rules, 30% slab — floor | −1.3% | −2.1% | 40% |
-| After-tax today's rules, 30% slab — 3× | +0.0% | **−1.5%** | 42% |
-| After-tax today's rules, 20% slab — 3× | +4.3% | +3.8% | 68% |
-| After-tax today's rules, 0–5% slab — 3× | +11–13% | +10–12% | 81–83% |
+| Buyback premium vs entry | +23% | +21% | 99% |
+| Gross @ entitlement floor | +1.6% | **−0.2%** | 50% |
+| Gross @ 3× entitlement (high-acceptance) | +6.0% | **+4.9%** | 70% |
+| After-tax today's rules, 30% slab — floor | −1.2% | −1.9% | 41% |
+| After-tax today's rules, 30% slab — 3× | −0.1% | **−0.8%** | 42% |
+| After-tax today's rules, 20% slab — 3× | +4.0% | +3.8% | 69% |
+| After-tax today's rules, 0–5% slab — 3× | +10–12% | +10–12% | 83–84% |
 
 Blind tendering ≈ break-even; the money is in **selecting high-acceptance, high-premium
 small-caps** (the structural 15% small-shareholder reservation — barred to institutions —
@@ -66,7 +67,13 @@ carries forward. **Still the one signal worth building selection around — for 
 while the buyback price is nominal (SPORTKING's 1:10 split showed as a "+1282%" premium),
 and a cache that had silently dropped 29 events. Medians barely moved; the inflated means
 did. Verdict unchanged; the tax-slab condition is new.
-*Evidence:* `evidence/buyback_arb/2026-09-24` (event list only — the laptop run kept no results file) · sha 4f552e3. A re-run with the 2026 events and as-of market caps is queued (SUGGESTIONS backfill ledger).
+*Update (2026-09-24, n=81 → 101):* the table now includes 2026's tenders and prices from the cloud
+store. Every reading holds: floor median +0.4% → −0.2%, 3× median +5.4% → +4.9%, 30%-slab 3×
+median −1.5% → −0.8%, 20%-slab 3× +3.8% (unchanged). A new as-of market-cap cut at *floor*
+acceptance (small −1.4%, n=26 … large +6.1%, n=14) is not a test of the acceptance prior — small-caps
+earn through near-100% acceptance, which only logged outcomes can measure.
+*Evidence:* `evidence/buyback_arb/2026-09-24T073956Z` (Actions re-run, results + report); laptop
+event list `evidence/buyback_arb/2026-09-24` · sha 4f552e3.
 
 ### 4. Stock-swap merger arb — THIN
 3 verified completed deals (HDFC, LTIMindtree, Shriram): announcement spreads +2.7/2.4/6.7%

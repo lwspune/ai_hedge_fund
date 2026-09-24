@@ -223,7 +223,7 @@ fetches (n=48 recorded vs 77 now).
   verdict ("conditional edge on high-acceptance small-caps, post-Oct-2024 tax kills the floor")
   to survive, with smaller gross numbers.
 
-### `buyback_arb` verdict: re-run on the cloud store with 2026 events and as-of market caps — **OPEN (360 below)**
+### ~~`buyback_arb` verdict: re-run on the cloud store with 2026 events and as-of market caps~~ — **DONE 2026-09-24** (CONCLUSIONS §3 table updated to n=101; readings hold)
 
 **Learning (WP1/WP3/WP5):** the study's event list was a laptop scrape of ids 90-225 under the old
 page format, and it had no market-cap cut. The `buybacks` table now holds 106 tenders incl. 23 from
@@ -245,7 +245,7 @@ gross floor median **−0.21%** (was +0.4%), 3× entitlement median **+4.94%** (
 after-tax 3× median −0.84% (was −1.5%); post-Oct-2024 floor median −0.27% (n=35). By as-of mcap
 at *floor* acceptance: small −1.41% (n=26), small_mid −0.58%, mid +1.66%, large +6.14% (n=14) —
 floor acceptance is not how small-caps earn (their edge is near-100% acceptance), so this cut does
-not test the prior; outcome data still does. **Decision needed:** update §3's table to n=101?
+not test the prior; outcome data still does. **Decided:** §3 updated to n=101 (user, 2026-09-24).
 Verdict reading unchanged (blind ≈ break-even; selection + low slab).
 
 ### ~~`buybacks.status` is wrong for scan-discovered rows~~ — **DONE 2026-09-24** (RPC `upsert_buybacks` derives open/settled, keeps tendered/skipped, settles closed windows; both writers use it; `record_tender` marks `tendered`; 23 rows corrected; status check constraint)

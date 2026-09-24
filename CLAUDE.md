@@ -272,6 +272,9 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **2026-09-24** — Freshness = age + volume floors + ratios + buyback frontier + DB size, and every
   dated table must have a rule (test). *Reason:* the primary signal was silently blind for nine
   months (chittorgarh 2026 wording) while "newest row" checks stayed green.
+- **2026-09-24** — `buyback_arb` §3 re-run on Actions at **n=101** (2026 tenders + cloud prices):
+  floor median −0.2%, 3× +4.9%, 30%-slab 3× −0.8%, 20%-slab 3× +3.8%. *Reason:* reproducible evidence
+  for the primary signal; verdict (selection + ≤20% slab) unchanged.
 - **2026-09-24** — Evidence dirs are per run (`<signal>/<UTC stamp>/`), not per date. *Reason:* a
   same-day rerun must never overwrite evidence an earlier `validation_runs` row points at.
 - **2026-09-24** — Old filings keep their row; only `subject` moves to the bucket after 24 months, and
