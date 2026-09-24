@@ -40,5 +40,12 @@
     "verdict": "null",
     "role": "lens",
     "summary": "Front-run NIFTY 50/Next 50 reconstitution forced flows. Null: the change is publicly pre-announced ~4wks out, so the flow is arbitraged before a follower can act (n=151 Next 50; tight window flat; the lone deletion-rebound was a 2021-22 regime artifact). Pre-announced forced flow has no barrier keeping competitors out -- contrast the buyback quota."
+  },
+  {
+    "name": "lockin_expiry",
+    "type": "structural",
+    "verdict": "conditional",
+    "role": "lens",
+    "summary": "Anchor lock-in unlock dip: T-1->T+2 vs NIFTY 500 = -1.25% at the 90-day unlock (t=-4.6, n=573), -0.7% at 30d; same-stock placebo windows ~0; holds 2022-26. Not shortable by retail (new IPOs aren't in F&O) -> use as an avoid / exit-timing rule for recent IPOs, not a trade."
   }
 ]

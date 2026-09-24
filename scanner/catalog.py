@@ -73,6 +73,21 @@ def _run_index_rebalance(**kw) -> str:
             "Run scripts/validate_index_rebalance.py + scripts/segment_index_rebalance.py.")
 
 
+def _run_lockin(**kw) -> str:
+    from datetime import date, timedelta
+    from scanner import db
+    from scanner.lockin import format_unlocks
+    today, days = date.today(), int(kw.get("days") or 30)
+    rows = db.select("corporate_events", {
+        "select": "symbol,event_type,event_date,details",
+        "event_type": "in.(anchor_lockin_30,anchor_lockin_90)",
+        "and": f"(event_date.gte.{today},event_date.lte.{today + timedelta(days=days)})",
+        "order": "event_date"})
+    return ("Upcoming anchor unlocks (next %d days). Avoid buying into / consider exiting before "
+            "T-1; the dip is T-1 -> T+2 (90d strongest). Not shortable (new IPOs are not in F&O).\n\n"
+            % days) + format_unlocks(rows)
+
+
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
@@ -108,6 +123,13 @@ SIGNALS: dict[str, Signal] = {
                    "deletion-rebound was a 2021-22 regime artifact). Pre-announced forced "
                    "flow has no barrier keeping competitors out -- contrast the buyback quota."),
         _run_index_rebalance),
+    "lockin_expiry": Signal(
+        SignalMeta("lockin_expiry", "structural", "conditional", "lens",
+                   "Anchor lock-in unlock dip: T-1->T+2 vs NIFTY 500 = -1.25% at the 90-day "
+                   "unlock (t=-4.6, n=573), -0.7% at 30d; same-stock placebo windows ~0; holds "
+                   "2022-26. Not shortable by retail (new IPOs aren't in F&O) -> use as an "
+                   "avoid / exit-timing rule for recent IPOs, not a trade."),
+        _run_lockin),
 }
 
 

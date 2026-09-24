@@ -7,6 +7,7 @@ import DealsView from './components/DealsView'
 import TrackedPositions from './components/TrackedPositions'
 import ScanHistory from './components/ScanHistory'
 import CompanySearch from './components/CompanySearch'
+import UpcomingUnlocks from './components/UpcomingUnlocks'
 import CompanyPage from './components/CompanyPage'
 import useHashRoute from './useHashRoute'
 
@@ -89,6 +90,7 @@ export default function App() {
         <div className="banner">Loading live data…</div>
       ) : (
         <>
+          <UpcomingUnlocks />
           <BuybackTable rows={buybacks} onRefresh={loadBuybacks} />
           <DealsView rows={deals} onRefresh={loadDeals} />
           <TrackedPositions rows={positions} />

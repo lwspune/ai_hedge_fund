@@ -6,7 +6,7 @@ from scanner.catalog import (
 )
 
 EXPECTED = {"buyback_arb", "mean_reversion", "smart_money_deals",
-            "merger_arb", "open_offer_arb", "index_rebalance"}
+            "merger_arb", "open_offer_arb", "index_rebalance", "lockin_expiry"}
 
 
 def test_all_validated_signals_registered():
@@ -48,3 +48,8 @@ def test_dashboard_signals_json_in_sync_with_catalog():
 
     path = Path(__file__).resolve().parent.parent / "dashboard" / "src" / "signals.json"
     assert json.loads(path.read_text(encoding="utf-8")) == [asdict(m) for m in list_signals()]
+
+
+def test_lockin_expiry_is_a_conditional_lens_not_a_trade():
+    m = get_signal("lockin_expiry").meta
+    assert (m.type, m.verdict, m.role) == ("structural", "conditional", "lens")

@@ -21,7 +21,7 @@ Prior = honest expectation before testing.
 | # | Signal | Bucket | Data | Prior | How to test |
 |---|---|---|---|---|---|
 | 1 | ~~**Index rebalance front-run** — NIFTY 50 / Next 50 inclusions & exclusions force index-fund buying/selling on a known effective date.~~ **TESTED → NULL (2026-06-24).** n=151 verified Next 50 events; front-run earns ~0 (tight window flat); lone deletion-rebound was a 2021-22 regime artifact. Pre-announced ⇒ arbitraged before a follower can act (no barrier excludes competitors). See `CONCLUSIONS.md` §5, `scripts/validate_index_rebalance.py` + `segment_index_rebalance.py`. | 🟢 | ✅ done | ~~most promising~~ → **null** | — |
-| 2 | **Anchor / pre-IPO lock-in expiry overhang** — 30-day & 90-day anchor lock-ins (and 6-mo pre-IPO) release supply on known dates → predictable selling pressure. | 🟢 | ✅ chittorgarh IPO data (listing date → lock-in dates) + prices | plausible edge (forced supply, short side) | Event study around each lock-in expiry date; short-side abnormal return T-x→T+x. |
+| 2 | ~~**Anchor / pre-IPO lock-in expiry overhang**~~ **TESTED → CONDITIONAL (2026-09-24).** Real, control-verified dip T-1→T+2 (90d −1.25%, t=−4.6; 30d −0.7%; placebo ~0; holds 2022-26). Not shortable by retail (new IPOs not in F&O) → avoid/exit-timing lens `lockin_expiry`. Pre-IPO (6-mo/18-mo promoter) lock-ins not yet tested. See `CONCLUSIONS.md` §6. | 🟢 | ✅ done | ~~plausible edge~~ → **real, unshortable** | — |
 | 3 | **Delisting / reverse-book-building arb** — promoter delisting via RBB; retail tenders at discovered price, floor price often revised up; failed-delisting re-rating. | 🟢 | ⚠️ chittorgarh/NSE delisting announcements (manual list) | structural (retail tender mechanics, like buybacks) — worth a hard look | Collect completed delistings; measure floor→final discovered price and post-announcement drift. |
 | 4 | **Rights-entitlement (RE) mispricing** — REs trade in their own NSE series during the rights window; often illiquid & priced off theoretical (cum-rights − rights price). | 🟢 | ⚠️ nselib RE-series prices + NSE corp-action terms | spread-ish but structurally retail-accessible | For each rights issue, compare RE market price vs theoretical entitlement value; measure capturable gap after costs. |
 | 5 | **ASM / GSM surveillance entry-exit** — entering Additional/Graded Surveillance forces 100% margin & trade-to-trade → liquidity shock; exit → relief bounce. | 🟢 | ✅ NSE ASM/GSM static lists + prices | forced-margin shock → mean-revert on exit; test both legs | Event study on entry date (drift down?) and exit date (bounce?). |
@@ -60,7 +60,7 @@ Prior = honest expectation before testing.
 ## Suggested order to actually test (highest expected-value-per-hour first)
 
 1. **#1 Index rebalance front-run** — cleanest forced-flow, fully reachable, strong prior. Start here.
-2. **#2 Lock-in expiry overhang** — forced supply, data already partly in our IPO pipeline.
+2. ~~**#2 Lock-in expiry overhang**~~ — done: real dip, not shortable (lens).
 3. **#5 ASM/GSM** + **#6 F&O ban** — both fully reachable from NSE static lists, quick to run together.
 4. **#3 Delisting RBB** — structural like buybacks; worth the manual data collection.
 5. **#4 Rights-entitlement** — structural + retail-accessible; needs RE-series price plumbing.

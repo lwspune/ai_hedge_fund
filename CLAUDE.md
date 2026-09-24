@@ -13,8 +13,8 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Six signals validated this way; only one
-survived. See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
+falsified signal is never read as edge. Seven signals validated this way; one tradable edge,
+plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
 | Signal | Type | Verdict | Role |
@@ -25,6 +25,7 @@ of untested ideas, ordered by the thesis.
 | `smart_money_deals` | drift | **null** | lens (informational only) |
 | `open_offer_arb` | spread | **null** | documented control |
 | `index_rebalance` | structural | **null** | lens (informational only) |
+| `lockin_expiry` | structural | **conditional** | lens (avoid/exit rule — real dip, unshortable) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -152,6 +153,13 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **2026-09-24** — Old `cache/prices/` abandoned for `cache/px/`. *Reason:* its MILLIS
   timestamps read back as 1970 under pandas 3 + fastparquet, and it cached failed fetches as
   empty forever (29 of 77 buyback events silently lost).
+
+- **2026-09-24** — `lockin_expiry` = **conditional lens**, not a trade: the anchor-unlock dip is
+  real (90d −1.25% T-1→T+2, t=−4.6; same-stock placebo ~0; holds 2022-26) but fresh IPOs are not in
+  F&O, so retail can't short it. *Reason:* short-sale constraints keep arbitrageurs out *and* retail
+  out → use it to avoid buying into / exit ahead of unlocks.
+- **2026-09-24** — buyback_arb verdict now tax-slab conditional. *Reason:* re-validated on unadjusted
+  prices (n=81): at a 30% slab the high-acceptance case is ~0 after tax; works at ≤20%.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

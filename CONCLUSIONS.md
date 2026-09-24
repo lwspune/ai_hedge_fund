@@ -1,6 +1,6 @@
 # CONCLUSIONS — Indian Market Inefficiency Validations
 
-**Status: active platform. Five signals validated. One real edge found.**
+**Status: active platform. Seven signals validated. One tradable edge; one real but unshortable effect.**
 
 The question that started this: *are there real, past-tested inefficiencies in Indian
 markets exploitable for quick gains?* We tested four, with honest event studies and
@@ -14,6 +14,9 @@ gets arbitraged or competed away after costs.
 - Drift-prediction signals → **null** (arbitraged away).
 - Efficiently-priced spreads (merger arb on safe deals) → **thin** (~risk-free).
 - Structural reservation (buyback small-shareholder quota) → **conditional edge**.
+- Forced supply behind a **short-sale barrier** (anchor lock-in unlock) → real, persistent
+  dip — the barrier that shields it from arbitrageurs also blocks retail shorts, so it is an
+  avoid/exit rule, not a trade.
 
 ## The validations
 
@@ -93,6 +96,35 @@ that era, ~0 in 2023–25) — a ghost, not an edge. (`scripts/validate_index_re
 This is the cleanest confirmation of the meta-thesis yet: a forced flow with **no barrier
 keeping competitors out** (anyone can read the announcement) gets arbitraged to zero — the
 exact mirror of the buyback small-shareholder quota that *does* fence institutions out.
+
+### 6. Anchor lock-in expiry overhang — CONDITIONAL (real, not shortable)
+Anchor investors' shares unlock 30 days after allotment (50%; 100% before Apr-2022) and 90
+days (the rest). 1,820 expiries from 2,184 NSE IPOs (chittorgarh, 2006→2026); 1,382 priced on
+unadjusted NSE closes (mainboard + SME series), benchmark NIFTY 500. T = first trading day
+on/after expiry; windows fixed in advance.
+
+| Window (vs NIFTY 500) | 30-day unlock (n=809) | 90-day unlock (n=573) |
+|---|---|---|
+| pre T-10→T-1 | +1.7% (median −0.9%) | −0.7% |
+| **event T-1→T+2** | **−0.68% (t=−2.6)**, median −1.5% | **−1.25% (t=−4.6)**, median −2.1% |
+| post T+2→T+10 | +0.3% | +0.5% |
+| placebo 3-day, same stocks (T-20, T+15) | +0.2% / +0.1% | +0.2% / +0.1% |
+
+- **Control passes:** same-length windows on the same stocks away from the unlock are ~0, so
+  the dip is the unlock, not the generic post-IPO drift (medians are negative everywhere).
+- **Regime passes (90d):** 2022-23 −1.1%, 2024-26 −1.3% (t=−4.2). 30d was strongest pre-2022
+  (when it released 100%): −1.15% (t=−3.3); weaker since the split.
+- **Segments:** negative in every pre-specified cut; strongest 90d mainboard −1.8% (t=−5.6).
+  Anchors under water at expiry show the worst full-window drift (−4.4 to −4.5%).
+- **Tradability:** the short side needs an overnight short; new listings are not in F&O
+  (only 48/12 of these symbols are in *today's* F&O list, and they joined later). Retail can't
+  harvest it. **Use:** don't buy a recent IPO into T-1; a holder can sell at T-1 and rebuy after
+  T+2 (~1.25% saved at 90d vs ~0.3% costs + tax friction).
+- Caveat: 416 events unpriced (renamed / migrated / thin symbols) — possible survivorship tilt.
+
+Fits the thesis from the other side: the effect persists *because* a barrier (short-sale
+constraints on fresh IPOs) keeps arbitrageurs out — but the same barrier keeps retail out.
+(`scanner/lockin.py`, `scripts/validate_lockin.py`, results `cache/lockin_results.csv`.)
 
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter

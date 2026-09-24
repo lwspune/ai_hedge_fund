@@ -115,7 +115,7 @@ expensive to reproduce and worth preserving in history.
 **How to apply:** one `feat:`/`docs:` commit, e.g. `feat: validate index_rebalance (null, n=151 Next 50) + signal backlog`.
 Note the Next-50 CSV is the auditable record — keep it in the commit.
 
-### Test candidate signal #2 — lock-in expiry overhang
+### ~~Test candidate signal #2 — lock-in expiry overhang~~ — **DONE 2026-09-24** (conditional lens; CONCLUSIONS §6)
 
 `CANDIDATE_SIGNALS.md` #2 (anchor / pre-IPO lock-in expiry → forced supply, short side) is the
 recommended next test. Unlike index rebalancing, lock-in expiries aren't a 4-week-pre-announced
