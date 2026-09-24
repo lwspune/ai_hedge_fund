@@ -1,0 +1,69 @@
+parent,ex_date,child,listing_date,parent_index,note
+HTMEDIA,2019-04-09,DGCONTENT,2019-06-18,,Digicontent
+PRAKASH,2019-04-23,PPL,2019-06-14,,Prakash Pipes
+DCM,2019-05-30,DCMNVL,2019-07-16,,DCM Nouvelle
+AARTIIND,2019-07-03,AARTISURF,2020-07-14,,Aarti Surfactants (listed a year after the record date)
+GREENPLY,2019-07-12,GREENPANEL,2019-10-23,,Greenpanel Industries
+GFLLIMITED,2019-08-06,FLUOROCHEM,2019-10-16,,Gujarat Fluorochemicals
+AGI,2019-08-19,HINDWAREAP,2019-12-26,,Somany Home Innovation (now Hindware Home Innovation)
+TATACOMM,2019-09-17,HEMIPROP,2020-10-22,,Hemisphere Properties (listed 13 months after the record date)
+ABB,2019-12-20,POWERINDIA,2020-03-30,next50,ABB Power Products (now Hitachi Energy India)
+KESORAMIND,2019-12-24,BIRLATYRE,2020-02-10,,Birla Tyres; delisted since - listing date = first bhavcopy close in the price store
+JINDALPOLY,2019-12-30,UNIVPHOTO,2020-02-14,,Universus Photo Imagings
+SUVEN,2020-01-21,COHANCE,2020-03-09,,Suven Pharmaceuticals (now Cohance Lifesciences)
+ARCHIDPLY,2020-02-13,ADL,2020-10-01,,Archidply Decor
+BORORENEW,2020-03-06,BOROLTD,2020-07-22,,Borosil Ltd
+SHARDAMOTR,2020-03-26,NDRAUTO,2020-07-30,,NDR Auto Components
+PRIVISCL,2020-08-21,FAIRCHEMOR,2020-12-24,,Fairchem Organics
+DEEPENR,2020-11-10,DEEPINDS,2021-04-27,,Deep Industries
+CCAVENUE,2020-12-10,DRCSYSTEMS,2021-03-10,,DRC Systems (from Infibeam Avenues)
+JUBLPHARMA,2021-02-04,JUBLINGREA,2021-03-19,,Jubilant Ingrevia
+GFLLIMITED,2021-03-26,IWEL,2021-06-11,,Inox Wind Energy; delisted since - listing date = first bhavcopy close in the price store
+MEGH,2021-05-18,MOL,2021-08-18,,Meghmani Organics (new entity)
+MEGH,2021-05-18,EPIGRAL,2021-08-18,,Meghmani Finechem (now Epigral); same scheme as MOL
+GMRAIRPORT,2022-01-11,GMRP&UI,2022-03-23,,GMR Power and Urban Infra
+MOTHERSON,2022-01-14,MSUMI,2022-03-28,next50,Motherson Sumi Wiring India
+DHAMPURSUG,2022-05-13,DBOL,2022-09-08,,Dhampur Bio Organics
+TIPSMUSIC,2022-05-19,TIPSFILMS,2022-10-06,,Tips Films
+PEL,2022-08-30,PPLPHARMA,2022-10-19,next50,Piramal Pharma
+KAMDHENU,2022-09-06,KAMOPAINTS,2023-01-24,,Kamdhenu Ventures
+BEML,2022-09-08,BLAL,2023-04-19,,BEML Land Assets
+AARTIIND,2022-10-19,AARTIPHARM,2023-01-30,,Aarti Pharmalabs
+NMDC,2022-10-27,NSLNISP,2023-02-20,next50,NMDC Steel
+MIRZAINT,2023-03-29,REDTAPE,2023-08-11,,Redtape
+SCI,2023-03-31,SCILAL,2024-03-19,,SCI Land and Assets (listed a year after the record date)
+GHCL,2023-04-06,GHCLTEXTIL,2023-06-12,,GHCL Textiles
+ALLCARGO,2023-04-18,ATL,2023-08-10,,Allcargo Terminals
+ALLCARGO,2023-04-18,TRANSINDIA,2023-08-10,,TransIndia Real Estate; same scheme as ATL
+EDELWEISS,2023-06-02,NUVAMA,2023-09-26,,Nuvama Wealth Management
+NIITLTD,2023-06-08,NIITMTS,2023-08-08,,NIIT Learning Systems
+RELIANCE,2023-07-20,JIOFIN,2023-08-21,nifty50,Jio Financial Services (parent NIFTY 50)
+SAREGAMA,2023-07-27,DIGIDRIVE,2024-01-10,,Digidrive Distributors
+TVSHLTD,2023-08-24,SUNCLAY,2023-12-29,,Sundaram Clayton (new entity; old one renamed TVS Holdings)
+BAJAJELEC,2023-09-14,BAJEL,2023-12-19,,Bajel Projects
+BOROLTD,2023-12-05,BOROSCI,2024-06-07,,Borosil Scientific
+MHLXMIRU,2024-04-19,MFML,2024-08-27,,Mahalaxmi Fabric Mills
+SANOFI,2024-06-13,SANOFICONR,2024-09-13,,Sanofi Consumer Healthcare India
+OCCL,2024-07-01,OCCLLTD,2024-10-29,,OCCL Ltd (insoluble sulphur business)
+RAYMOND,2024-07-11,RAYMONDLSL,2024-09-05,,Raymond Lifestyle
+ROSSELLIND,2024-09-20,ROSSTECH,2024-12-09,,Rossell Techsys
+STAR,2024-12-06,ONESOURCE,2025-01-24,,OneSource Specialty Pharma (from Strides)
+ITC,2025-01-06,ITCHOTELS,2025-01-29,nifty50,ITC Hotels (parent NIFTY 50)
+SIEMENS,2025-04-07,ENRIN,2025-06-19,next50,Siemens Energy India
+QUESS,2025-04-15,DIGITIDE,2025-06-11,,Digitide Solutions
+QUESS,2025-04-15,BLUSPRING,2025-06-11,,Bluspring Enterprises; same scheme as DIGITIDE
+STLTECH,2025-04-24,STLNETWORK,2025-09-04,,STL Networks
+CHEMBOND,2025-05-09,CHEMBONDCH,2025-07-23,,Chembond Chemicals
+RAYMOND,2025-05-14,RAYMONDREL,2025-07-01,,Raymond Realty
+ABFRL,2025-05-22,ABLBL,2025-06-23,,Aditya Birla Lifestyle Brands
+JHS,2023-09-11,RETAIL,2024-06-26,,JHS Svendgaard Retail Ventures (listed 9 months after the record date)
+DBREALTY,2025-07-18,ADVENTHTL,2025-11-13,,Advent Hotels International (from Valor Estate)
+SHANKARA,2025-09-24,BUILDPRO,2026-01-09,,Shankara Buildpro
+TMPV,2025-10-14,TMCV,2025-11-12,nifty50,Tata Motors (commercial vehicles; parent renamed TMPV; parent NIFTY 50)
+SKFINDIA,2025-10-15,SKFINDUS,2025-12-05,,SKF India (Industrial)
+HINDUNILVR,2025-12-05,KWIL,2026-02-16,nifty50,Kwality Wall's India (parent NIFTY 50)
+DCMSRIND,2025-12-26,DCMSIL,2026-02-17,,DCM Shriram International
+VEDL,2026-04-30,VOGL,2026-06-15,next50,Vedanta demerger (parent NIFTY 50)
+VEDL,2026-04-30,VAML,2026-06-15,next50,Vedanta demerger; same scheme as VOGL
+VEDL,2026-04-30,VEDPOWER,2026-06-15,next50,Vedanta demerger; same scheme as VOGL
+VEDL,2026-04-30,VISL,2026-06-15,next50,Vedanta demerger; same scheme as VOGL

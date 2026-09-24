@@ -8,7 +8,7 @@ from scanner.catalog import (
 EXPECTED = {"buyback_arb", "mean_reversion", "smart_money_deals",
             "merger_arb", "open_offer_arb", "index_rebalance", "lockin_expiry",
             "fno_ban", "rights_re", "promoter_buying", "order_wins", "turn_of_month",
-            "promoter_sells", "pref_lockin", "ofs_retail"}
+            "promoter_sells", "pref_lockin", "ofs_retail", "demerger_listing"}
 
 
 def test_all_validated_signals_registered():

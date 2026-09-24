@@ -103,5 +103,12 @@
     "verdict": "thin",
     "role": "watch",
     "summary": "Offer-for-sale retail quota (10% reserved, bids <= Rs 2 lakh at/above the floor). 2025-26, n=26 floors within 15% of the pre-close: T+1 close vs floor +1.9% median (+1.6% net, 69% up, t=2.3), PSU sellers +1.1%. Thin: one era, one-day capital, and an oversubscribed book clears above the floor (cut-off unrecorded). Watch, not a trade."
+  },
+  {
+    "name": "demerger_listing",
+    "type": "structural",
+    "verdict": "conditional",
+    "role": "lens",
+    "summary": "Newly listed demerged child: -5.9% median vs NIFTY 500 over its first 5 sessions (n=64 children of 61 demergers, 2019-26; t=-2.8 clustered by scheme; same-child placebo windows flat; -10% in 2022-23, -5.6% in 2024-26). The mechanism cut fails: index-parent children -1.6% (n=13, n.s.), small/non-index parents carry it -- holders dumping small allotments in trade-for-trade, not index funds. Unshortable (T2T, no F&O); buy-after-T+5 median -0.9% (mean +8% is a fat tail). Lens: don't buy a child in its first week; no recovery trade."
   }
 ]

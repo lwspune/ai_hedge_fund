@@ -18,6 +18,7 @@ const SIGNALS = {
   promoter_sells: ['Promoter open-market selling', '+60d ≈ 0 pooled; −4% in 2024–26 but +5% in 2022–23 (flips every era)'],
   ofs_retail: ['OFS retail quota', 'Floor bids +1.9% median by T+1 (n=26, 2025–26); thin, cut-off above floor unrecorded'],
   turn_of_month: ['Turn-of-month seasonality', '2022–23 flicker (t=3.9), ~0 in 2024–26; calendar control'],
+  demerger_listing: ['Demerger listing flow', 'Child −5.9% median in its first 5 sessions (n=64); unshortable, no recovery trade'],
 }
 
 const ROLES = { primary: 'Trade', watch: 'Watch', lens: 'Lens', documented: 'Control' }

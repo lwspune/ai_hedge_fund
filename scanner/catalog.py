@@ -160,6 +160,30 @@ def _run_ofs_retail(**kw) -> str:
             "not a trade: bid at the floor only in a name you would hold anyway.\n\n" + format_ofs_rows(rows))
 
 
+def _run_demerger(**kw) -> str:
+    """Informational: recent demerger record dates whose child may list soon, and children listed
+    in the last 10 sessions (from the curated data/demerger_listings.csv)."""
+    from datetime import date, timedelta
+    from scanner import db
+    from scanner.demerger import load_listings
+    today, days = date.today(), int(kw.get("days") or 120)
+    recent = db.select("corporate_events", {
+        "select": "symbol,event_date", "event_type": "eq.demerger",
+        "event_date": f"gte.{today - timedelta(days=days)}", "order": "event_date.desc"})
+    mapped = {(r["parent"], r["ex_date"]): r for r in load_listings()}
+    lines = [f"{r['event_date']}  {r['symbol']:<12} " + (
+        f"child {mapped[(r['symbol'], r['event_date'])]['child']} listed {mapped[(r['symbol'], r['event_date'])]['listing_date']}"
+        if (r["symbol"], r["event_date"]) in mapped else "child not yet in data/demerger_listings.csv")
+        for r in recent]
+    return ("Demerger listing flow: a newly listed demerged child falls a median ~6% vs NIFTY 500 over "
+            "its first 5 sessions (n=64, 2019-26; t=-2.8 clustered; placebo windows flat) -- but the dip "
+            "sits in small / non-index parents, not index-parent children, so it is not index-fund "
+            "selling; it is unshortable (trade-for-trade, no F&O) and the buy-after-T+5 leg has a "
+            "negative median (fat-tail mean). LENS: do not buy a demerged child in its first week; "
+            f"no trade on the recovery.\n\nDemerger record dates, last {days} days:\n"
+            + ("\n".join(lines) if lines else "  none"))
+
+
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
@@ -259,6 +283,16 @@ SIGNALS: dict[str, Signal] = {
                    "(+1.6% net, 69% up, t=2.3), PSU sellers +1.1%. Thin: one era, one-day capital, and "
                    "an oversubscribed book clears above the floor (cut-off unrecorded). Watch, not a trade."),
         _run_ofs_retail),
+    "demerger_listing": Signal(
+        SignalMeta("demerger_listing", "structural", "conditional", "lens",
+                   "Newly listed demerged child: -5.9% median vs NIFTY 500 over its first 5 sessions "
+                   "(n=64 children of 61 demergers, 2019-26; t=-2.8 clustered by scheme; same-child "
+                   "placebo windows flat; -10% in 2022-23, -5.6% in 2024-26). The mechanism cut fails: "
+                   "index-parent children -1.6% (n=13, n.s.), small/non-index parents carry it -- "
+                   "holders dumping small allotments in trade-for-trade, not index funds. Unshortable "
+                   "(T2T, no F&O); buy-after-T+5 median -0.9% (mean +8% is a fat tail). Lens: don't buy "
+                   "a child in its first week; no recovery trade."),
+        _run_demerger),
 }
 
 
