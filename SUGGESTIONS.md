@@ -240,6 +240,24 @@ cap as of the record date. `scripts/validate_buyback_arb.py` was switched to all
 - *Recommendation:* **do**, then decide whether §3's numbers change; the verdict is expected to
   hold (the thesis is structural, not sample-dependent).
 
+### `buybacks.status` is wrong for scan-discovered rows — **OPEN (360 below)**
+
+**Learning (WP1 browser check):** the Python scan upserts buybacks without `status`, so every row it
+creates keeps the default `'open'` — the Data → Buybacks view lists all 23 closed 2026 tenders as
+"Open". The `refresh-buybacks` edge function does set `open`/`settled` from `close_date`, but it
+upserts that over any `tendered`/`skipped` you set by hand via `scanner.track`.
+
+**360:**
+- *Scope:* `scanner/db.buyback_row` (no status), edge fn `refresh-buybacks` (status clobber), the
+  Data view's status filter. The Desk "Act" panel is unaffected (it reads `payload.is_open`).
+- *Blast radius:* display + the manual tender log; no signal math.
+- *Does it really apply:* yes — seen live (PVRINOX closed 17 Sep, shown Open).
+- *Risk / reversibility:* low; a status derived only when the stored one is `open`/`settled`.
+- *Cost:* small — derive status in both writers but never overwrite `tendered`/`skipped` (an
+  RPC or a conditional update, since a plain upsert can't express "keep if manual"); one-off
+  SQL to settle rows with `close_date < today`.
+- *Recommendation:* **do**, with your go-ahead (touches the manual tender log's semantics).
+
 ### Company renames broke the `companies` upsert (unique ISIN) — **FIXED in WP4**, check history
 
 A renamed symbol's new row carries the old row's ISIN; the weekly upsert would 409 on it. WP4 frees
