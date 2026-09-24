@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 import useLoad from '../lib/useLoad'
 import useEdgeRefresh, { describeBuybackRefresh } from '../lib/useEdgeRefresh'
@@ -6,6 +7,8 @@ import Section from './ui/Section'
 import DataTable from './ui/DataTable'
 import SymbolLink from './ui/SymbolLink'
 import Button from './ui/Button'
+import Chips from './ui/Chips'
+import { toggle } from '../lib/filters'
 import { StatusBadge } from './ui/Badge'
 import { ErrorNote } from './ui/States'
 import { Loading, SkeletonTable } from './ui/Skeleton'
@@ -22,11 +25,14 @@ const COLUMNS = [
 ]
 
 // Every stored buyback (the user's lifecycle table). Status is set by the track CLI.
-export default function BuybackTable({ statuses }) {
+const STATUSES = [['open', 'Open'], ['tendered', 'Tendered'], ['settled', 'Settled'], ['skipped', 'Skipped']]
+
+export default function BuybackTable() {
+  const [statuses, setStatuses] = useState(() => new Set())
   const { loading, error, data, reload } = useLoad(() => supabase.from('buybacks').select('*')
     .order('record_date', { ascending: false, nullsFirst: false }).limit(200), [])
   const r = useEdgeRefresh('refresh-buybacks', describeBuybackRefresh, reload)
-  const rows = (data || []).filter((b) => !statuses || statuses.size === 0 || statuses.has(b.status))
+  const rows = (data || []).filter((b) => statuses.size === 0 || statuses.has(b.status))
 
   return (
     <Section id="buybacks" title="Buybacks"
@@ -35,10 +41,14 @@ export default function BuybackTable({ statuses }) {
              action={<Button busy={r.busy} onClick={r.refresh}
                              aria-label="Refresh buybacks from chittorgarh">Refresh</Button>}>
       {r.error && <ErrorNote what="new buybacks" message={r.error} />}
+      <div className="chips">
+        <Chips label="Status" options={STATUSES} selected={statuses}
+               onToggle={(v) => setStatuses((s) => toggle(s, v))} />
+      </div>
       {loading && !data ? <Loading label="Loading buybacks"><SkeletonTable rows={6} cols={8} /></Loading>
         : error ? <ErrorNote what="buybacks" message={error} />
-        : <DataTable caption="Buybacks" columns={COLUMNS} rows={rows} rowKey={(b) => b.id}
-                     emptyText="No buybacks stored."
+        : <DataTable maxHeight="70vh" caption="Buybacks" columns={COLUMNS} rows={rows} rowKey={(b) => b.id}
+                     emptyText={data?.length ? 'No buybacks with this status.' : 'No buybacks stored.'}
                      emptyHint={<>Run <code>python -m scanner.run buyback_arb --save</code></>} />}
     </Section>
   )

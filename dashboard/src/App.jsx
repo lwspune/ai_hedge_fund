@@ -18,10 +18,10 @@ function Shell() {
     <>
       <a className="skip-link" href="#main">Skip to content</a>
       <TopBar route={route} freshness={freshness} />
-      <main id="main" className="content" tabIndex={-1}>
-        {route.page === 'company' ? <CompanyPage symbol={route.symbol} />
+      <main id="main" className={route.page === 'company' ? 'main-bleed' : 'content'} tabIndex={-1}>
+        {route.page === 'company' ? <CompanyPage symbol={route.symbol} tab={route.tab} />
           : route.page === 'signals' ? <Signals />
-          : route.page === 'data' ? <Data />
+          : route.page === 'data' ? <Data tab={route.tab} />
           : <Desk freshness={freshness} />}
       </main>
       <footer className="app-footer">Read-only · data via Supabase · updated by scheduled refresh</footer>

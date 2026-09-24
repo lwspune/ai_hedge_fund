@@ -253,7 +253,17 @@
 .stack-top { margin-top: var(--s4); }
 
 /* ── company header ─────────────────────────────────── */
-.co-head { margin-bottom: var(--s6); }
+.co-sticky {
+  position: sticky; top: var(--topbar-h); z-index: 20;
+  background: var(--surface); border-bottom: 1px solid var(--hairline);
+}
+.co-inner { max-width: var(--content-w); margin: 0 auto; padding: var(--s5) var(--gutter) 0; }
+.co-sticky .tabs { border-bottom: 0; margin-top: var(--s4); }
+.co-body { padding-top: var(--s5); }
+.co-body > .section:first-child { margin-top: 0; }
+@media (max-width: 640px) {
+  .co-sticky { position: static; }
+}
 .co-head-main { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s5); }
 .co-id { min-width: 0; }
 .co-name { font-size: var(--fs-display); line-height: 1.2; font-weight: 600; }
@@ -323,3 +333,25 @@ main:focus { outline: none; }
 .sig-more .subhead { margin-top: var(--s4); }
 .sig-more .dt thead th { background: var(--surface); }
 .sig-more .dt tbody tr:hover { background: var(--surface-hover); }
+
+/* ── tabs ───────────────────────────────────────────── */
+.tabs {
+  display: flex; gap: var(--s5); margin-top: var(--s4); border-bottom: 1px solid var(--hairline);
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabs a {
+  display: inline-flex; align-items: center; gap: 6px; padding: var(--s2) 2px;
+  color: var(--text-2); text-decoration: none; font-size: var(--fs-small); font-weight: 500;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+  transition: color var(--ease);
+}
+.tabs a:hover { color: var(--text); }
+.tabs a[aria-current='page'] { color: var(--text); border-bottom-color: var(--accent); }
+.tabs a:focus-visible { outline-offset: -2px; }
+.tab-count {
+  padding: 0 6px; border-radius: 999px; background: var(--neutral-bg);
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-2);
+}
+.tab-panel { padding-top: var(--s5); }
+.tab-panel > .section:first-child { margin-top: 0; }
+.chip-group { display: inline-flex; flex-wrap: wrap; gap: var(--s2); }
