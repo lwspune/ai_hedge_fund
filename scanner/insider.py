@@ -8,6 +8,7 @@ Pure parsing/clustering (tested) + a thin fetcher; the study is scripts/validate
 """
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta
 
 import requests
@@ -89,3 +90,98 @@ def fetch_range(frm: date, to: date) -> list[dict]:
         out += fetch_reg29(cur, end, s)
         cur = end + timedelta(days=1)
     return out
+
+
+# --- SEBI PIT disclosures (NSE `api/corporates-pit-gg` + per-filing XBRL) ----------------------
+# The list endpoint answers a plain session (from GitHub runners too) but carries only filing
+# metadata; each filing's XBRL holds the transactions, one `DisclosureN` context per insider
+# named (`in-bse-co` taxonomy, shared with BSE). `api/corporates-pit` (no `-gg`) is dead and
+# always returns {"data": []}. Dated windows only reach back a few months: a forward feed.
+
+PIT_URL = "https://www.nseindia.com/api/corporates-pit-gg"
+_PIT_FIELDS = {
+    "NameOfThePerson": ("person", str), "CategoryOfPerson": ("category", str),
+    "TypeOfInstrument": ("instrument", str),
+    "SecuritiesAcquiredOrDisposedTransactionType": ("txn_type", str),
+    "ModeOfAcquisitionOrDisposal": ("mode", str),
+    "SecuritiesAcquiredOrDisposedNumberOfSecurity": ("n_securities", int),
+    "SecuritiesAcquiredOrDisposedValueOfSecurity": ("value", float),
+    "SecuritiesHeldPriorToAcquisitionOrDisposalPercentageOfShareholding": ("pre_pct", float),
+    "SecuritiesHeldPostAcquistionOrDisposalPercentageOfShareholding": ("post_pct", float),
+    "DateOfAllotmentAdviceOrAcquisitionOfSharesOrSaleOfSharesSpecifyFromDate": ("txn_from", str),
+    "DateOfAllotmentAdviceOrAcquisitionOfSharesOrSaleOfSharesSpecifyToDate": ("txn_to", str),
+    "ExchangeOnWhichTheTradeWasExecuted": ("exchange", str),
+}
+
+
+def _broadcast(v) -> str | None:
+    """'10-Sep-2026 20:46:52' -> '2026-09-10T20:46:52'."""
+    try:
+        return datetime.strptime(str(v).strip(), "%d-%b-%Y %H:%M:%S").isoformat()
+    except ValueError:
+        return None
+
+
+def parse_pit_filings(raw) -> list[dict]:
+    """Filing metadata rows; rows without an XBRL link or a parseable broadcast time dropped."""
+    items = raw.get("data", []) if isinstance(raw, dict) else raw
+    out = []
+    for r in items or []:
+        ts, url = _broadcast(r.get("broadcastDateTime")), r.get("xmlFileName")
+        try:
+            app = int(str(r.get("appId")).strip())
+        except (TypeError, ValueError):
+            continue
+        if not ts or not url:
+            continue
+        out.append({"app_id": app, "symbol": (r.get("symbol") or "").strip().upper(), "broadcast_at": ts,
+                    "regulation": (r.get("regulation") or "").strip() or None,
+                    "submission": (r.get("typeOfSubmission") or "").strip() or None, "xml_url": url})
+    return out
+
+
+def _cast(kind, s: str):
+    try:
+        if kind is int:
+            return int(float(s))
+        if kind is float:
+            return float(s)
+    except ValueError:
+        return None
+    return s
+
+
+def parse_pit_xml(xml: str) -> list[dict]:
+    """One dict per `DisclosureN` context; numeric fields typed, missing values None."""
+    ids = re.findall(r'<xbrli:context id="(Disclosure\d+)">', xml)
+    out = []
+    for seq, cid in enumerate(sorted(ids, key=lambda c: int(c[len("Disclosure"):])), 1):
+        d: dict = {"seq": seq}
+        facts = dict(re.findall(rf'<in-bse-co:(\w+)\s[^>]*contextRef="{cid}"[^>]*>([^<]*)<', xml))
+        for tag, (field, kind) in _PIT_FIELDS.items():
+            v = facts.get(tag, "").strip()
+            d[field] = _cast(kind, v) if v else None
+        out.append(d)
+    return out
+
+
+def insider_rows(filing: dict, disclosures: list[dict]) -> list[dict]:
+    """`insider_trades` rows: filing metadata joined onto each disclosure (pk app_id + seq)."""
+    return [{"app_id": filing["app_id"], "symbol": filing["symbol"], "broadcast_at": filing["broadcast_at"],
+             "regulation": filing.get("regulation"), "xml_url": filing["xml_url"], **d} for d in disclosures]
+
+
+def fetch_pit_filings(frm: date | None = None, to: date | None = None, session=None) -> list[dict]:
+    s = session or requests.Session()
+    params = {"index": "equities"}
+    if frm and to:
+        params.update(from_date=frm.strftime("%d-%m-%Y"), to_date=to.strftime("%d-%m-%Y"))
+    r = s.get(PIT_URL, params=params, headers=_HEADERS, timeout=120)
+    r.raise_for_status()
+    return parse_pit_filings(r.json())
+
+
+def fetch_xml(url: str, session=None) -> str:
+    r = (session or requests.Session()).get(url, headers=_HEADERS, timeout=60)
+    r.raise_for_status()
+    return r.text
