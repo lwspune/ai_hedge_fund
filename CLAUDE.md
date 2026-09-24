@@ -60,12 +60,17 @@ drift-signal chasing.
   (`supabase/functions/`, deployed via MCP) which scrapes today's NSE CSV server-side. NSE
   static CSVs + chittorgarh reach datacenter IPs, so edge functions can ingest. Prices stay
   as local parquet cache (too big for the free tier), NOT in Supabase.
-- **Dashboard (P3)** — `dashboard/` (Vite + React + supabase-js, read-only). Verdict-aware
-  views + **Deals view with a Refresh button** (calls the edge function); `signals.json`
-  generated from `catalog.py` via `scripts/emit_signals_json.py`. Deployed on Vercel
-  (https://ai-hedge-fund-gamma.vercel.app/). `npm run dev --prefix dashboard`.
-  **Company search + `#/company/:symbol` page** (hash-routed, no router dep): snapshot ratios,
-  sector, events timeline, annual/quarterly results, shareholding, deals, signal activity.
+- **Dashboard (P3)** — `dashboard/` (Vite + React + supabase-js, read-only, hash-routed, no
+  router/UI kit). Views: **Desk** `#/` (freshness strip · Act: open buybacks from the latest scan's
+  `payload.is_open` + rights entitlements · Avoid: anchor unlocks, 14 d), **Signals** `#/signals`
+  (verdict table, expandable evidence + recent runs), **Data** `#/data/deals|buybacks|positions|scans`
+  (filterable; Refresh buttons call the edge functions), **Company** `#/company/:symbol/:tab`
+  (sticky header; overview/financials/events/filings/deals tabs, each fetches only its data).
+  Design tokens in `src/styles/tokens.css`, shared components in `src/components/ui/`, all
+  formatting via `src/lib/format.js` (IST, en-IN). Spec: `docs/DASHBOARD_REDESIGN_SPEC.md`.
+  `signals.json` generated from `catalog.py` via `scripts/emit_signals_json.py`; display copy in
+  `src/lib/signalLabels.js` (a test fails if a signal lacks a label). Deployed on Vercel
+  (https://ai-hedge-fund-gamma.vercel.app/). `npm run dev|test|lint --prefix dashboard`.
 - **Infra layer (I1–I5)** — the shared data spine every signal/backtest reads from:
   - **I1 company master** — `scanner/master.py` → `companies` (every NSE equity + historical
     delistings, industry, index membership, `is_financial`) + `symbol_changes`.
@@ -122,7 +127,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
 ## Run
 `python -m pytest` (247 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
-`npm run dev --prefix dashboard` (dashboard). One-offs: `scripts/backfill_deals.py`,
+`npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
 `scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
 **Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):

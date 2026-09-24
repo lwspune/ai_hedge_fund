@@ -1,7 +1,9 @@
 """Emit the signal registry (verdicts) as JSON for the dashboard.
 
 Single source of truth is scanner/catalog.py; re-run this whenever the catalog
-changes so the frontend's verdict badges stay in sync.
+changes so the frontend's verdict badges stay in sync. A new signal also needs its
+human label + one-line headline in dashboard/src/lib/signalLabels.js (signalLabels.test.js
+fails until it has one).
 
     python scripts/emit_signals_json.py
 """
