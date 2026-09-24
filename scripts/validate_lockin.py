@@ -21,6 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.validation import exclude_results, parse_args  # noqa: E402
 from scanner import db  # noqa: E402
 from scanner.eventstudy import summarize  # noqa: E402
 from scanner.lockin import BLOCKING, WINDOWS, blocking_action, lockin_events, window_return  # noqa: E402
@@ -130,4 +131,5 @@ def report(df: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
-    report(build())
+    args = parse_args()
+    report(exclude_results(build(), "expiry", args.exclude_results_window))

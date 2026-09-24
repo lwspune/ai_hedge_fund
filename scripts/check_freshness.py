@@ -16,7 +16,7 @@ the run fails -> GitHub emails:
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -42,6 +42,7 @@ def queries(today: date) -> dict:
         "kpis": ("company_kpis", "created_at", {}, 5),
         "scans_buyback_arb": ("scan_runs", "run_at", {"signal_name": "eq.buyback_arb"}, 3),
         "scans_rights_re": ("scan_runs", "run_at", {"signal_name": "eq.rights_re"}, 3),
+        "board_meetings": ("corporate_events", "created_at", {"source": "eq.nse_bm"}, 10),
         # evaluated by frontier_stuck(), not stale(): a new buyback row = the frontier advanced
         "buyback_frontier": ("buybacks", "created_at", {}, FRONTIER_MAX_DAYS),
     }
@@ -62,6 +63,9 @@ FLOORS = {
     "fundamentals": {"table": "company_snapshot", "col": "fetched_at", "filters": {},
                      "days": 6, "min": 2000},
     "filings": {"table": "filings", "col": "disclosed_at", "filters": {}, "days": 3, "min": 300},
+    # the weekly holidays load writes this + next year; < 20 weekdays ahead = it stopped running
+    "calendar_ahead": {"table": "trading_calendar", "col": None,
+                       "filters": {"trade_date": f"gte.{date.today()}"}, "days": None, "min": 20},
 }
 
 
@@ -88,13 +92,8 @@ def too_thin(counts: dict, floors: dict) -> list[tuple]:
 def window_start(today: date, n_trading: int, holidays=frozenset()) -> date:
     """First day of the window holding the last `n_trading` trading days up to today
     (weekends and `holidays` skipped)."""
-    d, seen = today, 0
-    while True:
-        if d.weekday() < 5 and d not in holidays:
-            seen += 1
-            if seen == n_trading:
-                return d
-        d -= timedelta(days=1)
+    from scanner.trading_calendar import window_start as ws
+    return ws(today, n_trading, holidays)
 
 
 def frontier_stuck(last_advance: date | None, scan_params: dict, today: date,
@@ -132,9 +131,10 @@ def _newest(table: str, col: str, filters: dict):
 
 def _window_count(spec: dict, today: date):
     from scanner import db
+    from scanner.trading_calendar import holidays
     params = dict(spec["filters"])
     if spec["days"]:
-        params[spec["col"]] = f"gte.{window_start(today, spec['days'])}"
+        params[spec["col"]] = f"gte.{window_start(today, spec['days'], holidays())}"
     try:
         return db.count(spec["table"], params)
     except Exception as e:

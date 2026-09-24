@@ -5,6 +5,10 @@
   nse_fo       — NSE static F&O ban archive, one CSV per trade date (fo_secban_DDMMYYYY.csv).
   chittorgarh  — IPO detail pages by id (`/ipo/x/<id>/`): listing + anchor lock-in expiries
                  (30-day / 90-day), also stored in full in the `ipos` table.
+  nse_bm       — NSE `api/corporate-board-meetings`: board meetings, 'results' when the purpose
+                 mentions results (for results-window contamination control in validations).
+  nse_band     — NSE static `eq_band_changes.csv`: price-band changes.
+Trading holidays (NSE `api/holiday-master`) go to the `trading_calendar` table.
 
 ASM/GSM surveillance lists are NOT here: NSE only serves them via JS-gated JSON APIs.
 Pure parsers (tested) + thin fetchers.
@@ -20,7 +24,8 @@ _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.
                      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
 
 EVENT_TYPES = ("bonus", "split", "consolidation", "rights", "dividend", "buyback", "demerger",
-               "fo_ban", "ipo_listing", "anchor_lockin_30", "anchor_lockin_90")
+               "fo_ban", "ipo_listing", "anchor_lockin_30", "anchor_lockin_90",
+               "board_meeting", "results", "band_change")
 _SERIES = {"EQ", "BE"}
 _MONTHS = {m: i for i, m in enumerate(
     ["january", "february", "march", "april", "may", "june", "july", "august",
@@ -283,3 +288,107 @@ def rights_recheck_ids(rows: list[dict], today: date, days: int = 45) -> list[in
     cutoff = (today - timedelta(days=days)).isoformat()
     return sorted(r["chittorgarh_id"] for r in rows
                   if r.get("issue_close") is None or r["issue_close"] >= cutoff)
+
+
+# --- WP6: trading holidays, board meetings / results, price-band changes -------------------
+# NSE JSON APIs that answer a plain session with a Referer (like corporate-announcements), and
+# the static band-changes CSV on nsearchives.
+
+NSE_API_HEADERS = {**_UA, "Accept": "*/*", "Referer": "https://www.nseindia.com/"}
+HOLIDAY_URL = "https://www.nseindia.com/api/holiday-master?type=trading"
+BOARD_MEETINGS_URL = "https://www.nseindia.com/api/corporate-board-meetings"
+BAND_CHANGES_URL = "https://nsearchives.nseindia.com/content/equities/eq_band_changes.csv"
+_RESULTS = re.compile(r"results", re.I)
+
+
+def parse_holiday_master(raw: dict) -> list[date]:
+    """Cash-market (CM segment) trading holidays from NSE's holiday master."""
+    return list(holiday_descriptions(raw))
+
+
+def holiday_descriptions(raw: dict) -> dict:
+    """{date: description} for the CM segment."""
+    out = {}
+    for h in (raw or {}).get("CM", []):
+        d = _dmy(h.get("tradingDate"))
+        if d:
+            out[date.fromisoformat(d)] = (h.get("description") or "").strip() or None
+    return out
+
+
+def calendar_rows(holidays: dict, year: int) -> list[dict]:
+    """One trading_calendar row per weekday of `year`; is_trading=false on holidays."""
+    out, d = [], date(year, 1, 1)
+    while d.year == year:
+        if d.weekday() < 5:
+            out.append({"trade_date": d.isoformat(), "is_trading": d not in holidays,
+                        "description": holidays.get(d), "source": "nse_holiday_master"})
+        d += timedelta(days=1)
+    return out
+
+
+def parse_board_meetings(raw: list[dict]) -> list[dict]:
+    """One event per (symbol, meeting date). NSE lists a meeting twice (the intimation + its
+    purpose); it is 'results' when any row's purpose/description mentions results."""
+    grouped: dict[tuple, dict] = {}
+    for r in raw or []:
+        sym, d = (r.get("bm_symbol") or "").strip(), _dmy(r.get("bm_date"))
+        if not sym or not d:
+            continue
+        g = grouped.setdefault((sym, d), {"purposes": [], "results": False})
+        purpose = (r.get("bm_purpose") or "").strip()
+        if purpose and purpose not in g["purposes"]:
+            g["purposes"].append(purpose)
+        g["results"] |= bool(_RESULTS.search(purpose) or _RESULTS.search(r.get("bm_desc") or ""))
+    return [{"symbol": sym, "event_type": "results" if g["results"] else "board_meeting",
+             "event_date": d, "record_date": None,
+             "details": {"purpose": " | ".join(g["purposes"])}, "source": "nse_bm"}
+            for (sym, d), g in grouped.items()]
+
+
+def parse_band_changes(text: str, as_of: date) -> list[dict]:
+    """eq_band_changes.csv (`Sr. No.,Symbol,Series,Security,From,To`) -> band_change events
+    dated `as_of` (the file carries no date; the loader passes its Last-Modified day)."""
+    import csv
+    import io
+    out = []
+    for row in csv.DictReader(io.StringIO(text or "")):
+        row = {(k or "").strip(): (v or "").strip() for k, v in row.items()}
+        try:
+            frm, to = float(row["From"]), float(row["To"])
+        except (KeyError, ValueError):
+            continue
+        if row.get("Symbol"):
+            out.append({"symbol": row["Symbol"], "event_type": "band_change",
+                        "event_date": as_of.isoformat(), "record_date": None,
+                        "details": {"from": frm, "to": to, "series": row.get("Series")},
+                        "source": "nse_band"})
+    return out
+
+
+def _nse_session():
+    s = requests.Session()
+    s.headers.update(NSE_API_HEADERS)
+    return s
+
+
+def fetch_holidays(session=None) -> dict:
+    r = (session or _nse_session()).get(HOLIDAY_URL, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+def fetch_board_meetings(frm: date, to: date, session=None) -> list[dict]:
+    r = (session or _nse_session()).get(BOARD_MEETINGS_URL, timeout=60, params={
+        "index": "equities", "from_date": frm.strftime("%d-%m-%Y"), "to_date": to.strftime("%d-%m-%Y")})
+    r.raise_for_status()
+    return parse_board_meetings(r.json())
+
+
+def fetch_band_changes(session=None) -> list[dict]:
+    from email.utils import parsedate_to_datetime
+    r = (session or _nse_session()).get(BAND_CHANGES_URL, timeout=30)
+    r.raise_for_status()
+    lm = r.headers.get("Last-Modified")
+    as_of = parsedate_to_datetime(lm).date() if lm else date.today()
+    return parse_band_changes(r.text, as_of)

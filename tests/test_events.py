@@ -233,3 +233,58 @@ def test_rights_recheck_ids_recent_or_undated():
             {"chittorgarh_id": 3, "issue_close": None},
             {"chittorgarh_id": 4, "issue_close": "2026-10-15"}]
     assert rights_recheck_ids(rows, date(2026, 9, 24), days=45) == [1, 3, 4]
+
+
+# --- WP6: trading holidays, board meetings / results, price-band changes -----------------
+
+import json
+from pathlib import Path
+
+NSE_FX = Path(__file__).resolve().parent / "fixtures" / "nse"
+
+
+def test_parse_holiday_master_cm_segment_only():
+    from scanner.events import parse_holiday_master
+    raw = json.loads((NSE_FX / "holidays.json").read_text(encoding="utf-8"))
+    hol = parse_holiday_master(raw)
+    assert date(2026, 1, 26) in hol and date(2026, 12, 25) in hol
+    assert len(hol) == len(raw["CM"])
+    assert parse_holiday_master({"FO": [{"tradingDate": "26-Jan-2026"}]}) == []
+
+
+def test_calendar_rows_mark_holidays_and_skip_weekends():
+    from scanner.events import calendar_rows
+    rows = calendar_rows({date(2026, 1, 26): "Republic Day"}, 2026)
+    by = {r["trade_date"]: r for r in rows}
+    assert by["2026-01-26"]["is_trading"] is False and by["2026-01-26"]["description"] == "Republic Day"
+    assert by["2026-01-27"]["is_trading"] is True
+    assert "2026-01-24" not in by                      # Saturday: not a row
+    assert len(rows) == 261                            # weekdays in 2026
+
+
+def test_parse_board_meetings_one_event_per_meeting_results_win():
+    from scanner.events import parse_board_meetings
+    raw = json.loads((NSE_FX / "board_meetings.json").read_text(encoding="utf-8"))
+    ev = {(e["symbol"], e["event_date"]): e for e in parse_board_meetings(raw)}
+    mm = ev[("M&M", "2026-11-05")]
+    assert mm["event_type"] == "results" and mm["source"] == "nse_bm"
+    assert "Financial Results/Other business matters" in mm["details"]["purpose"]
+    assert ev[("BAJFINANCE", "2026-10-01")]["event_type"] == "board_meeting"
+    assert ev[("GANESHCP", "2026-09-28")]["event_type"] == "board_meeting"
+    assert ev[("DEEPA", "2026-09-28")]["event_type"] == "results"
+    assert len(ev) == len({(r["bm_symbol"], r["bm_date"]) for r in raw})
+
+
+def test_parse_board_meetings_skips_junk_dates():
+    from scanner.events import parse_board_meetings
+    assert parse_board_meetings([{"bm_symbol": "X", "bm_date": "-", "bm_purpose": "Financial Results"}]) == []
+
+
+def test_parse_band_changes():
+    from scanner.events import parse_band_changes
+    text = (NSE_FX / "eq_band_changes.csv").read_text(encoding="utf-8")
+    ev = parse_band_changes(text, date(2026, 9, 24))
+    assert ev[0] == {"symbol": "EIMCOELECO", "event_type": "band_change", "event_date": "2026-09-24",
+                     "record_date": None, "details": {"from": 10.0, "to": 5.0, "series": "EQ"},
+                     "source": "nse_band"}
+    assert len(ev) == 4

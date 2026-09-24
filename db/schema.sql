@@ -366,3 +366,26 @@ set search_path = public
 as $$ select pg_database_size(current_database()) $$;
 revoke execute on function public.db_size_bytes() from public, anon, authenticated;
 grant execute on function public.db_size_bytes() to service_role;
+
+-- ============================================================================
+-- WP6 calendar (scanner/events.py, scanner/trading_calendar.py, refresh_events.py
+-- holidays|board-meetings|bands): NSE trading days, board meetings / results dates, price bands.
+-- ============================================================================
+create table if not exists trading_calendar (
+  trade_date  date primary key,
+  is_trading  boolean not null,
+  description text,
+  source      text not null default 'nse_holiday_master',
+  check (extract(isodow from trade_date) < 6)           -- weekdays only; weekends are implicit
+);
+alter table trading_calendar enable row level security;
+create policy "anon read trading_calendar" on trading_calendar for select to anon using (true);
+
+alter table corporate_events drop constraint if exists corporate_events_event_type_check;
+alter table corporate_events add constraint corporate_events_event_type_check check (event_type in (
+  'bonus','split','consolidation','rights','dividend','buyback','demerger','fo_ban','ipo_listing',
+  'anchor_lockin_30','anchor_lockin_90','board_meeting','results','band_change'));
+alter table corporate_events drop constraint if exists corporate_events_source_check;
+alter table corporate_events add constraint corporate_events_source_check check (source in (
+  'nse_ca','nse_fo','chittorgarh','nse_bm','nse_band'));
+create index if not exists idx_events_symbol_type_date on corporate_events(symbol, event_type, event_date);

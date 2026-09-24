@@ -26,6 +26,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.validation import exclude_results, parse_args  # noqa: E402
 
 from scanner.eventstudy import summarize
 from scanner.rebalance import EVENTS, abnormal_return_between, load_next50_events
@@ -84,8 +85,15 @@ def report(label, rows):
 
 
 def main():
-    use_nifty50 = "--nifty50" in sys.argv
+    args, rest = parse_args(sys.argv[1:], known_only=True)
+    use_nifty50 = "--nifty50" in rest
     events = EVENTS if use_nifty50 else load_next50_events()
+    if args.exclude_results_window:
+        keep = exclude_results(pd.DataFrame({"symbol": [e.symbol for e in events],
+                                             "effective": [e.effective for e in events],
+                                             "i": range(len(events))}),
+                               "effective", args.exclude_results_window)
+        events = [events[i] for i in keep["i"]]
     name = "NIFTY 50" if use_nifty50 else "NIFTY Next 50 (clean entries/exits)"
     print(f"=== {name} — {len(events)} events ===")
 

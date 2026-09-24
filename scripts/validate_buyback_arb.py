@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.validation import exclude_results, parse_args  # noqa: E402
 from scanner.pricestore import get_closes  # noqa: E402
 from scanner.buyback import fetch_buyback, arb_return, after_tax_return  # noqa: E402
 
@@ -68,6 +69,7 @@ def price_after(s, d, lag):
 
 
 def main():
+    args = parse_args()
     bb = scrape()
     bb = bb.dropna(subset=["symbol", "buyback_price", "record_date", "close_date",
                            "entitlement_small"])
@@ -102,7 +104,7 @@ def main():
         })
     if dropped:
         print(f"Dropped {len(dropped)} implausible premiums: {dropped}")
-    d = pd.DataFrame(recs)
+    d = exclude_results(pd.DataFrame(recs), "record_date", args.exclude_results_window)
     if d.empty:
         print("No events with usable prices.")
         return

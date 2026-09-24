@@ -18,6 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.validation import exclude_results, parse_args  # noqa: E402
 from scanner.pricestore import get_closes  # noqa: E402
 from scanner.deals import classify_client, NOTABLE          # noqa: E402
 from scanner.eventstudy import forward_abnormal_return, summarize  # noqa: E402
@@ -137,13 +138,15 @@ def fmt(s: dict) -> str:
 
 
 def main():
+    args = parse_args()
     print("Loading deals (cached after first run)...")
     norm = normalize(load_deals())
     print(f"Normalized deals: {len(norm)} | categories: "
           f"{norm['category'].value_counts().to_dict()}")
 
-    inst = build_events(norm, NOTABLE)
-    prop = build_events(norm, {"prop_broker"})
+    n = args.exclude_results_window
+    inst = exclude_results(build_events(norm, NOTABLE), "date", n)
+    prop = exclude_results(build_events(norm, {"prop_broker"}), "date", n)
     # Fair, bounded placebo: sample prop events down to the institutional count.
     if len(prop) > len(inst):
         prop = prop.sample(n=len(inst), random_state=42).reset_index(drop=True)

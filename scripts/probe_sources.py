@@ -40,6 +40,24 @@ def main():
         date.today() - timedelta(days=2), date.today())))
     probe("chittorgarh rights page", lambda: events.fetch_rights(454)[1]["symbol"])
     probe("screener.in TCS", lambda: fundamentals.fetch_company_page("TCS")[0]["ratios"].get("market_cap_cr"))
+    # DATA_INFRA_SPEC WP6 (calendar) + WP3 (bhavcopy)
+    probe("NSE holiday master JSON", lambda: len(events.holiday_descriptions(events.fetch_holidays())))
+    probe("NSE board meetings JSON", lambda: len(events.fetch_board_meetings(
+        date.today() - timedelta(days=30), date.today())))
+    probe("nse archive band changes", lambda: len(events.fetch_band_changes()) >= 0)
+    probe("nse archive bhavcopy", lambda: _bhav_rows())
+
+
+def _bhav_rows():
+    """Rows in the latest available sec_bhavdata_full file (walks back over holidays)."""
+    import requests
+    for k in range(1, 8):
+        d = date.today() - timedelta(days=k)
+        r = requests.get(f"https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_{d:%d%m%Y}.csv",
+                         headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+        if r.status_code == 200:
+            return f"{d}: {len(r.text.splitlines())} lines"
+    raise RuntimeError("no bhavcopy in the last 7 days")
 
 
 if __name__ == "__main__":

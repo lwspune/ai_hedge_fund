@@ -1,0 +1,50 @@
+name: backfill
+# One-off / catch-up loads, run on demand from Actions (never the laptop):
+#   board-meetings  results + board-meeting dates  (from/to = dates, default 2020-01-01..today)
+#   prices          NSE bhavcopy -> daily_prices + bucket  (from/to = dates; run a year at a time)
+#   orphans         companies rows for symbols seen in filings/deals/events but not the master
+# Shares the `refresh` concurrency group so it never overlaps the scheduled runs.
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        type: choice
+        options: [board-meetings, prices, orphans]
+        required: true
+      from:
+        description: "start date YYYY-MM-DD (board-meetings / prices)"
+        required: false
+      to:
+        description: "end date YYYY-MM-DD (default today)"
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      WHAT: ${{ inputs.what }}
+      FROM: ${{ inputs.from }}
+      TO: ${{ inputs.to }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: run
+        run: |
+          set -euo pipefail
+          TO="${TO:-$(date +%F)}"
+          case "$WHAT" in
+            board-meetings) python -u scripts/refresh_events.py board-meetings --from "${FROM:-2020-01-01}" --to "$TO" ;;
+            prices)         python -u scripts/refresh_prices.py --from "${FROM:?from is required}" --to "$TO" ;;
+            orphans)        python -u scripts/backfill_orphans.py ;;
+          esac

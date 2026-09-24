@@ -18,6 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.validation import exclude_results, parse_args  # noqa: E402
 
 # (label, target_sym, acquirer_sym, ratio[acq per target], announce, complete)
 DEALS = [
@@ -54,7 +55,13 @@ def main():
     print(f"{'DEAL':<20}{'TGT':>9}{'ACQ':>9}{'DEALVAL':>9}{'SPREAD':>8}{'DAYS':>6}{'ANNUALISED':>12}")
     print("-" * 73)
     spreads, annuals = [], []
-    for label, tgt, acq, ratio, ann, comp in DEALS:
+    deals = DEALS
+    n = parse_args().exclude_results_window
+    if n:
+        keep = exclude_results(pd.DataFrame({"symbol": [d[1] for d in DEALS], "ann": [d[4] for d in DEALS],
+                                             "i": range(len(DEALS))}), "ann", n)
+        deals = [DEALS[i] for i in keep["i"]]
+    for label, tgt, acq, ratio, ann, comp in deals:
         pt, dt = nse_close_on_or_after(tgt, ann, ENTRY_LAG)
         pa, da = nse_close_on_or_after(acq, ann, ENTRY_LAG)
         if pt is None or pa is None:

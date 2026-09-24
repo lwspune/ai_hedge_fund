@@ -25,7 +25,8 @@ def test_stale_flags_old_and_missing_tables_only():
 def test_rules_cover_the_scheduled_tables():
     assert set(RULES) >= {"deals", "corporate_actions", "ipo_listings", "companies", "fundamentals",
                           "filings", "fo_ban", "rights_issues", "kpis", "scans_buyback_arb",
-                          "scans_rights_re", "buyback_frontier"}
+                          "scans_rights_re", "buyback_frontier", "board_meetings"}
+    assert "calendar_ahead" in FLOORS          # trading_calendar must extend past today
 
 
 def test_too_thin_flags_windows_under_their_floor():

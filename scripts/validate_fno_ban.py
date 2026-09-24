@@ -22,6 +22,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.validation import exclude_results, parse_args  # noqa: E402
 from scanner import db  # noqa: E402
 from scanner.eventstudy import summarize, window_return  # noqa: E402
 from scanner.fnoban import PLACEBO_GAP, PRE_DAYS, WINDOWS, ban_episodes, far_from_bans, reversal  # noqa: E402
@@ -139,4 +140,5 @@ def report(df: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
-    report(build())
+    args = parse_args()
+    report(exclude_results(build(), "first", args.exclude_results_window))

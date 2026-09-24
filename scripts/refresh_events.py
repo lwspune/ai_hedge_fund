@@ -5,6 +5,9 @@
     python scripts/refresh_events.py rights  [--from-id 1] [--to-id 700]            # chittorgarh rights issues
     python scripts/refresh_events.py ipos    [--from-id 1] [--to-id 3000]           # default: frontier probe
                                                                                    #  + recheck last 120d
+    python scripts/refresh_events.py holidays                                       # trading_calendar (weekly)
+    python scripts/refresh_events.py board-meetings [--from ...] [--to ...]         # default: -10d..+90d
+    python scripts/refresh_events.py bands                                          # price-band changes
 
 All sources also work from GitHub Actions runners (scripts/probe_sources.py); chittorgarh and
 the F&O ban archive are fetched politely (rate-limited).
@@ -22,8 +25,9 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner import db  # noqa: E402
 from scanner.events import (  # noqa: E402
-    dedupe_events, fetch_corp_actions, fetch_fo_ban, fetch_ipo, fetch_rights, ipo_events, recheck_ids,
-    rights_recheck_ids)
+    calendar_rows, dedupe_events, fetch_band_changes, fetch_board_meetings, fetch_corp_actions,
+    fetch_fo_ban, fetch_holidays, fetch_ipo, fetch_rights, holiday_descriptions, ipo_events,
+    recheck_ids, rights_recheck_ids)
 
 CHUNK = 500
 GAP_STOP = 30      # consecutive missing IPO pages that end a frontier probe
@@ -148,9 +152,48 @@ def run_rights(from_id: int | None, to_id: int | None) -> None:
     print(f"upserted {len(good)} rights issues (scan ended at id {i - 1})")
 
 
+MIN_HOLIDAYS = 8   # NSE has ~15 CM holidays a year; fewer = a truncated / changed response
+
+
+def run_holidays() -> None:
+    """NSE holiday master -> trading_calendar rows for every weekday of this and next year
+    (next year's holidays appear once NSE publishes them, usually in December)."""
+    raw = fetch_holidays()
+    hol = holiday_descriptions(raw)
+    if len(hol) < MIN_HOLIDAYS:
+        raise SystemExit(f"holiday master returned {len(hol)} CM holidays (< {MIN_HOLIDAYS}); not writing")
+    this = date.today().year
+    rows = calendar_rows(hol, this) + calendar_rows(hol, this + 1)
+    for i in range(0, len(rows), CHUNK):
+        db.insert("trading_calendar", rows[i:i + CHUNK], on_conflict="trade_date", return_rows=False)
+    print(f"trading_calendar: {len(rows)} weekdays, {len(hol)} holidays")
+
+
+def run_board_meetings(frm: date, to: date) -> None:
+    """Board meetings / results dates, one NSE call per 30 days."""
+    total, cur = 0, frm
+    while cur <= to:
+        end = min(cur + timedelta(days=29), to)
+        ev = fetch_board_meetings(cur, end)
+        total += upsert_events(ev)
+        print(f"  board meetings {cur}..{end}: {len(ev)} "
+              f"({sum(e['event_type'] == 'results' for e in ev)} results)")
+        cur = end + timedelta(days=1)
+        time.sleep(0.5)
+    if total == 0:
+        raise SystemExit(f"no board meetings {frm}..{to} — the NSE response changed?")
+    print(f"upserted {total} board-meeting events")
+
+
+def run_bands() -> None:
+    ev = fetch_band_changes()  # can legitimately be empty
+    print(f"upserted {upsert_events(ev)} band-change events")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["actions", "fo-ban", "ipos", "rights"])
+    ap.add_argument("what", choices=["actions", "fo-ban", "ipos", "rights", "holidays",
+                                     "board-meetings", "bands"])
     ap.add_argument("--from", dest="frm", type=date.fromisoformat)
     ap.add_argument("--to", type=date.fromisoformat)
     ap.add_argument("--from-id", type=int)
@@ -163,6 +206,12 @@ def main():
         run_fo_ban(a.frm or today - timedelta(days=10), a.to or today)
     elif a.what == "rights":
         run_rights(a.from_id, a.to_id)
+    elif a.what == "holidays":
+        run_holidays()
+    elif a.what == "board-meetings":  # recent (late intimations) + the next quarter's results season
+        run_board_meetings(a.frm or today - timedelta(days=10), a.to or today + timedelta(days=90))
+    elif a.what == "bands":
+        run_bands()
     else:
         run_ipos(a.from_id, a.to_id)
         if a.from_id is None:  # daily mode: also refresh recent pages (lock-in dates fill in late)
