@@ -432,6 +432,58 @@ def test_enrich_published_entitlement_wins():
     assert r["is_open"] is False
 
 
+def _closes(dates, values):
+    return pd.Series(values, index=pd.DatetimeIndex(pd.to_datetime(dates)), dtype="float64")
+
+
+def test_last_buy_close_t1_era_is_the_close_before_the_record_date():
+    # T+1 settlement (from 2023-01-27): record date = ex-date, so the last cum close is the
+    # previous session's, not the record day's (which the old study used).
+    from scanner.buyback import last_buy_close
+    s = _closes(["2025-06-10", "2025-06-11", "2025-06-12", "2025-06-13"], [100, 102, 95, 94])
+    d, px = last_buy_close(s, pd.Timestamp("2025-06-12"))
+    assert d == pd.Timestamp("2025-06-11") and px == 102
+
+
+def test_last_buy_close_t2_era_is_two_sessions_before_the_record_date():
+    # Under T+2 the ex-date was the session before the record date; buy the session before that.
+    from scanner.buyback import last_buy_close
+    s = _closes(["2022-06-10", "2022-06-13", "2022-06-14", "2022-06-15"], [100, 102, 95, 94])
+    d, px = last_buy_close(s, pd.Timestamp("2022-06-14"))
+    assert d == pd.Timestamp("2022-06-10") and px == 100
+
+
+def test_last_buy_close_skips_a_non_trading_record_date_and_needs_history():
+    from scanner.buyback import last_buy_close
+    s = _closes(["2025-06-12", "2025-06-13", "2025-06-16"], [95, 94, 93])
+    d, px = last_buy_close(s, pd.Timestamp("2025-06-14"))   # Saturday record date
+    assert d == pd.Timestamp("2025-06-13") and px == 94
+    assert last_buy_close(s, pd.Timestamp("2025-06-12")) is None
+
+
+def test_last_buy_date_is_the_trading_day_before_the_record_date():
+    from datetime import date
+    from scanner.buyback import last_buy_date
+    hol = frozenset({date(2025, 6, 16)})
+    assert last_buy_date(date(2025, 6, 17), hol) == date(2025, 6, 13)   # skips holiday + weekend
+    assert last_buy_date(None, hol) is None
+
+
+def test_enrich_closes_the_buy_window_once_the_record_date_has_passed():
+    # Tender window still open (close date ahead) but the record date is behind us: nothing a
+    # new buyer can do, so the Act row must not show it as open.
+    from datetime import date
+    from scanner.buyback import enrich_buyback
+    bb = {"id": 3, "symbol": "Z", "buyback_price": 120.0, "record_date": pd.Timestamp("2026-09-22"),
+          "close_date": pd.Timestamp("2026-10-06"), "entitlement_small": 0.25, "issue_size_cr": 50.0,
+          "issue_type": "tender"}
+    r = enrich_buyback(bb, cur=100.0, market_cap_cr=500.0, small_holder_pct=40.0, today=pd.Timestamp("2026-09-24"))
+    assert r["last_buy_date"] == date(2026, 9, 21)
+    assert r["is_open"] is False
+    early = enrich_buyback(bb, cur=100.0, market_cap_cr=500.0, small_holder_pct=40.0, today=pd.Timestamp("2026-09-21"))
+    assert early["is_open"] is True
+
+
 def test_format_table_marks_estimated_entitlement():
     from scanner.buyback import format_buyback_table
     row = {"symbol": "GLOBALPET", "cur_price": 140.0, "buyback_price": 160.0, "premium": 0.1429,

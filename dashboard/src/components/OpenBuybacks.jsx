@@ -51,8 +51,13 @@ const COLUMNS = [
     render: (r) => <span className={p(r).exp_return > GOOD ? 'tone-pos' : undefined}>{fmtPct(p(r).exp_return)}</span>,
   },
   {
+    key: 'last_buy_date', header: 'Buy by', nowrap: true, sortable: true, sortValue: (r) => p(r).last_buy_date,
+    title: 'Last trading day before the record date; the record date itself is ex-entitlement',
+    render: (r) => <>{fmtDate(p(r).last_buy_date)} <span className="rel">{fmtRelative(p(r).last_buy_date)}</span></>,
+  },
+  {
     key: 'record_date', header: 'Record date', nowrap: true, sortable: true, sortValue: (r) => p(r).record_date,
-    render: (r) => <>{fmtDate(p(r).record_date)} <span className="rel">{fmtRelative(p(r).record_date)}</span></>,
+    render: (r) => fmtDate(p(r).record_date),
   },
   { key: 'close_date', header: 'Closes', nowrap: true, render: (r) => fmtDate(p(r).close_date) },
   { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.buyback?.status} /> },

@@ -41,6 +41,41 @@ def _components(entry_price, accept_frac, capital, cost_bps):
     return n, accepted, residual, buy_cost
 
 
+# T+1 rolling settlement covered every NSE stock from 2023-01-27 (phased in from Feb-2022 by
+# market cap). Under T+1 the record date IS the ex-date: to be on the register you buy the
+# session before. Under T+2 the ex-date was the session before the record date, so the last cum
+# session was two sessions before. The record-day close (what the study used until 2026-09-24)
+# is an ex-entitlement price nobody can tender from: stocks drop ~2.5% (median) that day.
+T1_SETTLEMENT = pd.Timestamp("2023-01-27")
+
+
+def last_buy_close(closes: pd.Series, record_date):
+    """(date, close) of the last session a buyer could still earn the tender entitlement —
+    the cum-entitlement close — or None without enough history."""
+    if closes is None or len(closes) == 0:
+        return None
+    rd = pd.Timestamp(record_date)
+    before = closes.sort_index()
+    before = before[before.index < rd]
+    back = 1 if rd >= T1_SETTLEMENT else 2
+    if len(before) < back:
+        return None
+    d = before.index[-back]
+    return d, float(before.iloc[-back])
+
+
+def last_buy_date(record_date, hol):
+    """Last day to buy for a tender (T+1 era): the trading day before the record date."""
+    if record_date is None or pd.isna(record_date):
+        return None
+    from datetime import timedelta
+    from scanner.trading_calendar import is_trading_day
+    d = pd.Timestamp(record_date).date() - timedelta(days=1)
+    while not is_trading_day(d, hol):
+        d -= timedelta(days=1)
+    return d
+
+
 def arb_return(entry_price, buyback_price, post_price, accept_frac,
                capital=200000, cost_bps=30):
     """Gross (pre-tax) return of the small-shareholder tender arb."""
@@ -368,15 +403,21 @@ def latest_small_holder(symbol: str) -> dict:
 
 
 def enrich_buyback(bb: dict, cur: float, market_cap_cr, small_holder_pct, today,
-                   small_holder_quarter=None) -> dict:
+                   small_holder_quarter=None, hol=frozenset()) -> dict:
     """Pure per-offer enrichment (no network): premium vs the unadjusted close, the entitlement
     floor (published, else estimated from the small-shareholder float, else none), the acceptance
-    prior and the after-tax expected return. A tender without a close date yet (pre letter of
-    offer) is `is_open`: the window has not closed, and the record date is the moment to act."""
+    prior and the after-tax expected return. `is_open` = a buyer can still act: the tender window
+    has not closed (a tender without a close date yet, pre letter of offer, counts as open) AND
+    today is on or before `last_buy_date`, the trading day before the record date (T+1: the
+    record date itself is ex-entitlement)."""
     floor, floor_src = entitlement_floor(bb, market_cap_cr, cur, small_holder_pct)
     acc = estimate_acceptance(market_cap_cr, floor, issue_size_cr=bb.get("issue_size_cr"))
+    lbd = last_buy_date(bb.get("record_date"), hol)
+    window_open = bool(pd.isna(bb.get("close_date")) or pd.Timestamp(bb["close_date"]) >= pd.Timestamp(today))
+    can_buy = lbd is None or pd.Timestamp(today).date() <= lbd
     r = dict(bb)
     r.update(
+        last_buy_date=lbd,
         cur_price=cur, premium=bb["buyback_price"] / cur - 1, market_cap_cr=market_cap_cr,
         est_acceptance=acc, small_holder_pct=small_holder_pct, small_holder_quarter=small_holder_quarter,
         est_entitlement=floor if floor_src == "estimated" else estimate_entitlement(
@@ -384,7 +425,7 @@ def enrich_buyback(bb: dict, cur: float, market_cap_cr, small_holder_pct, today,
         entitlement_source=floor_src,
         est_return=arb_return(cur, bb["buyback_price"], cur, floor) if floor is not None else None,
         exp_return=expected_after_tax(cur, bb["buyback_price"], acc, bb.get("record_date")),
-        is_open=bool(pd.isna(bb.get("close_date")) or pd.Timestamp(bb["close_date"]) >= pd.Timestamp(today)),
+        is_open=window_open and can_buy,
     )
     return r
 
@@ -417,6 +458,7 @@ def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
     ranked (open tender windows first). Auto-finds new buybacks — no hardcoded range."""
     from datetime import date
     from scanner.pricestore import get_closes
+    from scanner.trading_calendar import holidays
 
     if start_id is None:
         start_id = _default_start_id()
@@ -437,7 +479,7 @@ def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
         mcap = market_cap_for(bb["symbol"])
         shp = latest_small_holder(bb["symbol"])
         out.append(enrich_buyback(bb, cur, mcap, shp.get("small_holder_pct"), today,
-                                  small_holder_quarter=shp.get("quarter_end")))
+                                  small_holder_quarter=shp.get("quarter_end"), hol=holidays()))
     out.sort(key=lambda r: (r["is_open"], r["exp_return"] if r["exp_return"] is not None else -9),
              reverse=True)
     return [r for r in out if r["is_open"]] if only_open else out
@@ -463,10 +505,12 @@ def format_buyback_table(rows: list[dict]) -> str:
             f"{r['symbol']:<11}{r['cur_price']:>8,.0f}{r['buyback_price']:>9,.0f}"
             f"{r['premium']*100:>5.0f}%{mc:>10}{ent}"
             f"{r['est_acceptance']*100:>5.0f}%{exp*100:>6.1f}%  "
-            f"{'OPEN' if r.get('is_open') else 'closed'}")
+            f"{('OPEN, buy by ' + str(r['last_buy_date'])) if r.get('is_open') and r.get('last_buy_date') else 'OPEN' if r.get('is_open') else 'closed'}")
     out.append("\nENT = published small-shareholder entitlement; a trailing ~ = estimated from the "
                "small-holder float (letter of offer not yet out; ? = no estimate). ACC~ = estimated "
                "acceptance (heuristic by mkt-cap; the outcomes feedback loop calibrates it). "
-               "EXP~ = after-tax expected return at ACC~. OPEN = tender window not yet closed. "
+               "EXP~ = after-tax expected return at ACC~. OPEN = you can still buy: the trading day "
+               "before the record date (the record date itself is ex-entitlement) has not passed and "
+               "the tender window is not closed. "
                "Verify before acting.")
     return "\n".join(out)

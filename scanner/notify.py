@@ -34,8 +34,10 @@ def buyback_alerts(candidates: list[dict]) -> list[dict]:
                 f"(premium {_pct(p.get('premium'))})\n"
                 f"est acceptance {_pct(p.get('est_acceptance'), 0)} · "
                 f"exp after-tax {_pct(p.get('exp_return'))}\n"
-                f"record {p.get('record_date') or '—'} · closes {p.get('close_date') or '—'}\n"
-                f"Edge holds only at a tax slab ≤20%. Verify before acting · {_link(sym)}")
+                f"buy by {p.get('last_buy_date') or '—'} · record {p.get('record_date') or '—'} · "
+                f"closes {p.get('close_date') or '—'}\n"
+                f"Edge only from a ≤5%-slab account on a high-acceptance tender (thin at 20%, "
+                f"negative at 30%). Verify before acting · {_link(sym)}")
         out.append({"signal_name": "buyback_arb", "alert_key": f"{sym}|{p.get('record_date')}",
                     "text": text})
     return out

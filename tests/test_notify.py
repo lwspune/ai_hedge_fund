@@ -5,7 +5,7 @@ from scanner.notify import buyback_alerts, new_alerts, rights_alerts
 def _bb(symbol="TCS", is_open=True, **kw):
     payload = {"premium": 0.12, "entitlement_small": 0.18, "est_acceptance": 0.4, "est_floor": 0.01,
                "exp_return": 0.035, "is_open": is_open, "buyback_price": 4500.0, "cur_price": 4017.0,
-               "record_date": "2026-09-30", "close_date": "2026-10-10", **kw}
+               "record_date": "2026-09-30", "close_date": "2026-10-10", "last_buy_date": "2026-09-29", **kw}
     return {"symbol": symbol, "score": payload["exp_return"], "payload": payload}
 
 
@@ -24,9 +24,15 @@ def test_buyback_alerts_only_open_tenders_keyed_by_symbol_and_record_date():
 
 def test_buyback_text_carries_the_numbers_and_the_tax_caveat():
     text = buyback_alerts([_bb()])[0]["text"]
-    for s in ("TCS", "4,500", "4,017", "12.0%", "40%", "3.5%", "2026-09-30", "2026-10-10", "≤20%"):
+    for s in ("TCS", "4,500", "4,017", "12.0%", "40%", "3.5%", "2026-09-30", "2026-10-10", "≤5%",
+              "buy by 2026-09-29"):
         assert s in text
     assert "#/company/TCS" in text
+
+
+def test_buyback_text_without_a_last_buy_date_still_renders():
+    text = buyback_alerts([_bb(last_buy_date=None)])[0]["text"]
+    assert "buy by —" in text
 
 
 def test_buyback_missing_exp_return_renders_a_dash_not_a_crash():

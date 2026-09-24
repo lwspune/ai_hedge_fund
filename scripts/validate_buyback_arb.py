@@ -1,9 +1,13 @@
 """Validate small-shareholder buyback tender arbitrage with a historical study.
 
-For each completed tender buyback: buy ~Rs 2L before the record date, capture the
-buyback premium on the guaranteed-accepted (entitlement) portion, sell the
-residual ~1 month after close. Reports gross, full-acceptance, and after-tax
-(the Oct-2024 dividend-tax regime) returns.
+For each completed tender buyback: buy ~Rs 2L at the LAST CUM-ENTITLEMENT CLOSE (T+1 era:
+the session before the record date, which is itself the ex-date; T+2 era: two sessions
+before — `buyback.last_buy_close`), capture the buyback premium on the guaranteed-accepted
+(entitlement) portion, sell the residual ~1 month after close. Reports gross,
+full-acceptance, and after-tax (the Oct-2024 dividend-tax regime) returns.
+
+Until 2026-09-24 the entry was the record-day close — an ex-entitlement price nobody can
+tender from; stocks drop a median ~2.5% that day, which the old table booked as premium.
 
     python scripts/validate_buyback_arb.py
 """
@@ -17,7 +21,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner.validation import exclude_results, run  # noqa: E402
 from scanner.pricestore import get_closes  # noqa: E402
-from scanner.buyback import arb_return, after_tax_return  # noqa: E402
+from scanner.buyback import arb_return, after_tax_return, last_buy_close  # noqa: E402
 from scanner.pointintime import mcap_bucket_at  # noqa: E402
 
 RESIDUAL_LAG = 21          # trading days after close to sell the residual
@@ -70,10 +74,12 @@ def main(args) -> dict | None:
         s = get_prices(r["symbol"], r["record_date"])
         if s is None:
             continue
-        entry = price_on_or_before(s, r["record_date"])
+        cum = last_buy_close(s, r["record_date"])       # the last close a tendering buyer can pay
         post = price_after(s, r["close_date"], RESIDUAL_LAG)
-        if not entry or not post:
+        if not cum or not cum[1] or not post:
             continue
+        entry_date, entry = cum
+        record_close = price_on_or_before(s, r["record_date"])   # kept for the ex-day drop audit
         ent = float(r["entitlement_small"])
         bp = float(r["buyback_price"])
         if not PREMIUM_BOUNDS[0] <= bp / entry - 1 <= PREMIUM_BOUNDS[1]:
@@ -83,6 +89,10 @@ def main(args) -> dict | None:
         recs.append({
             "symbol": r["symbol"],
             "record_date": r["record_date"],
+            "entry_date": entry_date,
+            "entry": entry,
+            # audit of the old flaw: the record-day (ex-entitlement) close vs the cum entry
+            "ex_day_move": (record_close / entry - 1) if record_close else None,
             "regime": regime,
             # market cap AS OF the record date (WP5) — today's cap would be lookahead
             "mcap_bucket": mcap_bucket_at(r["symbol"], r["record_date"].date()),
@@ -113,7 +123,9 @@ def main(args) -> dict | None:
               f"median={x.median()*100:+6.2f}%  win={ (x>0).mean()*100:4.0f}%")
 
     print(f"\n=== BUYBACK TENDER ARB ({len(d)} events, record dates {d.record_date.min():%b-%Y} -> "
-          f"{d.record_date.max():%b-%Y}, ~Rs 2L, entitlement-floor acceptance) ===")
+          f"{d.record_date.max():%b-%Y}, ~Rs 2L, entry = last CUM-entitlement close, "
+          f"entitlement-floor acceptance) ===")
+    show("Record-day (ex) close vs cum entry", "ex_day_move")
     show("Avg buyback premium vs entry", "premium")
     show("GROSS return (entitlement floor)", "gross_floor")
     show("GROSS return (3x entitlement)", "gross_full")
