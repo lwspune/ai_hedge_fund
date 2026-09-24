@@ -180,3 +180,21 @@ def test_pre_oct2024_close_to_gross():
     pre = after_tax_return(**args, regime="pre_oct2024", slab=0.30, cost_bps=0)
     # Pre-Oct-2024 buyback proceeds were tax-free; flat residual -> ~gross.
     assert pre == pytest.approx(gross, abs=1e-9)
+
+
+def test_fetch_page_does_not_follow_redirects():
+    """Unknown buyback ids 307-redirect to a listing page that also says 'Buyback'."""
+    from scanner.buyback import _fetch_page
+
+    class R:
+        status_code, text = 307, "<title>Buyback list</title>"
+
+    class S:
+        kw = None
+
+        def get(self, url, **kw):
+            S.kw = kw
+            return R()
+
+    assert _fetch_page(9999, S()) == (False, None)
+    assert S.kw.get("allow_redirects") is False

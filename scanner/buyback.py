@@ -167,7 +167,9 @@ _BUYBACK_URL = "https://www.chittorgarh.com/buyback/x/{}/"
 
 def _fetch_page(bid: int, session):
     """(exists, html) for a buyback id. exists=False on 404 / non-buyback pages."""
-    r = session.get(_BUYBACK_URL.format(bid), headers={"User-Agent": _UA}, timeout=25)
+    # unknown ids 307-redirect to a listing page (which also says "Buyback") -> never follow
+    r = session.get(_BUYBACK_URL.format(bid), headers={"User-Agent": _UA}, timeout=25,
+                    allow_redirects=False)
     if r.status_code == 200 and "Buyback" in r.text:
         return True, r.text
     return False, None

@@ -42,7 +42,10 @@ function arbFloor(entry: number, buyback: number, accFrac: number): number | nul
 }
 
 async function fetchPage(bid: number): Promise<string | null> {
-  const r = await fetch(`https://www.chittorgarh.com/buyback/x/${bid}/`, { headers: { "User-Agent": UA } });
+  // unknown ids 307-redirect to a listing page (which also says "Buyback") -> never follow
+  const r = await fetch(`https://www.chittorgarh.com/buyback/x/${bid}/`, {
+    headers: { "User-Agent": UA }, redirect: "manual",
+  });
   if (r.status !== 200) return null;
   const t = await r.text();
   return t.includes("Buyback") ? t : null;
