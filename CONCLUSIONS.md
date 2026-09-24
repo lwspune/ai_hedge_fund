@@ -35,19 +35,33 @@ follower can't act. The classifier works (placebo prop-buys are toxic, −6% ove
 the institutional signal itself carries no follower edge.
 
 ### 3. Buyback small-shareholder tender arb — CONDITIONAL EDGE (the keeper)
-48 tender buybacks, ₹2L, entitlement-floor acceptance:
+81 tender buybacks (Dec-2022 → Dec-2025), ₹2L, **unadjusted NSE closes** (corrected
+2026-09-24 — see note), residual sold 21 trading days after close:
 
 | Scenario | Mean | Median | Win |
 |---|---|---|---|
-| Gross @ entitlement floor | +6.4% | **−0.1%** | 48% |
-| Gross @ 3× entitlement (high-acceptance) | +23% | **+6.4%** | 71% |
-| After-tax, post-Oct-2024 (floor) | −1.7% | −6.4% | 43% |
+| Buyback premium vs entry | +24% | +22% | 99% |
+| Gross @ entitlement floor | +1.5% | **+0.4%** | 51% |
+| Gross @ 3× entitlement (high-acceptance) | +6.4% | **+5.4%** | 69% |
+| After-tax today's rules, 30% slab — floor | −1.3% | −2.1% | 40% |
+| After-tax today's rules, 30% slab — 3× | +0.0% | **−1.5%** | 42% |
+| After-tax today's rules, 20% slab — 3× | +4.3% | +3.8% | 68% |
+| After-tax today's rules, 0–5% slab — 3× | +11–13% | +10–12% | 81–83% |
 
 Blind tendering ≈ break-even; the money is in **selecting high-acceptance, high-premium
-small-caps** (where the structural 15% small-shareholder reservation — barred to
-institutions — gives near-100% retail acceptance). The Oct-2024 dividend-tax change is a
-real headwind; mitigate with lower brackets / family ₹2L accounts / high-acceptance deals.
-**This is the one signal worth building selection around.**
+small-caps** (the structural 15% small-shareholder reservation — barred to institutions —
+gives near-100% retail acceptance). **Since Oct-2024 the edge is also conditional on the
+tax slab:** payouts are taxed as dividend at slab, so at 30% the high-acceptance trade is
+~0 after tax; it works at ≤20% (low-income / family ₹2L accounts). The low-slab rows assume
+the accepted shares' cost is used as a capital loss **against other short-term gains** (credited
+at the 20% STCG rate in `after_tax_return`); without gains to offset, that benefit only
+carries forward. **Still the one signal worth building selection around — for the right account.**
+
+*Correction note (2026-09-24):* the original table (n=48: floor median −0.1%, 3× median
++6.4%, 3× mean +23%) used yfinance closes, which are back-adjusted for later splits/bonuses
+while the buyback price is nominal (SPORTKING's 1:10 split showed as a "+1282%" premium),
+and a cache that had silently dropped 29 events. Medians barely moved; the inflated means
+did. Verdict unchanged; the tax-slab condition is new.
 
 ### 4. Stock-swap merger arb — THIN
 3 verified completed deals (HDFC, LTIMindtree, Shriram): announcement spreads +2.7/2.4/6.7%

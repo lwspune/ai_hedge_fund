@@ -27,6 +27,7 @@ ID_RANGE = range(90, 226)
 RESIDUAL_LAG = 21          # trading days after close to sell the residual
 TAX_CUTOVER = pd.Timestamp("2024-10-01")
 SLAB = 0.30
+PREMIUM_BOUNDS = (-0.5, 1.5)   # outside = stale/mis-matched price, not a real offer (as edge fn)
 
 
 def scrape() -> pd.DataFrame:
@@ -51,7 +52,9 @@ def scrape() -> pd.DataFrame:
 
 
 def get_prices(symbol: str) -> pd.Series | None:
-    return get_closes(symbol)  # infra I2: cached + guarded (scanner/pricestore.py)
+    # UNADJUSTED NSE closes: the buyback price is a nominal rupee price, so entry/residual must
+    # be too. yfinance back-adjusts for later splits/bonuses (SPORTKING 1:10 -> "+1282%" premium).
+    return get_closes(symbol, source="nse")
 
 
 def price_on_or_before(s, d):
@@ -70,7 +73,7 @@ def main():
                            "entitlement_small"])
     print(f"\nTender buybacks scraped with full data: {len(bb)}")
 
-    recs = []
+    recs, dropped = [], []
     for _, r in bb.iterrows():
         s = get_prices(r["symbol"])
         if s is None:
@@ -81,6 +84,9 @@ def main():
             continue
         ent = float(r["entitlement_small"])
         bp = float(r["buyback_price"])
+        if not PREMIUM_BOUNDS[0] <= bp / entry - 1 <= PREMIUM_BOUNDS[1]:
+            dropped.append((r["symbol"], round(bp / entry - 1, 2)))
+            continue
         regime = "post_oct2024" if r["record_date"] >= TAX_CUTOVER else "pre_oct2024"
         recs.append({
             "symbol": r["symbol"],
@@ -91,7 +97,11 @@ def main():
             "gross_full": arb_return(entry, bp, post, min(ent * 3, 1.0)),
             "aftertax_floor": after_tax_return(entry, bp, post, ent, regime=regime, slab=SLAB),
             "aftertax_now": after_tax_return(entry, bp, post, ent, regime="post_oct2024", slab=SLAB),
+            "aftertax_full_now": after_tax_return(entry, bp, post, min(ent * 3, 1.0),
+                                                  regime="post_oct2024", slab=SLAB),
         })
+    if dropped:
+        print(f"Dropped {len(dropped)} implausible premiums: {dropped}")
     d = pd.DataFrame(recs)
     if d.empty:
         print("No events with usable prices.")
@@ -110,6 +120,7 @@ def main():
     show("GROSS return (3x entitlement)", "gross_full")
     show("AFTER-TAX (regime of the day)", "aftertax_floor")
     show("AFTER-TAX (today's rules, 30% slab)", "aftertax_now")
+    show("AFTER-TAX today's rules @ 3x entitl.", "aftertax_full_now")
     print("\n  -- by tax regime (gross floor) --")
     show("pre-Oct-2024 events", "gross_floor", d[d.regime == "pre_oct2024"])
     show("post-Oct-2024 events", "gross_floor", d[d.regime == "post_oct2024"])

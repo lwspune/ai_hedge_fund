@@ -165,7 +165,7 @@ or a headless-browser fetch before testing signal #5.
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
-### `buyback_arb` validation compares a nominal buyback price to split-adjusted entry prices — **OPEN (surfaced 2026-09-24, infra I2)**
+### ~~`buyback_arb` validation compares a nominal buyback price to split-adjusted entry prices~~ — **DONE 2026-09-24** (re-run on unadjusted NSE closes, n=81; verdict holds, new tax-slab condition — CONCLUSIONS §3)
 
 **Learning:** yfinance closes are split/bonus-adjusted backwards, so any "premium vs a nominal
 price" (buyback price, open-offer price, delisting floor) is wrong for stocks that later split or
@@ -188,3 +188,19 @@ fetches (n=48 recorded vs 77 now).
 - *Recommendation:* **do** — the primary signal's evidence should be reproducible; expect the
   verdict ("conditional edge on high-acceptance small-caps, post-Oct-2024 tax kills the floor")
   to survive, with smaller gross numbers.
+
+### Buyback id probe follows chittorgarh redirects — **OPEN (surfaced 2026-09-24)**
+
+**Learning:** chittorgarh 307-redirects unknown ids to a listing page; `requests` follows it and
+the page contains the marker text, so a missing id looks real. Fixed for IPOs
+(`fetch_ipo(..., allow_redirects=False)`) after the scheduled IPO probe never stopped.
+
+**360:**
+- *Scope:* `scanner/buyback._fetch_page` (CLI discovery) and the `refresh-buybacks` edge
+  function's `fetchPage` (Deno `fetch` also follows redirects).
+- *Blast radius:* discovery only; results are correct because parsing rejects the listing page.
+- *Does it really apply:* yes — `/buyback/x/9999/` → 307 → `/report/buyback/80/`.
+- *Risk / reversibility:* one-line change each (`allow_redirects=False` / `redirect: "manual"`).
+- *Cost:* the gap-stop (8) never fires, so every scan burns its hard cap (80 CLI / 60 edge-fn
+  page fetches) — slower and less polite, not wrong.
+- *Recommendation:* **do** (small, safe); redeploy the edge function.
