@@ -196,7 +196,9 @@ def ipo_events(ipo: dict) -> list[dict]:
 
 def fetch_ipo(ipo_id: int, session=None) -> tuple[bool, dict | None]:
     """(page_exists, parsed_row). A 200 page that isn't a listed NSE IPO -> (True, None)."""
-    r = (session or requests).get(IPO_URL.format(id=ipo_id), headers=_UA, timeout=20)
+    # unknown ids 307-redirect to a listing page (which also says "IPO") -> never follow
+    r = (session or requests).get(IPO_URL.format(id=ipo_id), headers=_UA, timeout=20,
+                                  allow_redirects=False)
     if r.status_code != 200 or "IPO" not in r.text:
         return False, None
     return True, parse_ipo_page(r.text, ipo_id)

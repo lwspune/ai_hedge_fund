@@ -129,3 +129,27 @@ def test_ipo_events_listing_and_lockins():
         ("anchor_lockin_90", "2025-12-08")]
     assert all(e["symbol"] == "VIGOR" and e["source"] == "chittorgarh" for e in ev)
     assert ev[1]["details"] == {"chittorgarh_id": 2400, "anchor_shares": 873600, "board": "sme"}
+
+
+class _Resp:
+    def __init__(self, status, text=""):
+        self.status_code, self.text = status, text
+
+
+class _Session:
+    def __init__(self, resp):
+        self.resp, self.kwargs = resp, None
+
+    def get(self, url, **kw):
+        self.kwargs = kw
+        return self.resp
+
+
+def test_fetch_ipo_treats_redirect_as_missing_page():
+    """chittorgarh 307-redirects unknown ids to a listing page containing 'IPO'; following it
+    made every id look real, so the frontier probe never gap-stopped."""
+    from scanner.events import fetch_ipo
+    s = _Session(_Resp(307, "<title>IPO list</title>"))
+    assert fetch_ipo(99999, s) == (False, None)
+    assert s.kwargs.get("allow_redirects") is False
+    assert fetch_ipo(2400, _Session(_Resp(200, _page(**FULL))))[0] is True
