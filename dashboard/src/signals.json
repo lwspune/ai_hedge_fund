@@ -96,5 +96,12 @@
     "verdict": "null",
     "role": "documented",
     "summary": "Turn-of-month seasonality (last 1 + first 3 trading days) on NIFTY 50 / 500. A 2022-23 flicker (+0.34%/day, t=3.9) that is ~0 in 2024-26; pooled +0.46%/month (t=1.8). Calendar control, documented not traded."
+  },
+  {
+    "name": "ofs_retail",
+    "type": "structural",
+    "verdict": "thin",
+    "role": "watch",
+    "summary": "Offer-for-sale retail quota (10% reserved, bids <= Rs 2 lakh at/above the floor). 2025-26, n=26 floors within 15% of the pre-close: T+1 close vs floor +1.9% median (+1.6% net, 69% up, t=2.3), PSU sellers +1.1%. Thin: one era, one-day capital, and an oversubscribed book clears above the floor (cut-off unrecorded). Watch, not a trade."
   }
 ]

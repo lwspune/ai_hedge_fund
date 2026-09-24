@@ -146,6 +146,20 @@ def _run_order_wins(**kw) -> str:
             "scripts/validate_order_wins.py.")
 
 
+def _run_ofs_retail(**kw) -> str:
+    from datetime import date, timedelta
+    from scanner import db
+    from scanner.ofs import format_ofs_rows
+    today = date.today()
+    rows = db.select("ofs_events", {
+        "select": "symbol,company,seller,floor_price,non_retail_date,retail_date,retail_shares,total_shares,pct_equity",
+        "retail_date": f"gte.{today - timedelta(days=3)}", "order": "retail_date"})
+    return ("OFS retail day (10% quota, bids <= Rs 2 lakh at or above the floor; shares land T+1). "
+            "Measured 2025-26 (n=26 floors within 15% of the pre-close): T+1 close vs floor +1.9% median, "
+            "69% up net of costs -- THIN, one era, and a cut-off above the floor is unrecorded. A watch, "
+            "not a trade: bid at the floor only in a name you would hold anyway.\n\n" + format_ofs_rows(rows))
+
+
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
@@ -236,6 +250,13 @@ SIGNALS: dict[str, Signal] = {
                    "A 2022-23 flicker (+0.34%/day, t=3.9) that is ~0 in 2024-26; pooled +0.46%/month "
                    "(t=1.8). Calendar control, documented not traded."),
         _run_turn_of_month),
+    "ofs_retail": Signal(
+        SignalMeta("ofs_retail", "structural", "thin", "watch",
+                   "Offer-for-sale retail quota (10% reserved, bids <= Rs 2 lakh at/above the floor). "
+                   "2025-26, n=26 floors within 15% of the pre-close: T+1 close vs floor +1.9% median "
+                   "(+1.6% net, 69% up, t=2.3), PSU sellers +1.1%. Thin: one era, one-day capital, and "
+                   "an oversubscribed book clears above the floor (cut-off unrecorded). Watch, not a trade."),
+        _run_ofs_retail),
 }
 
 
