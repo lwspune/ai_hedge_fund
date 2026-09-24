@@ -63,3 +63,27 @@ status line; segment-level lines rejected.
 
 Every stored value keeps its exact quote + source filing link, so any number can be checked on
 the company page. Precision over recall: ambiguous phrasings return nothing.
+
+## Sector packs (2026-09-24)
+Sample: 40 lender + 40 "Commodities" presentations/transcripts (Aug-2026 season).
+
+**Commodities — not built (evidence, not deferral).** Screener's "Commodities" sector mixes
+chemicals, metals, cement and paper: volume appeared in 12/40 docs, realisation in 7/40, ₹/tonne
+in 8/40, in inconsistent units. Its most common metric — capacity utilisation (20/40) — is already
+extracted by the base pack.
+
+**Financials — built (`fin_ratios`, runs only for Financial Services).** Near-universal in lender
+filings: AUM/loans 34/40, GNPA 26, RoA/RoE 26, CRAR 26, NNPA 24, disbursements 23, credit cost 21,
+NIM 19, PCR 18. Extracted: GNPA, NNPA, NIM, credit cost, PCR, CRAR, CASA, RoA (% ratios).
+Three hand-review rounds on the 40 docs; failure modes, each now a test
+(`tests/test_kpis_financials.py`):
+- table/label bleed ("NNPA Gross Advances1 Total Deposits 7%") and growth rates read as levels
+  ("CASA Deposits grew 14.3%") → the words between label and % must come from a connector
+  **allowlist** ("stood at", "improved to", "for the quarter ended 30 June 2026 is", …);
+- **value-first KPI tiles** ("3.46% Gross NPA 12.38% 30+ DPD" — reading forward took the next tile's
+  number) → a % right before the label that isn't a preceding lender label's value = ambiguous
+  tile → skip; label-first slides ("PCR 71% GNPA 3.25%") still read;
+- `CAR` matched "car loans" → case-sensitive; guidance bands ("corridor of <1.4%") rejected;
+  plausibility floors (CRAR ≥ 8, PCR ≥ 25, NNPA ≤ 10).
+Final: 84 unique extractions on 24/40 docs, all read and consistent with their quotes.
+AUM/loan-book *levels* not extracted yet (mixed units + segment books).

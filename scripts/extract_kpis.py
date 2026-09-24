@@ -42,6 +42,7 @@ def main():
     a = ap.parse_args()
     todo = pending(a.limit, a.since)
     print(f"{len(todo)} filings to extract", flush=True)
+    sector = {r["symbol"]: r["sector"] for r in db.select_all("company_snapshot", {"select": "symbol,sector"})}
     s, stats, n_kpis = requests.Session(), {"ok": 0, "no_pdf": 0, "error": 0}, 0
     for i, f in enumerate(todo, 1):
         status, rows = "no_pdf", []
@@ -50,7 +51,8 @@ def main():
                 r = s.get(f["attachment_url"], headers=UA, timeout=60)
                 text, _ = pdf_text(r.content) if r.status_code == 200 else (None, 0)
                 if text is not None:
-                    rows = kpi_rows(f, extract_all(text, f["category"], f["subject"]))
+                    rows = kpi_rows(f, extract_all(text, f["category"], f["subject"],
+                                                   sector.get(f["symbol"])))
                     status = "ok"
             except requests.RequestException as e:
                 status = "error"

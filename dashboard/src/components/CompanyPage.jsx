@@ -78,6 +78,10 @@ function FilingKpis({ kpis }) {
   const by = (kpi) => kpis.filter((k) => k.kpi === kpi)
   const book = by('order_book'), wins = by('order_win_value'), util = by('capacity_utilisation')
   const guide = by('guidance').slice(0, 6)
+  // lender pack: latest value of each ratio (Financial Services only)
+  const FIN = [['gnpa', 'Gross NPA'], ['nnpa', 'Net NPA'], ['nim', 'NIM'], ['credit_cost', 'Credit cost'],
+    ['pcr', 'PCR'], ['crar', 'CRAR'], ['casa', 'CASA'], ['roa', 'RoA']]
+  const fin = FIN.map(([k, label]) => [label, by(k)[0]]).filter(([, v]) => v)
   if (!kpis.length) return null
   return (
     <section className="panel" aria-labelledby="kpis-h">
@@ -85,6 +89,9 @@ function FilingKpis({ kpis }) {
       <dl className="ratios">
         {book[0] && <div className="ratio"><dt>Order book{book[0].as_of ? ` (as on ${book[0].as_of})` : ''}</dt><dd>{money(book[0])}</dd></div>}
         {util[0] && <div className="ratio"><dt>Capacity utilisation</dt><dd>{num(util[0].value)}%</dd></div>}
+        {fin.map(([label, k]) => (
+          <div className="ratio" key={label}><dt>{label}</dt><dd title={`“${k.quote}” — ${k.disclosed_at.slice(0, 10)}`}>{num(k.value, 2)}%</dd></div>
+        ))}
         {wins.length > 0 && <div className="ratio"><dt>Order wins disclosed (latest {Math.min(wins.length, 8)})</dt>
           <dd>₹{num(wins.slice(0, 8).reduce((a, k) => a + (k.value_cr || 0), 0))} cr</dd></div>}
       </dl>
@@ -92,10 +99,10 @@ function FilingKpis({ kpis }) {
         <table>
           <thead><tr><th scope="col">Metric</th><th scope="col" className="r">Value</th><th scope="col">Quote</th><th scope="col">Source</th></tr></thead>
           <tbody>
-            {[...book.slice(0, 4), ...util.slice(0, 2), ...wins.slice(0, 8)].map((k) => (
+            {[...book.slice(0, 4), ...util.slice(0, 2), ...fin.map(([, k]) => k), ...wins.slice(0, 8)].map((k) => (
               <tr key={k.id}>
                 <td>{k.kpi.replace(/_/g, ' ')}</td>
-                <td className="r">{k.kpi === 'capacity_utilisation' ? `${num(k.value)}%` : money(k)}</td>
+                <td className="r">{k.unit === '%' ? `${num(k.value, 2)}%` : money(k)}</td>
                 <td className="dim wrap">“{k.quote}”</td>
                 <td><Source k={k} /></td>
               </tr>
@@ -196,6 +203,8 @@ export default function CompanyPage({ symbol }) {
         )}
       </section>
 
+      <FilingKpis kpis={kpis} />
+
       {(buybacks.length > 0 || candidates.length > 0) && (
         <section className="panel" aria-labelledby="flags-h">
           <h2 id="flags-h">Signal activity <span className="muted">· where the scanner has flagged this stock</span></h2>
@@ -264,8 +273,6 @@ export default function CompanyPage({ symbol }) {
           cols={[['promoter', 'Promoters', pct], ['fii', 'FIIs', pct], ['dii', 'DIIs', pct],
                  ['public', 'Public', pct], ['holders', 'Shareholders', (v) => num(v)]]} />
       </section>
-
-      <FilingKpis kpis={kpis} />
 
       <section className="panel" aria-labelledby="filings-h">
         <h2 id="filings-h">Filings <span className="muted">· NSE announcements (material categories)</span></h2>

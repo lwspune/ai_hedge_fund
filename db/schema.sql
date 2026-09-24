@@ -344,3 +344,12 @@ create table if not exists company_kpis (
 create index if not exists idx_kpis_symbol on company_kpis(symbol, kpi, disclosed_at desc);
 alter table company_kpis enable row level security;
 create policy "anon read company_kpis" on company_kpis for select to anon using (true);
+
+-- Financials sector pack (scanner/kpis.fin_ratios): lender ratios, run only for Financial Services.
+alter table company_kpis drop constraint if exists company_kpis_kpi_check;
+alter table company_kpis add constraint company_kpis_kpi_check check (kpi in (
+  'order_book','order_win_value','capacity_utilisation','guidance',
+  'gnpa','nnpa','nim','credit_cost','pcr','crar','casa','roa'));
+alter table company_kpis add constraint company_kpis_ratio_range check (
+  kpi not in ('gnpa','nnpa','nim','credit_cost','pcr','crar','casa','roa')
+  or (unit = '%' and value > 0 and value <= 100));

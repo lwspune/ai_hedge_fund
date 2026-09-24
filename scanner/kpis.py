@@ -169,6 +169,95 @@ def guidance_quotes(text: str, limit: int = 8) -> list[dict]:
     return out
 
 
+# --- financials sector pack (lenders): ratio KPIs, "<label> ... X%" -------------------------
+FIN_LABELS = {
+    "gnpa": r"\bGNPA\b(?: ratio)?|\bgross npa(?: ratio)?|gross non[- ]performing assets?|gross stage ?(?:3|iii)\b",
+    "nnpa": r"\bNNPA\b(?: ratio)?|\bnet npa(?: ratio)?|net non[- ]performing assets?|net stage ?(?:3|iii)\b",
+    "nim": r"\bNIMs?\b|net interest margins?",
+    "credit_cost": r"\bcredit costs?\b",
+    "pcr": r"\bPCR\b|provision(?:ing)? coverage(?: ratio)?",
+    "crar": r"\bCRAR\b|capital adequacy(?: ratio)?|(?-i:\bCAR\b)",   # 'car loans' is not CAR
+    "casa": r"\bCASA\b(?: ratio)?",
+    "roa": r"\bROA\b|return on (?:average )?assets",
+}
+_FIN_MAX = {"gnpa": 40, "nnpa": 10, "nim": 25, "credit_cost": 20, "pcr": 100, "crar": 100,
+            "casa": 100, "roa": 10}
+_FIN_MIN = {"crar": 8, "pcr": 25}   # below any regulatory floor / plausible coverage = misread
+# The ONLY words allowed between a label and its %: connectors, time words, directions. Anything
+# else ("Deposits", "grew", "corridor", "PAT", slide labels) means the number isn't this ratio.
+_FIN_CONNECT = set("""ratio ratios stood stands standing stand is was were are at of to remained remains
+improved improving declined fell dropped moderated increased increasing has have had been already come
+down further strong healthy comfortable now about around approx approximately the quarter for ended as
+on in domestic global annualized annualised basis points bps year-on-year yoy sequentially q-on-q qoq
+by which a an broadly stable also company total our overall stage assets reported which level levels
+end excluding including one-offs one-off consolidated standalone""".split())
+_FIN_TOKEN_OK = re.compile(r"^(\d+(?:\.\d+)?(?:st|nd|rd|th)?|q[1-4]|fy\d{2,4}|h[12]|" + _MON[1:-1] + r")$", re.I)
+
+
+_FIN_LABEL_END = re.compile("(?:" + "|".join(FIN_LABELS.values()) +
+                            r")(?:[\W\d]+|\b(?:at|is|of|was|stood|stands|to|ratio)\b)*$", re.I)
+
+
+def _value_first_tile(text: str, start: int) -> bool:
+    """True if a % sits right BEFORE the label and is NOT itself the value of a preceding lender
+    label — i.e. a value-then-label KPI tile ('3.46% Gross NPA 12.38% 30+ DPD'), where reading
+    forward would take the next tile's number."""
+    before = text[max(0, start - 14): start]
+    pm = re.search(r"\d{1,3}(?:\.\d+)?\s?%[\s*|]*$", before)
+    if not pm:
+        return False
+    prev = text[max(0, start - 14 - 45): max(0, start - 14) + pm.start()]
+    return not _FIN_LABEL_END.search(prev)
+
+
+def _clean_connector(between: str) -> bool:
+    for tok in re.findall(r"[A-Za-z0-9.\-]+", between):
+        tok = tok.strip(".").lower()
+        if tok and tok not in _FIN_CONNECT and not _FIN_TOKEN_OK.match(tok):
+            return False
+    if re.search(r"\d{1,3},\d{2,3}", between):   # an amount (35,787) — the % belongs to it
+        return False
+    return not re.search(r"[.;|<>+]\s", between + " ")   # a sentence break / bound / sign
+# a label between the metric and its number means the number belongs to that other label
+_ANY_FIN = re.compile("|".join(FIN_LABELS.values()) + r"|\bRoE\b|\bCET ?-?1\b|\btier ?[12]\b|\bLCR\b|"
+                      r"yields?\b|cost of (?:funds|borrowing)", re.I)
+_PCT = re.compile(r"(\d{1,3}(?:\.\d+)?)\s?%")
+
+
+def fin_ratios(text: str) -> list[dict]:
+    """Lender ratios (GNPA, NNPA, NIM, credit cost, PCR, CRAR, CASA, RoA): the first % within
+    55 chars of the label, one per KPI per filing. Rejected: another metric's label or a '%'
+    header in between, multi-quarter table rows (3+ percentages in a row), guidance language,
+    'A and B were X% and Y%' (handled as an explicit pair), out-of-range values."""
+    out: dict[str, dict] = {}
+    pair = re.search(r"(\bGNPA\b|gross npa)\s+and\s+(\bNNPA\b|net npa)\s+(?:were|are|stood|was)?\s*(?:at\s+)?"
+                     r"(\d{1,2}(?:\.\d+)?)\s?%\s+and\s+(\d{1,2}(?:\.\d+)?)\s?%", text, re.I)
+    if pair:
+        out["gnpa"] = _row("gnpa", _num(pair.group(3)), "%", pair.group(0))
+        out["nnpa"] = _row("nnpa", _num(pair.group(4)), "%", pair.group(0))
+    for kpi, pat in FIN_LABELS.items():
+        if kpi in out:
+            continue
+        for m in re.finditer(pat, text, re.I):
+            gap = text[m.end(): m.end() + 55]
+            p = _PCT.search(gap)
+            if not p:
+                continue
+            between = gap[: p.start()]
+            after = text[m.end() + p.end(): m.end() + p.end() + 40]
+            if (_ANY_FIN.search(between) or "%" in between or not _clean_connector(between)
+                    or _value_first_tile(text, m.start())
+                    or len(_PCT.findall(text[m.end() + p.start(): m.end() + p.start() + 30])) >= 3
+                    or re.match(r"\s+and\s+\d", after)
+                    or _FUTURE.search(text[max(0, m.start() - 60): m.start()] + between)):
+                continue
+            v = float(p.group(1))
+            if _FIN_MIN.get(kpi, 0) <= v <= _FIN_MAX[kpi] and v > 0:
+                out[kpi] = _row(kpi, _num(p.group(1)), "%", text[m.start(): m.end() + p.end()])
+                break
+    return list(out.values())
+
+
 METHOD = "rule_v1"
 
 
@@ -210,12 +299,16 @@ def doc_kind(category: str, subject: str | None) -> str:
     return "presentation" if category == "Investor Presentation" else "press"
 
 
-def extract_all(text: str, category: str, subject: str | None = None) -> list[dict]:
-    """Extractors that fit the filing kind, over whitespace-collapsed text; level KPIs reduced
-    to one headline value per filing."""
+def extract_all(text: str, category: str, subject: str | None = None,
+                sector: str | None = None) -> list[dict]:
+    """Extractors that fit the filing kind (and, for sector packs, the company's sector), over
+    whitespace-collapsed text; level KPIs reduced to one headline value per filing."""
     t = re.sub(r"\s+", " ", text or "")
     kind = doc_kind(category, subject)
     if kind == "order":
         return order_win_value(t)
-    return (headline(order_book(t), kind) + headline(capacity_utilisation(t), kind, False)
+    rows = (headline(order_book(t), kind) + headline(capacity_utilisation(t), kind, False)
             + guidance_quotes(t))
+    if sector == "Financial Services":   # lender pack (docs/FILINGS_KPI_ANALYSIS.md)
+        rows += fin_ratios(t)
+    return rows
