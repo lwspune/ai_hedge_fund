@@ -13,3 +13,4 @@ cache/
 dashboard/.env
 dashboard/node_modules
 dashboard/dist
+logs/
