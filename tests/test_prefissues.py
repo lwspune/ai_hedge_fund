@@ -87,3 +87,23 @@ def test_lockin_expiry_events_one_per_tranche_with_defaults():
     assert e["details"] == {"months": 6, "shares": 15000000, "allotment_date": "2026-09-10", "offer_price": 145.0,
                             "share_of_listed": 0.0342, "app_id": 72050, "default": False}
     assert ev[2]["details"]["default"] is True and ev[2]["details"]["shares"] == 100
+
+
+def test_study_events_from_corporate_events_rows():
+    from scanner.prefissues import study_events
+    rows = [
+        {"symbol": "MBAPL", "event_type": "pref_lockin_expiry", "event_date": "2027-03-10", "source": "nse_pref",
+         "details": {"months": 6, "shares": 15000000, "allotment_date": "2026-09-10", "offer_price": 145.0,
+                     "share_of_listed": 0.0342, "app_id": 72050, "default": False}},
+        {"symbol": "NOXBRL", "event_type": "pref_lockin_expiry", "event_date": "2024-07-31", "source": "nse_pref",
+         "details": {"months": 6, "shares": 100, "allotment_date": "2024-01-31", "offer_price": 10.0,
+                     "share_of_listed": None, "app_id": 1, "default": True}},
+        {"symbol": "OTHER", "event_type": "anchor_lockin_90", "event_date": "2024-07-31", "source": "chittorgarh",
+         "details": {}},
+    ]
+    ev = study_events(rows)
+    assert [e["symbol"] for e in ev] == ["MBAPL", "NOXBRL"]
+    assert ev[0] == {"symbol": "MBAPL", "expiry": "2027-03-10", "months": 6, "shares": 15000000,
+                     "allotment_date": "2026-09-10", "offer_price": 145.0, "share_of_listed": 0.0342,
+                     "app_id": 72050, "default": False, "era": "2026-27"}
+    assert ev[1]["era"] == "2024-25" and ev[1]["default"] is True

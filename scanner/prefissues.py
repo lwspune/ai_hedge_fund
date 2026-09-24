@@ -167,3 +167,21 @@ def fetch_xbrl(url: str, s: requests.Session | None = None) -> str:
     r = (s or session()).get(url, timeout=60)
     r.raise_for_status()
     return r.text
+
+
+def study_events(rows: list[dict]) -> list[dict]:
+    """Event-study rows from corporate_events `pref_lockin_expiry` rows (details flattened,
+    two-year era label from the expiry year)."""
+    out = []
+    for r in rows:
+        if r.get("event_type") != "pref_lockin_expiry":
+            continue
+        d = r.get("details") or {}
+        y = int(r["event_date"][:4])
+        start = y - (y - 2024) % 2
+        out.append({"symbol": r["symbol"], "expiry": r["event_date"], "months": d.get("months"),
+                    "shares": d.get("shares"), "allotment_date": d.get("allotment_date"),
+                    "offer_price": d.get("offer_price"), "share_of_listed": d.get("share_of_listed"),
+                    "app_id": d.get("app_id"), "default": bool(d.get("default")),
+                    "era": f"{start}-{str(start + 1)[2:]}"})
+    return out
