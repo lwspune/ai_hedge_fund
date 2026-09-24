@@ -77,3 +77,24 @@ def test_re_symbols_try_stored_symbol_then_dash_re():
     assert re_symbols("NDTV", "NDTVR") == ["NDTVR", "NDTV-RE"]
     assert re_symbols("SATIN", "SATIN-RE") == ["SATIN-RE"]
     assert re_symbols("ABC", None) == ["ABC-RE"]
+
+
+def test_re_action_rules():
+    from scanner.rights import re_action
+    base = {"issue_price": 82.0, "stock": 200.0, "turnover": 7e6}
+    assert re_action({**base, "gap": 0.04}).startswith("BUY RE")
+    assert re_action({**base, "gap": -0.02}).startswith("RE rich")
+    assert re_action({**base, "gap": 0.001}) == "fair"
+    assert re_action({**base, "gap": 0.04, "turnover": 1e5}) == "illiquid"
+    assert re_action({**base, "gap": 0.04, "stock": 18.0}).startswith("penny")
+
+
+def test_rights_candidates_for_saving():
+    from scanner.rights import rights_candidates
+    rows = [{"symbol": "NDTV", "ratio": "3:4", "issue_price": 82.0, "stock": 200.0, "re": 110.0,
+             "gap": 0.04, "turnover": 7e6, "re_date": "2026-09-23", "re_last_day": "2026-10-03",
+             "issue_close": "2026-10-08"}]
+    c = rights_candidates(rows)
+    assert c[0]["symbol"] == "NDTV" and c[0]["score"] == 0.04
+    assert c[0]["payload"]["action"].startswith("BUY RE")
+    assert c[0]["payload"]["issue_close"] == "2026-10-08" and c[0]["payload"]["re_last_day"] == "2026-10-03"

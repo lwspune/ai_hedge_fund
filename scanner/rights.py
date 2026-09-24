@@ -114,22 +114,34 @@ def open_res(today=None) -> list[dict]:
     return out
 
 
+def re_action(r: dict) -> str:
+    """What to do with an open RE (one rule for the CLI, the saved scan and the dashboard)."""
+    if r["turnover"] < MIN_TURNOVER:
+        return "illiquid"
+    if r["issue_price"] < PENNY_ISSUE or r["stock"] < PENNY_STOCK:
+        return "penny: tick noise, not validated"
+    if r["gap"] > HURDLE:
+        return "BUY RE (instead of the stock; subscribe)"
+    if r["gap"] < -HURDLE:
+        return "RE rich: holders sell RE, buy stock"
+    return "fair"
+
+
+def rights_candidates(rows: list[dict]) -> list[dict]:
+    """open_res rows -> `candidates` rows (score = gap) for the dashboard panel."""
+    keys = ("ratio", "issue_price", "stock", "re", "gap", "turnover", "re_date", "re_last_day",
+            "issue_close")
+    return [{"symbol": r["symbol"], "score": r["gap"],
+             "payload": {**{k: r.get(k) for k in keys}, "action": re_action(r)}} for r in rows]
+
+
 def format_open_res(rows: list[dict]) -> str:
     if not rows:
         return "No rights entitlements trading right now."
     out = [f"{'symbol':<12} {'ratio':<7} {'issue':>8} {'stock':>9} {'RE':>8} {'gap':>7} "
            f"{'RE turnover':>12} {'RE last':>10} {'apply by':>10}  action"]
     for r in sorted(rows, key=lambda r: -r["gap"]):
-        if r["turnover"] < MIN_TURNOVER:
-            act = "illiquid"
-        elif r["issue_price"] < PENNY_ISSUE or r["stock"] < PENNY_STOCK:
-            act = "penny: tick noise, not validated"
-        elif r["gap"] > HURDLE:
-            act = "BUY RE (instead of the stock; subscribe)"
-        elif r["gap"] < -HURDLE:
-            act = "RE rich: holders sell RE, buy stock"
-        else:
-            act = "fair"
+        act = re_action(r)
         out.append(f"{r['symbol']:<12} {r['ratio'] or '—':<7} {r['issue_price']:>8.2f} {r['stock']:>9.2f} "
                    f"{r['re']:>8.2f} {r['gap']*100:>6.2f}% {r['turnover']/1e5:>9.1f} L "
                    f"{r.get('re_last_day') or '—':>10} {r.get('issue_close') or '—':>10}  {act}")

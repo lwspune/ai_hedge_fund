@@ -52,6 +52,16 @@ def _save_buyback(rows) -> None:
         print(f"\n[save skipped] {e}")
 
 
+def _save_rights(rows) -> None:
+    """Log the live RE scan (even when empty, so the dashboard shows 'none as of <time>').
+    Raises on failure: the scheduled run must fail loudly, not print 'save skipped'."""
+    from scanner import db
+    from scanner.rights import rights_candidates
+    meta = get_signal("rights_re").meta
+    rid = db.log_scan(meta.name, meta.verdict, rights_candidates(rows))
+    print(f"\n[saved] run #{rid} | {len(rows)} open rights entitlements")
+
+
 def _save_run(meta) -> None:
     from scanner import db
     try:
@@ -82,6 +92,12 @@ def main(argv=None):
         print(format_buyback_table(rows))
         if args.save:
             _save_buyback(rows)
+    elif args.signal == "rights_re":
+        from scanner.rights import format_open_res, open_res
+        rows = open_res()
+        print(format_open_res(rows))
+        if args.save:
+            _save_rights(rows)
     else:
         print(get_signal(args.signal).run())
         if args.save:

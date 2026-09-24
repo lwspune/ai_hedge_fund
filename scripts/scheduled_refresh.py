@@ -23,7 +23,8 @@ def steps(mode: str, today: date) -> list[list[str]]:
         return [["refresh_events.py", "actions"], ["refresh_events.py", "fo-ban"],
                 ["refresh_events.py", "ipos"], ["refresh_events.py", "rights"],
                 ["refill_deals.py", "--from", (today - timedelta(days=DEALS_LOOKBACK_DAYS)).isoformat()],
-                ["-m", "scanner.run", "buyback_arb", "--save"], ["check_freshness.py"]]
+                ["-m", "scanner.run", "buyback_arb", "--save"],
+                ["-m", "scanner.run", "rights_re", "--save"], ["check_freshness.py"]]
     if mode == "weekly":  # fundamentals rows carry `history`, so no separate rebuild step
         return [["refresh_companies.py"], ["refresh_fundamentals.py"], ["check_freshness.py"]]
     raise ValueError(f"unknown mode {mode!r}")
