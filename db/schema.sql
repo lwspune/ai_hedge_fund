@@ -707,3 +707,15 @@ alter table corporate_events add constraint corporate_events_event_type_check ch
 alter table corporate_events drop constraint if exists corporate_events_source_check;
 alter table corporate_events add constraint corporate_events_source_check check (source in (
   'nse_ca','nse_fo','chittorgarh','nse_bm','nse_band','nse_pref'));
+
+-- Telegram alerts already sent (scripts/notify_telegram.py): one row per opportunity, so a tender
+-- open for ten days alerts once. Service-role only: no anon policy (nothing public needs it).
+create table if not exists alerts_sent (
+  id           bigint generated always as identity primary key,
+  signal_name  text not null,
+  alert_key    text not null check (alert_key <> ''),  -- buyback: symbol|record_date; rights: symbol|re_last_day
+  message      text,
+  sent_at      timestamptz not null default now(),
+  unique (signal_name, alert_key)
+);
+alter table alerts_sent enable row level security;

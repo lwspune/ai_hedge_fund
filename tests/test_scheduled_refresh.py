@@ -25,6 +25,9 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     assert ["refill_deals.py", "--from", "2026-09-14"] in s  # 10-day lookback heals pauses
     assert ["-m", "scanner.run", "buyback_arb", "--save"] in s  # primary signal refreshed daily
     assert ["-m", "scanner.run", "rights_re", "--save"] in s   # RE panel data
+    n = s.index(["notify_telegram.py"])                  # alerts read the scans just saved
+    assert n > s.index(["-m", "scanner.run", "buyback_arb", "--save"])
+    assert n > s.index(["-m", "scanner.run", "rights_re", "--save"])
     assert s[-1] == ["check_freshness.py"]  # silent staleness fails the run
 
 

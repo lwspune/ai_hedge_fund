@@ -91,7 +91,8 @@ def test_every_dated_table_has_a_rule():
     covered = ({q[0] for q in QUERIES.values()} | {q[0] for q in TRADING_QUERIES.values()}
                | {f["table"] for f in FLOORS.values()})
     allow = {"tenders", "outcomes", "symbol_changes", "candidates",   # manual / written with scan_runs
-             "validation_runs"}                                         # on-demand (validate.yml)
+             "validation_runs",                                         # on-demand (validate.yml)
+             "alerts_sent"}                                             # empty for weeks when nothing is new
     missing = _schema_tables_with_dates() - covered - allow
     assert not missing, f"tables with no freshness rule: {missing}"
 
