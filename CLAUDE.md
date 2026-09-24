@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Fifteen signals validated this way; two actionable edges
+falsified signal is never read as edge. Sixteen signals validated this way; two actionable edges
 (buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -34,6 +34,7 @@ of untested ideas, ordered by the thesis.
 | `promoter_sells` | drift | **null** | lens (sign flips every era) |
 | `pref_lockin` | structural | **null** | documented control (allottees aren't forced sellers) |
 | `ofs_retail` | structural | **thin** | watch (OFS 10% retail quota: ~+2% by T+1 at the floor, n=26, one era; cut-off unrecorded) |
+| `demerger_listing` | structural | **conditional** | lens (newly listed child −5.9% median in its first 5 sessions, n=64; holder dumping not index flow; unshortable; no recovery trade — don't buy a child in week 1) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -374,6 +375,14 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   −66% "add"); `eventstudy.summarize(..., clusters=)` adds a cluster-robust t. *Reason:* every
   record-date study must price the last cum session; a null is robust to inflating biases, a
   positive is not — so the corrections concentrate on the signals we would act on.
+- **2026-09-24** — `demerger_listing` (#10) = **conditional lens**: a newly listed child falls −5.9%
+  median vs NIFTY 500 in its first 5 sessions (n=64, clustered t −2.8, placebo-clean, 2022-26
+  stable), but the pre-specified mechanism cut fails (index-parent children −1.4% n.s.; small/
+  non-index parents −6 to −10%), it is unshortable (T2T, no F&O) and the buy-after leg's median is
+  negative. *Reason:* the seller is the parent's holder base dumping small allotments, not a
+  mandate-bound institution; same lock-in pattern — the barrier that excludes arbitrageurs excludes
+  retail. Event set is hand-curated (`data/demerger_listings.csv`, 27 of 90 records had no listed
+  child); the child-listing mapping is the only part that needs upkeep.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

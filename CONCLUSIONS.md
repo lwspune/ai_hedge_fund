@@ -352,6 +352,42 @@ above the floor, so these numbers are an upper bound on the retail leg).
 (`scanner/ofs.py`, `scripts/refresh_ofs.py`, `scripts/validate_ofs_retail.py`, live screen
 `python -m scanner.run ofs_retail`.) *Evidence:* `evidence/ofs_retail/2026-09-24T110239Z`.
 
+### 16. Demerger listing flow (#10) — CONDITIONAL (real first-week dip, not the index mechanism, no trade)
+Hypothesis: when a demerged child lists, index funds and benchmark-bound holders must sell what
+they received (the child is in no index) and nobody can front-run it (the child cannot be bought
+before it lists) → a forced-flow dip a retail buyer could capture after T+5. Event set:
+`data/demerger_listings.csv`, 68 children of 61 demergers since 2019, curated by hand (the
+corporate-action feed gives only the parent's ex-date; no free source names the child) and every
+row verified against the company master's listing date or the first bhavcopy close; 27 of the 90
+demerger records had no newly listed child and were excluded. 64 priced (unadjusted cloud closes,
+NIFTY 500 benchmark). T = first close; windows fixed in advance; t clustered by scheme.
+
+| Window (child vs NIFTY 500) | Mean | Median | Up | t / t_cl |
+|---|---|---|---|---|
+| **sell T+0→T+5** (trade-for-trade period) | **−5.0%** | **−5.9%** | 30% | −2.8 / −2.8 (by week −2.9) |
+| recovery T+5→T+20 | +8.4% | −0.9% | 48% | +2.2 (fat tail: IWEL +138%, DRC +78%, NDR +76%) |
+| late T+10→T+30 | +3.8% | −1.8% | 45% | +1.2 |
+| placebo 5-session windows on the same children (T+60, T+120) | +1.9% / −0.6% | +0.8% / −1.4% | 53% / 43% | — |
+
+- **The dip is real** and specific to the listing: same-length windows later in the child's life
+  are flat; the raw median path sits −4.5 to −5.5% below the first close on every one of the first
+  10 sessions. Era: −1% (2019-21, n=19), **−10% (2022-23, n=17, t=−3.9)**, −5.6% (2024-26, n=28,
+  t=−2.2).
+- **The mechanism cut fails.** Children of NIFTY 50 / Next 50 parents (n=13, curated flag): sell
+  −1.4% (t=−0.5); non-index parents −5.9% (t=−2.8); by parent cap as of the ex-date: large −0.8%,
+  small_mid **−10.4% (t=−4.2)**. Index-fund selling is not what moves these prices; the seller is
+  the parent's own holder base dumping small unwanted allotments into a trade-for-trade book.
+- **No trade.** Unshortable (T2T for 10 sessions, no F&O); the buy-after leg has a negative median
+  (the mean is four multi-baggers). Index-parent recovery +4.6% median (n=13) is the one positive
+  cell — too few to act on; re-test when n doubles.
+- **Lens:** don't buy a demerged child in its first week; if you hold the parent through the
+  record date, the child's first-week price is the wrong one to judge it by.
+
+Thesis check: a forced flow nobody can front-run exists, but the barrier that keeps arbitrageurs
+out (no short, T2T) keeps retail out too — the lock-in pattern again — and the flow is retail
+dumping, not a mandate-bound institution. (`scanner/demerger.py`, `scripts/validate_demerger.py`,
+`data/demerger_listings.csv`.) *Evidence:* published from Actions after this commit (`validation_runs`).
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -361,8 +397,9 @@ above the floor, so these numbers are an upper bound on the retail leg).
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
 ## The tally (2026-09-24)
-Fifteen signals validated: 2 actionable (`buyback_arb` conditional edge, `rights_re` conditional
-watch), 1 real-but-unshortable lens (`lockin_expiry`), 2 thin (`merger_arb`, `ofs_retail`), 10 null
+Sixteen signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
+2026-09-24 cum-date correction, `rights_re` conditional watch), 2 real-but-unshortable lenses
+(`lockin_expiry`, `demerger_listing`), 2 thin (`merger_arb`, `ofs_retail`), 10 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
 order_wins, turn_of_month, promoter_sells, pref_lockin).
 
