@@ -84,6 +84,14 @@ drift-signal chasing.
     parquet is also kept in the private Storage bucket `fundamentals` (the durable copy).
     `scripts/refresh_fundamentals.py` (~polite, hours for the full market; run weekly).
   - **I5** — the dashboard company page above.
+  - **Filings (F1-F3)** — `scanner/filings.py` → `filings` (NSE corporate announcements, material
+    categories only, PDF link; `scripts/refresh_filings.py`, daily). F2 analysis
+    (`docs/FILINGS_KPI_ANALYSIS.md`) chose what to extract; `scanner/kpis.py` rule_v1 extracts
+    order book, order-win value, current capacity utilisation and guidance *quotes* from filing
+    PDFs (PyMuPDF text; every value keeps its exact quote + source filing) → `company_kpis`
+    (`scripts/extract_kpis.py`, ≤1500 PDFs per daily run — the backlog clears itself). Sector
+    packs (financials, commodities) are the next extractors. Precision over recall: every false
+    positive found by hand review becomes a regression test in `tests/test_kpis.py`.
 
 ## Data sources (free, proven)
 **Every source below works from datacenter IPs** — verified from a GitHub Actions runner
@@ -100,6 +108,9 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   `nsearchives.../archives/fo/sec_ban/fo_secban_DDMMYYYY.csv`. **IPOs** — chittorgarh
   `/ipo/x/<id>/` (Next.js payload keys, e.g. `timetable_anchor_lockin_end_dt_1`).
   **ASM/GSM** — JSON-gated, not available.
+- **NSE JSON APIs that DO answer a plain session with a `Referer: https://www.nseindia.com/`**
+  (even from GitHub runners): `api/corporate-announcements` (filings) and
+  `api/corporate-sast-reg29` (promoter/insider acquisitions). `api/corporates-pit` returns empty.
 - **Bulk/block deals** — NSE **static archive CSVs** (`nsearchives.../bulk.csv`,
   `block.csv`). NSE's JSON APIs (PIT/insider/historical) are JS-gated → empty/503; the
   static CSVs are the way in.
@@ -109,7 +120,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (163 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (247 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` (dashboard). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -194,6 +205,12 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   want or hold the stock; tiny capacity; friction barrier (institutions ignore REs, retail dumps).
 - **2026-09-24** — Delisting RBB (#3) **parked**: no reachable free source of offers/outcomes
   (chittorgarh none, BSE 403, NSE gated). Revisit only as a manual-curation project.
+
+- **2026-09-24** — Filing KPIs by **deterministic rules**, not an LLM API. *Reason:* the chosen
+  metrics are formulaic; rules are free, testable and run unattended in CI; hard cases get
+  in-session batches (Question_Bank's ingestion pattern). An API key only if measured recall fails.
+- **2026-09-24** — `promoter_buying` (#7) validated **null (decayed)**: +60d median ~+5% in 2020-23,
+  negative in 2024-26. *Reason:* public drift signal, same fate as deals/index rebalance.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
