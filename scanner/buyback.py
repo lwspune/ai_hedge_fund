@@ -18,9 +18,17 @@ STCG_RATE = 0.20  # short-term capital gains (post Jul 2024)
 # --- pure: parsing + arb math -----------------------------------------------
 
 def parse_entitlement(text: str):
-    """`5 Equity Shares out of every 56 ...` -> 5/56. None if absent."""
-    m = re.search(r"(\d+)\s+Equity Shares out of every\s+(\d+)", text or "", re.I)
-    return int(m.group(1)) / int(m.group(2)) if m else None
+    """Small-shareholder entitlement ratio, or None if absent / implausible.
+
+    2026 pages: `Small Shareholders 11 : 56 ...` (ratio table; anchored so the General
+    Category row never matches). <= 2025 pages: `5 Equity Shares out of every 56 ...`."""
+    text = text or ""
+    m = (re.search(r"Small Shareholders\s*(\d+)\s*:\s*(\d+)", text, re.I)
+         or re.search(r"(\d+)\s+Equity Shares out of every\s+(\d+)", text, re.I))
+    if not m or int(m.group(2)) == 0:
+        return None
+    r = int(m.group(1)) / int(m.group(2))
+    return r if 0 < r <= 1 else None
 
 
 def _components(entry_price, accept_frac, capital, cost_bps):
@@ -162,6 +170,14 @@ def parse_issue_size(text: str):
     return float(m.group(1).replace(",", "")) if m else None
 
 
+def parse_issue_type(html: str):
+    """`Issue Type Tender Offer` -> "tender", `... Open Market` -> "open_market", else None."""
+    m = re.search(r"Issue Type\s*(Tender Offer|Open Market)", _text(html), re.I)
+    if not m:
+        return None
+    return "tender" if m.group(1).lower().startswith("tender") else "open_market"
+
+
 _BUYBACK_URL = "https://www.chittorgarh.com/buyback/x/{}/"
 
 
@@ -179,25 +195,31 @@ def parse_buyback(html: str, bid: int) -> dict | None:
     """Parse a chittorgarh buyback page (no network). None unless it's a tender
     offer with a small-shareholder entitlement (the arbable kind)."""
     txt = _text(html)
+    if parse_issue_type(html) == "open_market":
+        return None  # only tender offers carry the small-shareholder reservation
 
     try:
         tables = pd.read_html(io.StringIO(html))
     except Exception:
         return None  # unparseable / no tables -> not a buyback detail page
 
-    # Entitlement table identifies a tender offer (open-market buybacks lack it).
+    # Entitlement table identifies a tender offer (open-market buybacks lack it). The row
+    # holds label + ratio in separate cells, so parse the joined row: `<= 2025` wording
+    # ("Reserved Category for Small Shareholders | 25 Equity Shares out of every 103") and
+    # 2026 wording ("Small Shareholders | 11 : 56 | 90000000") both match.
     entitlement = None
     for tb in tables:
-        flat = " ".join(map(str, tb.astype(str).values.flatten()))
-        if "Reserved Category for Small Shareholders" in flat:
-            for _, row in tb.iterrows():
-                cells = [str(x) for x in row.values]
-                if any("Small Shareholders" in c for c in cells):
-                    for c in cells:
-                        e = parse_entitlement(c)
-                        if e:
-                            entitlement = e
+        for _, row in tb.iterrows():
+            joined = " ".join(str(x) for x in row.values)
+            if "Small Shareholders" in joined:
+                entitlement = parse_entitlement(joined)
+                if entitlement:
+                    break
+        if entitlement:
             break
+    if entitlement is None:
+        entitlement = parse_entitlement(
+            txt[txt.find("Small Shareholders"):] if "Small Shareholders" in txt else "")
     if entitlement is None:
         return None  # not an arbable tender offer
 
@@ -208,10 +230,12 @@ def parse_buyback(html: str, bid: int) -> dict | None:
 
     symbol = parse_symbol(html)
 
-    pm = re.search(r"buyback price of ₹\s*([\d,]+)", txt, re.I)
+    pm = (re.search(r"Buyback Price\s*₹?\s*([\d,]+(?:\.\d+)?)\s*per share", txt)
+          or re.search(r"buyback price of ₹\s*([\d,]+)", txt, re.I))
     buyback_price = float(pm.group(1).replace(",", "")) if pm else None
 
-    rm = re.search(r"record date[^.]*?is\s+([A-Z][a-z]+ \d+,\s*\d{4})", txt, re.I)
+    rm = (re.search(r"record date[^.]*?is\s+([A-Z][a-z]+ \d+,\s*\d{4})", txt, re.I)
+          or re.search(r"Record Date\s+([A-Z][a-z]+ \d{1,2},\s*\d{4})", txt))
     record_date = pd.to_datetime(rm.group(1), errors="coerce") if rm else pd.NaT
 
     close_date = pd.NaT
@@ -252,22 +276,17 @@ def _default_start_id() -> int:
     return 210
 
 
-def scan_current_buybacks(start_id=None, max_gap=8, hard_cap=80, session=None,
-                          only_open=False) -> list[dict]:
-    """Probe chittorgarh ids upward from the latest-known buyback; enrich each tender
-    offer with price + market cap + estimated acceptance + after-tax expected return,
-    ranked (open tender windows first). Auto-finds new buybacks — no hardcoded range."""
+def discover_buybacks(start_id: int, max_gap: int = 12, hard_cap: int = 120, session=None,
+                      stats: dict | None = None, delay: float = 0.2) -> list[dict]:
+    """Probe chittorgarh ids upward from start_id until `max_gap` consecutive misses (or
+    `hard_cap` fetches); return the parsed tender offers. `stats` (if given) is filled with
+    pages_seen / tender_parsed / rejected — a page that exists but won't parse is how a
+    silent format change shows up (WP1: every 2026 page was rejected for nine months)."""
     import time
-    from datetime import date
     import requests
-    import yfinance as yf
-    from scanner.fundamentals import fetch_fundamentals
 
     s = session or requests.Session()
-    if start_id is None:
-        start_id = _default_start_id()
-    today = pd.Timestamp(date.today())
-
+    st = {"pages_seen": 0, "tender_parsed": 0, "rejected": 0}
     out, gap, bid, fetched = [], 0, start_id, 0
     while gap < max_gap and fetched < hard_cap:
         try:
@@ -276,17 +295,42 @@ def scan_current_buybacks(start_id=None, max_gap=8, hard_cap=80, session=None,
             exists, html = False, None
         fetched += 1
         bid += 1
-        time.sleep(0.2)
+        if delay:
+            time.sleep(delay)
         if not exists:
             gap += 1
             continue
         gap = 0
+        st["pages_seen"] += 1
         try:
             bb = parse_buyback(html, bid - 1)
         except Exception:
             bb = None
         if not bb or not bb["symbol"] or not bb["buyback_price"] or not bb["entitlement_small"]:
+            st["rejected"] += 1
             continue
+        st["tender_parsed"] += 1
+        out.append(bb)
+    if stats is not None:
+        stats.update(st)
+    return out
+
+
+def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
+                          only_open=False, stats: dict | None = None) -> list[dict]:
+    """Probe chittorgarh ids upward from the latest-known buyback; enrich each tender
+    offer with price + market cap + estimated acceptance + after-tax expected return,
+    ranked (open tender windows first). Auto-finds new buybacks — no hardcoded range."""
+    from datetime import date
+    import yfinance as yf
+    from scanner.fundamentals import fetch_fundamentals
+
+    if start_id is None:
+        start_id = _default_start_id()
+    today = pd.Timestamp(date.today())
+
+    out = []
+    for bb in discover_buybacks(start_id, max_gap, hard_cap, session, stats):
         try:
             px = yf.Ticker(f"{bb['symbol']}.NS").history(period="5d")["Close"].dropna()
             cur = float(px.iloc[-1]) if len(px) else None

@@ -1,4 +1,4 @@
-// Supabase Edge Function: refresh-buybacks
+// Supabase Edge Function: refresh-buybacks (v2: 2026 chittorgarh wording — ratio table, "Buyback Price N per share")
 // Discovers current tender buybacks by probing chittorgarh ids upward from the stored
 // frontier (gap-stop), regex-parsing each page (no pandas needed — all fields are in the
 // text), pricing via Yahoo, and upserting the buyback master. The richer acceptance/exp
@@ -23,7 +23,8 @@ function dateISO(s?: string | null): string | null {
   if (!s) return null;
   const m = s.match(/([A-Za-z]+) ([0-9]{1,2}), ([0-9]{4})/);
   if (!m) return null;
-  const mm = MONTHS[m[1]];
+  // prose uses short months ("Dec 24, 2025"), tables long ones — match on the first 3 letters
+  const mm = Object.entries(MONTHS).find(([k]) => k.slice(0, 3) === m[1].slice(0, 3))?.[1];
   return mm ? `${m[3]}-${mm}-${m[2].padStart(2, "0")}` : null;
 }
 function numf(s?: string | null): number | null {
@@ -53,12 +54,19 @@ async function fetchPage(bid: number): Promise<string | null> {
 
 function parseBuyback(html: string, bid: number) {
   const text = html.replace(/<[^>]*>/g, " ").replace(/&#?[a-z0-9]+;/gi, " ").replace(/\s+/g, " ");
-  const ent = text.match(/([0-9]+) Equity Shares out of every ([0-9]+)/i);
+  if (/Issue Type\s*Open Market/i.test(text)) return null; // only tenders carry the reservation
+  // 2026 pages: "Small Shareholders 11 : 56"; <= 2025: "25 Equity Shares out of every 103"
+  const ent = text.match(/Small Shareholders\s*([0-9]+)\s*:\s*([0-9]+)/i) ??
+    text.match(/([0-9]+) Equity Shares out of every ([0-9]+)/i);
   if (!ent) return null; // not a tender offer
+  const ratio = parseInt(ent[1]) / parseInt(ent[2]);
+  if (!(ratio > 0 && ratio <= 1)) return null;
   const clean = html.split(String.fromCharCode(92)).join("");
   const symM = clean.match(/"nse(?:Code|_symbol)":"([A-Z0-9&.-]{2,})"/);
-  const bpM = text.match(/buyback price of[^0-9]*([0-9,]+)/i);
-  const rdM = text.match(/record date[^.]*is ([A-Za-z]+ [0-9]{1,2}, [0-9]{4})/i);
+  const bpM = text.match(/Buyback Price\s*₹?\s*([0-9,]+(?:[.][0-9]+)?)\s*per share/) ??
+    text.match(/buyback price of[^0-9]*([0-9,]+)/i);
+  const rdM = text.match(/record date[^.]*is ([A-Za-z]+ [0-9]{1,2}, [0-9]{4})/i) ??
+    text.match(/Record Date ([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4})/);
   const cdM = text.match(/Buyback Closing Date ([A-Za-z]+ [0-9]{1,2}, [0-9]{4})/i);
   const isM = text.match(/Issue Size [(]Amount[)][^0-9]*([0-9,]+(?:[.][0-9]+)?) Crore/i);
   const titleM = html.match(/<title>([^<]*)/);
@@ -69,7 +77,7 @@ function parseBuyback(html: string, bid: number) {
     buyback_price: bpM ? numf(bpM[1]) : null,
     record_date: rdM ? dateISO(rdM[1]) : null,
     close_date: cdM ? dateISO(cdM[1]) : null,
-    entitlement_small: parseInt(ent[1]) / parseInt(ent[2]),
+    entitlement_small: ratio,
     issue_size_cr: isM ? numf(isM[1]) : null,
   };
 }
@@ -97,7 +105,7 @@ Deno.serve(async (req) => {
     const today = new Date().toISOString().slice(0, 10);
     const rows: Record<string, unknown>[] = [];
     let gap = 0, fetched = 0;
-    while (gap < 8 && fetched < 60) {
+    while (gap < 12 && fetched < 120) {
       const html = await fetchPage(bid);
       fetched++;
       await new Promise((r) => setTimeout(r, 150));

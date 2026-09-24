@@ -32,7 +32,7 @@ def banner(name: str) -> str:
             f"{m.summary}\n{bar}")
 
 
-def _save_buyback(rows) -> None:
+def _save_buyback(rows, stats=None) -> None:
     from scanner import db
     meta = get_signal("buyback_arb").meta
     cands = [{"symbol": r["symbol"], "score": r.get("exp_return"),
@@ -46,7 +46,7 @@ def _save_buyback(rows) -> None:
              for r in rows]
     try:
         db.upsert_buybacks(rows)
-        rid = db.log_scan(meta.name, meta.verdict, cands)
+        rid = db.log_scan(meta.name, meta.verdict, cands, params=stats)
         print(f"\n[saved] run #{rid} | {len(rows)} buybacks upserted, {len(cands)} candidates")
     except Exception as e:
         print(f"\n[save skipped] {e}")
@@ -88,10 +88,13 @@ def main(argv=None):
 
     if args.signal == "buyback_arb":
         from scanner.buyback import scan_current_buybacks, format_buyback_table
-        rows = scan_current_buybacks()
+        stats = {}
+        rows = scan_current_buybacks(stats=stats)
         print(format_buyback_table(rows))
+        print(f"\ndiscovery: pages_seen={stats.get('pages_seen')} "
+              f"tender_parsed={stats.get('tender_parsed')} rejected={stats.get('rejected')}")
         if args.save:
-            _save_buyback(rows)
+            _save_buyback(rows, stats)
     elif args.signal == "rights_re":
         from scanner.rights import format_open_res, open_res
         rows = open_res()

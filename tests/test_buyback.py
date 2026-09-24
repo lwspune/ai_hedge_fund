@@ -1,4 +1,7 @@
 """Test-first spec for buyback tender-arbitrage math + entitlement parsing."""
+from pathlib import Path
+
+import pandas as pd
 import pytest
 
 from scanner.buyback import (
@@ -198,3 +201,122 @@ def test_fetch_page_does_not_follow_redirects():
 
     assert _fetch_page(9999, S()) == (False, None)
     assert S.kw.get("allow_redirects") is False
+
+
+# --- 2026 chittorgarh page format (DATA_INFRA_SPEC WP1) ------------------------
+
+FIX = Path(__file__).resolve().parent / "fixtures" / "buyback"
+
+
+def _fx(bid):
+    return (FIX / f"{bid}.html").read_text(encoding="utf-8")
+
+
+def test_parse_entitlement_ratio_table_wording():
+    assert parse_entitlement("Small Shareholders 11 : 56 9,00,00,000") == pytest.approx(11 / 56)
+    assert parse_entitlement("Small Shareholders 17 : 61") == pytest.approx(17 / 61)
+
+
+def test_parse_entitlement_old_wording_still_works():
+    txt = "Reserved Category for Small Shareholders 25 Equity Shares out of every 103 Fully paid-up"
+    assert parse_entitlement(txt) == pytest.approx(25 / 103)
+
+
+def test_parse_entitlement_ignores_general_category():
+    assert parse_entitlement("General Category 10 : 197 51,00,00,000") is None
+
+
+def test_parse_entitlement_rejects_ratio_above_one():
+    assert parse_entitlement("Small Shareholders 56 : 11") is None
+    assert parse_entitlement("Small Shareholders 0 : 11") is None
+
+
+def test_parse_buyback_2026_wipro():
+    from scanner.buyback import parse_buyback
+    bb = parse_buyback(_fx(219), 219)
+    assert bb["symbol"] == "WIPRO"
+    assert bb["buyback_price"] == 250
+    assert bb["record_date"] == pd.Timestamp("2026-06-05")
+    assert bb["close_date"] == pd.Timestamp("2026-06-17")
+    assert bb["entitlement_small"] == pytest.approx(11 / 56)
+    assert bb["issue_size_cr"] == pytest.approx(15000.0)
+
+
+def test_parse_buyback_2026_bajaj_auto():
+    from scanner.buyback import parse_buyback
+    bb = parse_buyback(_fx(225), 225)
+    assert bb["symbol"] == "BAJAJ-AUTO"
+    assert bb["buyback_price"] == 12000
+    assert bb["record_date"] == pd.Timestamp("2026-06-24")
+    assert bb["close_date"] == pd.Timestamp("2026-07-07")
+    assert bb["entitlement_small"] == pytest.approx(17 / 61)
+    assert bb["issue_size_cr"] == pytest.approx(5632.8)
+
+
+def test_parse_buyback_2025_regression():
+    from scanner.buyback import parse_buyback
+    bb = parse_buyback(_fx(213), 213)
+    assert bb["symbol"] == "NECLIFE"
+    assert bb["buyback_price"] == 27
+    assert bb["record_date"] == pd.Timestamp("2025-12-24")
+    assert bb["close_date"] == pd.Timestamp("2026-01-06")
+    assert bb["entitlement_small"] == pytest.approx(25 / 103)
+    assert bb["issue_size_cr"] == pytest.approx(81.0)
+
+
+def test_parse_issue_type():
+    from scanner.buyback import parse_issue_type
+    assert parse_issue_type(_fx(219)) == "tender"
+    assert parse_issue_type("<li>Issue Type</li><li>Open Market</li>") == "open_market"
+    assert parse_issue_type("<p>nothing</p>") is None
+
+
+def test_open_market_page_rejected():
+    """An open-market buyback must never be scored as a tender arb, even if a ratio slips in."""
+    from scanner.buyback import parse_buyback
+    html = _fx(219).replace("Tender Offer", "Open Market")
+    assert parse_buyback(html, 219) is None
+
+
+class _FixtureSession:
+    """Serves fixtures by id; every other id 307-redirects (chittorgarh's unknown-id behaviour)."""
+    PAGES = {213: 213, 219: 219, 225: 225, 214: "junk"}
+
+    def get(self, url, **kw):
+        bid = int(url.rstrip("/").rsplit("/", 1)[1])
+        src = self.PAGES.get(bid)
+
+        class R:
+            pass
+        r = R()
+        if src is None:
+            r.status_code, r.text = 307, "Buyback list"
+        elif src == "junk":
+            r.status_code, r.text = 200, "<html><title>Some Buyback</title><p>no tables</p></html>"
+        else:
+            r.status_code, r.text = 200, _fx(src)
+        return r
+
+
+def test_discover_buybacks_counts_pages_and_rejections():
+    from scanner.buyback import discover_buybacks
+    stats = {}
+    found = discover_buybacks(212, max_gap=6, hard_cap=50, session=_FixtureSession(),
+                              stats=stats, delay=0)
+    assert [b["symbol"] for b in found] == ["NECLIFE", "WIPRO", "BAJAJ-AUTO"]
+    # ids 213, 214, 219, 225 exist; 214 is not a parseable tender
+    assert stats == {"pages_seen": 4, "tender_parsed": 3, "rejected": 1}
+
+
+def test_discover_buybacks_hard_cap_stops():
+    from scanner.buyback import discover_buybacks
+    stats = {}
+    discover_buybacks(212, max_gap=100, hard_cap=5, session=_FixtureSession(), stats=stats, delay=0)
+    assert stats["pages_seen"] == 2  # 213, 214 within ids 212..216
+
+
+def test_scan_defaults_cover_moved_frontier():
+    import inspect
+    from scanner.buyback import scan_current_buybacks
+    sig = inspect.signature(scan_current_buybacks).parameters
+    assert sig["max_gap"].default >= 12 and sig["hard_cap"].default >= 120
