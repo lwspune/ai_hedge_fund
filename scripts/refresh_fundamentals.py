@@ -36,7 +36,7 @@ def main():
         symbols = [s.strip().upper() for s in a.symbols.split(",") if s.strip()]
     else:
         listed = db.select_all("companies", {"select": "symbol", "status": "eq.listed",
-                                          "series": "in.(EQ,BE)", "order": "symbol"})
+                                          "series": "in.(EQ,BE,BZ,SM,ST,SZ)", "order": "symbol"})
         cutoff = (datetime.now(timezone.utc) - timedelta(days=a.stale_days)).isoformat()
         fresh = {r["symbol"] for r in db.select_all(
             "company_snapshot", {"select": "symbol", "fetched_at": f"gte.{cutoff}"})}
