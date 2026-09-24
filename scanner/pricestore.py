@@ -94,12 +94,13 @@ def nse_frame_to_series(df: pd.DataFrame) -> pd.Series:
     return pd.Series(f["c"].values, index=pd.DatetimeIndex(f["d"].values), dtype="float64")
 
 
-def _fetch_nse(symbol: str, start: str = NSE_FROM) -> pd.Series:
+def _fetch_nse(symbol: str, start: str = NSE_FROM, end=None) -> pd.Series:
     from nselib import capital_market as cm
     parts = []
-    for y in range(pd.Timestamp(start).year, pd.Timestamp.today().year + 1):
+    last = min(pd.Timestamp(end), pd.Timestamp.today()) if end is not None else pd.Timestamp.today()
+    for y in range(pd.Timestamp(start).year, last.year + 1):
         f = pd.Timestamp(max(pd.Timestamp(start), pd.Timestamp(f"{y}-01-01")))
-        t = min(pd.Timestamp(f"{y}-12-31"), pd.Timestamp.today())
+        t = min(pd.Timestamp(f"{y}-12-31"), last)
         try:
             df = cm.price_volume_and_deliverable_position_data(
                 symbol=symbol, from_date=f.strftime("%d-%m-%Y"), to_date=t.strftime("%d-%m-%Y"))
@@ -143,18 +144,22 @@ def get_closes(symbol: str, start=None, end=None, source: str = "yf",
     s = read_cache(fp) if fp.exists() else None
     fresh = s is not None and covered and (
         (len(s) and s.index.max() >= target - pd.Timedelta(days=STALE_DAYS))
-        or (entry or {}).get("on") == today.date().isoformat())
+        # fetched today already (e.g. a delisted symbol whose data just ends) — unless that
+        # fetch was window-bounded short of what is asked now
+        or ((entry or {}).get("on") == today.date().isoformat()
+            and (entry or {}).get("to", "9999") >= target.date().isoformat()))
     if not fresh:
         fetch = FETCHERS[source]
         if source == "yf" and symbol.startswith("^"):
             raw = fetch(symbol, raw=True)
-        elif source == "nse":
-            raw = fetch(symbol, start=need_from)
+        elif source == "nse":  # bounded to the requested end: one nselib call per year
+            raw = fetch(symbol, start=need_from, end=target.date().isoformat())
         else:
             raw = fetch(symbol)
         s = clean_series(raw) if len(raw) else pd.Series(dtype="float64")
         write_cache(fp, s)
-        log[symbol] = {"on": today.date().isoformat(), "from": need_from}
+        log[symbol] = {"on": today.date().isoformat(), "from": need_from,
+                       "to": target.date().isoformat()}
         (d / "_fetched.json").write_text(json.dumps(log, indent=0), encoding="utf-8")
     if s is None or not len(s):
         return None

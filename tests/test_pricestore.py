@@ -95,7 +95,7 @@ def test_get_closes_refetches_when_request_starts_before_cached_coverage(tmp_pat
     calls = []
     full = _s(pd.date_range("2020-01-01", "2024-01-10", freq="D"), 1.0)
 
-    def fake(symbol, start="2010-01-01"):
+    def fake(symbol, start="2010-01-01", end=None):
         calls.append(start)
         return full[full.index >= pd.Timestamp(start)]
 
@@ -106,3 +106,23 @@ def test_get_closes_refetches_when_request_starts_before_cached_coverage(tmp_pat
     b = ps.get_closes("X", "2021-01-01", source="nse", cache_dir=tmp_path, today=today)  # earlier
     assert calls == ["2023-06-01", "2021-01-01"]
     assert a.index.min() == pd.Timestamp("2023-06-01") and b.index.min() == pd.Timestamp("2021-01-01")
+
+
+def test_get_closes_nse_fetch_is_bounded_by_requested_end(tmp_path, monkeypatch):
+    """Old IPOs only need a window; fetching to today costs one nselib call per year."""
+    calls = []
+    full = _s(pd.date_range("2010-01-01", "2024-01-10", freq="D"), 1.0)
+
+    def fake(symbol, start="2010-01-01", end=None):
+        calls.append((start, end))
+        s = full[full.index >= pd.Timestamp(start)]
+        return s[s.index <= pd.Timestamp(end)] if end else s
+
+    monkeypatch.setitem(ps.FETCHERS, "nse", fake)
+    today = pd.Timestamp("2024-01-10")
+    ps.get_closes("OLD", "2010-06-01", "2010-12-31", source="nse", cache_dir=tmp_path, today=today)
+    assert calls == [("2010-06-01", "2010-12-31")]
+    ps.get_closes("OLD", "2010-06-01", "2010-11-30", source="nse", cache_dir=tmp_path, today=today)
+    assert len(calls) == 1                     # inside cached window
+    s = ps.get_closes("OLD", "2010-06-01", source="nse", cache_dir=tmp_path, today=today)
+    assert len(calls) == 2 and s.index.max() == pd.Timestamp("2024-01-10")  # extended to today
