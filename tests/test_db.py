@@ -73,3 +73,22 @@ def test_http_errors_carry_postgrest_message():
     ok = requests.Response()
     ok.status_code = 201
     _check(ok)  # no raise
+
+
+def test_upsert_resilient_keeps_good_rows_when_one_is_rejected(monkeypatch):
+    import requests
+    from scanner import db
+    stored = []
+
+    def fake_insert(table, rows, on_conflict=None, return_rows=True):
+        rows = [rows] if isinstance(rows, dict) else rows
+        if any(r["symbol"] == "BAD" for r in rows):
+            raise requests.HTTPError("409 Conflict: violates foreign key")
+        stored.extend(rows)
+        return []
+
+    monkeypatch.setattr(db, "insert", fake_insert)
+    good, rejected = db.upsert_resilient("t", [{"symbol": "A"}, {"symbol": "BAD"}, {"symbol": "C"}], "symbol")
+    assert [r["symbol"] for r in good] == ["A", "C"] == [r["symbol"] for r in stored]
+    assert [r["symbol"] for r, _ in rejected] == ["BAD"] and "foreign key" in rejected[0][1]
+    assert db.upsert_resilient("t", [], "symbol") == ([], [])

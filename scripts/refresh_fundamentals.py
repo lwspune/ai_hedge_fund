@@ -61,7 +61,9 @@ def main():
         else:
             miss.append(sym)
         if len(batch) >= BATCH or (i == len(symbols) and batch):
-            db.insert("company_snapshot", batch, on_conflict="symbol", return_rows=False)
+            _, rejected = db.upsert_resilient("company_snapshot", batch, "symbol")
+            for r, err in rejected:
+                print(f"  rejected {r['symbol']}: {err[-160:]}")
             print(f"  {i}/{len(symbols)} saved (ok={ok}, miss={len(miss)})", flush=True)
             batch = []
         time.sleep(a.sleep)

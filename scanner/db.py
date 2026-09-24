@@ -115,6 +115,25 @@ def select(table: str, params: dict | None = None) -> list[dict]:
     return r.json()
 
 
+def upsert_resilient(table: str, rows: list[dict], on_conflict: str):
+    """Upsert a batch; if a DB constraint rejects it, retry row by row so one bad row can't
+    sink the batch. Returns (stored_rows, [(rejected_row, error_text), ...])."""
+    if not rows:
+        return [], []
+    try:
+        insert(table, rows, on_conflict=on_conflict, return_rows=False)
+        return list(rows), []
+    except requests.HTTPError:
+        good, bad = [], []
+        for r in rows:
+            try:
+                insert(table, r, on_conflict=on_conflict, return_rows=False)
+                good.append(r)
+            except requests.HTTPError as e:
+                bad.append((r, str(e)))
+        return good, bad
+
+
 def select_all(table: str, params: dict | None = None, page: int = 1000) -> list[dict]:
     """`select` paged past PostgREST's max-rows cap (1000)."""
     out, off = [], 0
