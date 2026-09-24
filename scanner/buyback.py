@@ -112,6 +112,33 @@ def estimate_acceptance(market_cap_cr, entitlement_small, issue_size_cr=None) ->
     return max(floor, base)
 
 
+def estimate_entitlement(issue_size_cr, buyback_price, market_cap_cr, price, small_holder_pct,
+                         reserved: float = 0.15) -> float | None:
+    """Small-shareholder entitlement ratio implied by the float: 15% of the buyback shares over
+    the shares held by resident individuals with <= Rs 2 lakh nominal capital (`shareholding`
+    table, `small_holder_pct`). This is what the company's published ratio measures on the
+    record date, so it fills the gap before the letter of offer publishes it. None without
+    every input; capped at 1.0 (a float smaller than the reserved pool)."""
+    if not issue_size_cr or not buyback_price or not market_cap_cr or not price or not small_holder_pct:
+        return None
+    buyback_shares = issue_size_cr / buyback_price          # both in crore-rupee / rupee units
+    outstanding = market_cap_cr / price
+    small_float = outstanding * small_holder_pct / 100.0
+    if small_float <= 0:
+        return None
+    return min(1.0, reserved * buyback_shares / small_float)
+
+
+def entitlement_floor(bb: dict, market_cap_cr, price, small_holder_pct) -> tuple[float | None, str | None]:
+    """(ratio, 'published'|'estimated'|None): the published ratio when the offer carries one,
+    else the float-implied estimate."""
+    if bb.get("entitlement_small"):
+        return float(bb["entitlement_small"]), "published"
+    est = estimate_entitlement(bb.get("issue_size_cr"), bb.get("buyback_price"), market_cap_cr, price,
+                               small_holder_pct)
+    return (est, "estimated") if est is not None else (None, None)
+
+
 def calibrate_from_outcomes(records) -> dict:
     """Fit the acceptance prior from realized tenders. records: dicts with
     market_cap_cr + realized_acceptance. Returns {bucket: {n, acceptance(mean)}}.
@@ -316,6 +343,19 @@ def discover_buybacks(start_id: int, max_gap: int = 12, hard_cap: int = 120, ses
     return out
 
 
+def latest_small_holder(symbol: str) -> dict:
+    """Newest `shareholding` row's small-holder % for the entitlement estimate ({} if none /
+    unreachable — the scan must not fail on a missing feature)."""
+    try:
+        from scanner import db
+        rows = db.select("shareholding", {"select": "quarter_end,small_holder_pct", "symbol": f"eq.{symbol}",
+                                          "small_holder_pct": "not.is.null",
+                                          "order": "quarter_end.desc", "limit": "1"})
+        return rows[0] if rows else {}
+    except Exception:
+        return {}
+
+
 def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
                           only_open=False, stats: dict | None = None) -> list[dict]:
     """Probe chittorgarh ids upward from the latest-known buyback; enrich each tender
@@ -346,9 +386,15 @@ def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
             mcap = fetch_fundamentals(bb["symbol"]).get("market_cap_cr")
         except Exception:
             mcap = None
-        acc = estimate_acceptance(mcap, bb["entitlement_small"], issue_size_cr=bb.get("issue_size_cr"))
+        shp = latest_small_holder(bb["symbol"])
+        floor, floor_src = entitlement_floor(bb, mcap, cur, shp.get("small_holder_pct"))
+        acc = estimate_acceptance(mcap, floor, issue_size_cr=bb.get("issue_size_cr"))
         bb.update(
             cur_price=cur, premium=premium, market_cap_cr=mcap, est_acceptance=acc,
+            small_holder_pct=shp.get("small_holder_pct"), small_holder_quarter=shp.get("quarter_end"),
+            est_entitlement=estimate_entitlement(bb.get("issue_size_cr"), bb["buyback_price"], mcap, cur,
+                                                 shp.get("small_holder_pct")),
+            entitlement_source=floor_src,
             est_return=arb_return(cur, bb["buyback_price"], cur, bb["entitlement_small"]),
             exp_return=expected_after_tax(cur, bb["buyback_price"], acc, bb["record_date"]),
             is_open=bool(pd.notna(bb["close_date"]) and pd.Timestamp(bb["close_date"]) >= today),

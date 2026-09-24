@@ -320,3 +320,28 @@ def test_scan_defaults_cover_moved_frontier():
     from scanner.buyback import scan_current_buybacks
     sig = inspect.signature(scan_current_buybacks).parameters
     assert sig["max_gap"].default >= 12 and sig["hard_cap"].default >= 120
+
+
+# --- small-shareholder float -> entitlement estimate (shareholding table, 2026-09-24) --------
+
+def test_estimate_entitlement_from_small_holder_float():
+    from scanner.buyback import estimate_entitlement
+    # Rs 100 cr buyback at Rs 1,000 = 1e6 shares; 15% reserved = 150,000.
+    # Mkt cap 10,000 cr at Rs 800 = 1.25e8 shares; small holders 10% = 1.25e7 -> 1.2%
+    e = estimate_entitlement(issue_size_cr=100, buyback_price=1000, market_cap_cr=10000, price=800,
+                             small_holder_pct=10)
+    assert e == pytest.approx(0.012)
+    assert estimate_entitlement(100, 1000, 10000, 800, small_holder_pct=None) is None
+    assert estimate_entitlement(100, 1000, None, 800, small_holder_pct=10) is None
+    assert estimate_entitlement(100, 1000, 10000, 800, small_holder_pct=0) is None
+    # a tiny float can't be over-subscribed past 100% acceptance
+    assert estimate_entitlement(1000, 1000, 1000, 800, small_holder_pct=1) == 1.0
+
+
+def test_entitlement_floor_prefers_published_ratio():
+    from scanner.buyback import entitlement_floor
+    bb = {"entitlement_small": 0.08, "issue_size_cr": 100, "buyback_price": 1000}
+    assert entitlement_floor(bb, market_cap_cr=10000, price=800, small_holder_pct=10) == (0.08, "published")
+    bb["entitlement_small"] = None
+    assert entitlement_floor(bb, 10000, 800, 10) == (pytest.approx(0.012), "estimated")
+    assert entitlement_floor(bb, 10000, 800, None) == (None, None)
