@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scanner.validation import exclude_results, parse_args  # noqa: E402
+from scanner.validation import exclude_results, run  # noqa: E402
 from scanner.pricestore import get_closes  # noqa: E402
 from scanner.buyback import arb_return, after_tax_return  # noqa: E402
 from scanner.pointintime import mcap_bucket_at  # noqa: E402
@@ -58,8 +58,7 @@ def price_after(s, d, lag):
     return float(sub.iloc[lag]) if len(sub) > lag else None
 
 
-def main():
-    args = parse_args()
+def main(args) -> dict | None:
     bb = scrape()
     bb = bb.dropna(subset=["symbol", "buyback_price", "record_date", "close_date",
                            "entitlement_small"])
@@ -99,7 +98,7 @@ def main():
     d = exclude_results(pd.DataFrame(recs), "record_date", args.exclude_results_window)
     if d.empty:
         print("No events with usable prices.")
-        return
+        return None
 
     def show(label, col, sub=None):
         x = (sub if sub is not None else d)[col].dropna()
@@ -124,7 +123,8 @@ def main():
     print("\n  -- after-tax floor, by regime --")
     show("pre-Oct-2024 (tax-free buyback)", "aftertax_floor", d[d.regime == "pre_oct2024"])
     show("post-Oct-2024 (dividend-taxed)", "aftertax_floor", d[d.regime == "post_oct2024"])
+    return {"results": d}
 
 
 if __name__ == "__main__":
-    main()
+    run("buyback_arb", main)

@@ -1,0 +1,50 @@
+name: validate
+# Re-run a signal validation on a runner (never the laptop) and publish its evidence: results +
+# printed report to the private `evidence` bucket, one validation_runs row (git SHA, args, summary).
+# Prices come from the cloud store (pricestore source="db"), nselib for pre-2020 events.
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        type: choice
+        required: true
+        options:
+          - validate_rights_re.py
+          - validate_buyback_arb.py
+          - validate_lockin.py
+          - validate_fno_ban.py
+          - validate_promoter_buys.py
+          - validate_order_wins.py
+          - validate_index_rebalance.py
+          - validate_merger_arb.py
+          - validate_deals_edge.py
+      args:
+        description: "extra args, e.g. --exclude-results-window 2"
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: validate-${{ inputs.script }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      SCRIPT: ${{ inputs.script }}
+      ARGS: ${{ inputs.args }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: run
+        run: |
+          set -euo pipefail
+          case "$ARGS" in *[\;\&\|\`\$]*) echo "refusing args with shell metacharacters"; exit 1 ;; esac
+          # shellcheck disable=SC2086
+          python -u "scripts/$SCRIPT" --publish $ARGS

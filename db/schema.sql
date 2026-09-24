@@ -538,3 +538,31 @@ create table if not exists index_membership (
 create index if not exists idx_membership_open on index_membership(index_key) where to_date is null;
 alter table index_membership enable row level security;
 create policy "anon read index_membership" on index_membership for select to anon using (true);
+
+-- ============================================================================
+-- WP7 evidence (scanner/evidence.py, scanner/validation.run, .github/workflows/validate.yml):
+-- every published validation run's artefacts live in the private `evidence` bucket
+-- (<signal>/<YYYY-MM-DDTHHMMSSZ>/{results.csv,report.txt,summary.json,meta.json}); this is the index.
+-- ============================================================================
+create table if not exists validation_runs (
+  id            bigint generated always as identity primary key,
+  signal_name   text not null,
+  run_at        timestamptz not null default now(),
+  git_sha       text,
+  script        text not null,
+  params        jsonb not null default '{}',
+  summary       jsonb not null default '{}',
+  evidence_path text not null check (evidence_path ~ '^[a-z0-9_]+/[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{6}Z)?$')
+);
+create index if not exists idx_validation_runs_signal on validation_runs(signal_name, run_at desc);
+alter table validation_runs enable row level security;
+create policy "anon read validation_runs" on validation_runs for select to anon using (true);
+
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('evidence', 'evidence', false, 52428800)
+on conflict (id) do nothing;
+
+-- WP8: filings older than 24 months, archived as monthly parquet before `subject` is nulled.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('filings', 'filings', false, 52428800)
+on conflict (id) do nothing;

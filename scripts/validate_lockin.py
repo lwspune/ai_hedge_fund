@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scanner.validation import exclude_results, parse_args  # noqa: E402
+from scanner.validation import exclude_results, run  # noqa: E402
 from scanner import db  # noqa: E402
 from scanner.eventstudy import summarize  # noqa: E402
 from scanner.lockin import BLOCKING, WINDOWS, blocking_action, lockin_events, window_return  # noqa: E402
@@ -130,6 +130,11 @@ def report(df: pd.DataFrame) -> None:
     print(f"\nShort-side net of ~{COST*100:.1f}% costs = -(long mean) - {COST*100:.1f}%.")
 
 
+def _study(args) -> dict:
+    df = exclude_results(build(), "expiry", args.exclude_results_window)
+    report(df)
+    return {"results": df}
+
+
 if __name__ == "__main__":
-    args = parse_args()
-    report(exclude_results(build(), "expiry", args.exclude_results_window))
+    run("lockin_expiry", _study)

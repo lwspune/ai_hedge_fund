@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scanner.validation import exclude_results, parse_args  # noqa: E402
+from scanner.validation import exclude_results, run  # noqa: E402
 
 # (label, target_sym, acquirer_sym, ratio[acq per target], announce, complete)
 DEALS = [
@@ -51,12 +51,12 @@ def nse_close_on_or_after(symbol: str, start: str, lag: int):
     return close, row["d"]
 
 
-def main():
+def main(args) -> dict:
     print(f"{'DEAL':<20}{'TGT':>9}{'ACQ':>9}{'DEALVAL':>9}{'SPREAD':>8}{'DAYS':>6}{'ANNUALISED':>12}")
     print("-" * 73)
     spreads, annuals = [], []
     deals = DEALS
-    n = parse_args().exclude_results_window
+    n = args.exclude_results_window
     if n:
         keep = exclude_results(pd.DataFrame({"symbol": [d[1] for d in DEALS], "ann": [d[4] for d in DEALS],
                                              "i": range(len(DEALS))}), "ann", n)
@@ -84,7 +84,8 @@ def main():
           f"{ '{ratio}' } acquirer (futures) captures it at completion.")
     print("Break risk (not in sample): Zee-Sony called off Jan 2024 -> ZEEL fell ~30% "
           "in days. One break can erase many completed-deal spreads.")
+    return {"results": pd.DataFrame(deals, columns=["deal", "target", "acquirer", "ratio", "announced", "completed"])}
 
 
 if __name__ == "__main__":
-    main()
+    run("merger_arb", main)

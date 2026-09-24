@@ -22,7 +22,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scanner.validation import exclude_results, parse_args  # noqa: E402
+from scanner.validation import exclude_results, run  # noqa: E402
 from scanner import db  # noqa: E402
 from scanner.eventstudy import summarize, window_return  # noqa: E402
 from scanner.fnoban import PLACEBO_GAP, PRE_DAYS, WINDOWS, ban_episodes, far_from_bans, reversal  # noqa: E402
@@ -139,6 +139,11 @@ def report(df: pd.DataFrame) -> None:
     print(f"\nNet of costs: subtract ~{COST*100:.1f}% per round trip from any tradable window.")
 
 
+def _study(args) -> dict:
+    df = exclude_results(build(), "first", args.exclude_results_window)
+    report(df)
+    return {"results": df}
+
+
 if __name__ == "__main__":
-    args = parse_args()
-    report(exclude_results(build(), "first", args.exclude_results_window))
+    run("fno_ban", _study)

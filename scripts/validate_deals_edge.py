@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scanner.validation import exclude_results, parse_args  # noqa: E402
+from scanner.validation import exclude_results, run  # noqa: E402
 from scanner.pricestore import get_closes  # noqa: E402
 from scanner.deals import classify_client, NOTABLE          # noqa: E402
 from scanner.eventstudy import forward_abnormal_return, summarize  # noqa: E402
@@ -137,8 +137,7 @@ def fmt(s: dict) -> str:
             if s["t_stat"] is not None else f"n={s['n']}")
 
 
-def main():
-    args = parse_args()
+def main(args) -> dict:
     print("Loading deals (cached after first run)...")
     norm = normalize(load_deals())
     print(f"Normalized deals: {len(norm)} | categories: "
@@ -160,7 +159,8 @@ def main():
     run_study(prop, bh, "PLACEBO: PROP/LLP BUYS")
     print("\nReading: post-event mean ~0 / t<2 => no follower edge; "
           "pre-event >> post => front-running (return already gone).")
+    return {"results": inst, "placebo": prop}
 
 
 if __name__ == "__main__":
-    main()
+    run("smart_money_deals", main)

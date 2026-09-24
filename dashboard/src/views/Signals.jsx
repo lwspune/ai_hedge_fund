@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 import signals from '../signals.json'
 import useLoad from '../lib/useLoad'
-import { fmtAgo, fmtDateTime, fmtQty } from '../lib/format'
+import { fmtAgo, fmtDate, fmtDateTime, fmtQty } from '../lib/format'
+import { evidenceLabel, latestEvidence } from '../lib/evidence'
 import { ROLE_ORDER, roleLabel, signalHeadline, signalLabel, typeLabel } from '../lib/signalLabels'
 import DataTable from '../components/ui/DataTable'
 import { Badge, VerdictBadge } from '../components/ui/Badge'
@@ -29,6 +30,9 @@ export default function Signals() {
   const [open, setOpen] = useState(() => new Set())
   const runs = useLoad(() => supabase.from('scan_runs').select('id,signal_name,verdict,run_at,n_candidates')
     .order('run_at', { ascending: false }).limit(200), [])
+  const validations = useLoad(() => supabase.from('validation_runs').select('signal_name,run_at,git_sha,evidence_path')
+    .order('run_at', { ascending: false }).limit(200), [])
+  const evidence = latestEvidence(validations.data)
 
   const bySignal = {}
   for (const r of runs.data || []) (bySignal[r.signal_name] ??= []).push(r)
@@ -79,12 +83,19 @@ export default function Signals() {
         never traded.
       </p>
       {runs.error && <ErrorNote what="scan runs" message={runs.error} />}
+      {validations.error && <ErrorNote what="validation runs" message={validations.error} />}
       <div className="stack-top">
         <DataTable caption="Signals and their verdicts" columns={columns} rows={ROWS} rowKey={(s) => s.name}
                    expandedRow={(s) => open.has(s.name)}
                    renderExpanded={(s) => (
                      <div id={`sig-${s.name}-more`} className="sig-more">
                        <p className="sig-summary">{s.summary}</p>
+                       <h3 className="subhead">Evidence</h3>
+                       <p className="t2">
+                         {evidence[s.name]
+                           ? <><span className="mono">{evidenceLabel(evidence[s.name])}</span> · validated {fmtDate(evidence[s.name].run_at)}</>
+                           : 'No published validation run yet (run the validate workflow).'}
+                       </p>
                        <h3 className="subhead">Recent runs</h3>
                        <DataTable dense caption={`Recent runs of ${signalLabel(s.name)}`} columns={RUN_COLUMNS}
                                   rows={(bySignal[s.name] || []).slice(0, 10)} rowKey={(r) => r.id}

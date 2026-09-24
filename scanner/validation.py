@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 
@@ -19,7 +20,51 @@ def parse_args(argv=None, known_only: bool = False):
     ap = argparse.ArgumentParser(add_help=not known_only)
     ap.add_argument("--exclude-results-window", type=int, default=0, metavar="N",
                     help="drop events within N trading days of a results meeting (same symbol)")
+    ap.add_argument("--publish", action="store_true",
+                    help="store results + report in the evidence bucket and validation_runs (WP7)")
     return ap.parse_known_args(argv) if known_only else ap.parse_args(argv)
+
+
+class _Tee:
+    """Mirror stdout into a buffer (the report as printed is part of the evidence)."""
+
+    def __init__(self, stream):
+        self.stream, self.parts = stream, []
+
+    def write(self, s):
+        self.parts.append(s)
+        return self.stream.write(s)
+
+    def flush(self):
+        self.stream.flush()
+
+    @property
+    def text(self) -> str:
+        return "".join(self.parts)
+
+
+def run(signal: str, body, argv=None) -> None:
+    """Shared entry point for scripts/validate_*.py. body(args) runs the study, prints its report
+    and returns {name: DataFrame} (at least "results"). With --publish the frames and the printed
+    report go to the evidence bucket + validation_runs; either way they print as before."""
+    import inspect
+    import sys
+    from scanner import evidence
+    args, _ = parse_args(sys.argv[1:] if argv is None else argv, known_only=True)
+    tee, real = _Tee(sys.stdout), sys.stdout
+    sys.stdout = tee
+    try:
+        frames = body(args) or {}
+    finally:
+        sys.stdout = real
+    if args.publish:
+        script = Path(inspect.stack()[1].filename).resolve()
+        try:
+            script = script.relative_to(Path(__file__).resolve().parent.parent).as_posix()
+        except ValueError:
+            script = script.name
+        path = evidence.publish(signal, str(script), vars(args), frames, tee.text, git_sha=evidence.git_sha())
+        print(f"\n[evidence] {path} (bucket `{evidence.BUCKET}`) + validation_runs row")
 
 
 def drop_near_results(df: pd.DataFrame, date_col: str, n: int, results: dict, hol) -> pd.DataFrame:

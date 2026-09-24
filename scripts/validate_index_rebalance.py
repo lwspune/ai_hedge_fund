@@ -26,7 +26,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scanner.validation import exclude_results, parse_args  # noqa: E402
+from scanner.validation import exclude_results, run  # noqa: E402
 
 from scanner.eventstudy import summarize
 from scanner.rebalance import EVENTS, abnormal_return_between, load_next50_events
@@ -84,9 +84,8 @@ def report(label, rows):
           f"median {s['median']*100:+.2f}%  win {s['pct_positive']*100:.0f}%{t}")
 
 
-def main():
-    args, rest = parse_args(sys.argv[1:], known_only=True)
-    use_nifty50 = "--nifty50" in rest
+def main(args) -> dict:
+    use_nifty50 = "--nifty50" in sys.argv[1:]
     events = EVENTS if use_nifty50 else load_next50_events()
     if args.exclude_results_window:
         keep = exclude_results(pd.DataFrame({"symbol": [e.symbol for e in events],
@@ -127,7 +126,8 @@ def main():
     if missing:
         print(f"\nprice-missing ({len(missing)}, excluded): {', '.join(missing)}")
     print("\nGROSS, pre-cost. Net ~30bps + STT (+ futures for the short leg) before any verdict.")
+    return {"results": pd.DataFrame([vars(e) for e in events])}
 
 
 if __name__ == "__main__":
-    main()
+    run("index_rebalance", main)
