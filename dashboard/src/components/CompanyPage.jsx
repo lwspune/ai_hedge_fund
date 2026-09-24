@@ -61,6 +61,60 @@ function SeriesTable({ caption, rows, cols }) {
   )
 }
 
+const money = (k) => (k.value_cr != null ? `₹${num(k.value_cr)} cr` : `${num(k.value, 2)} ${k.unit || ''}`)
+
+function Source({ k }) {
+  const url = k.filings?.attachment_url
+  const when = k.disclosed_at.slice(0, 10)
+  return url
+    ? <a href={url} target="_blank" rel="noopener noreferrer"
+         aria-label={`Source filing from ${when} (opens in a new tab)`}>{when} ↗</a>
+    : <span className="dim">{when}</span>
+}
+
+// F3: KPIs extracted from filing PDFs by rule (rule_v1). Every value shows the exact quote it came
+// from and links its source filing, so any number can be checked.
+function FilingKpis({ kpis }) {
+  const by = (kpi) => kpis.filter((k) => k.kpi === kpi)
+  const book = by('order_book'), wins = by('order_win_value'), util = by('capacity_utilisation')
+  const guide = by('guidance').slice(0, 6)
+  if (!kpis.length) return null
+  return (
+    <section className="panel" aria-labelledby="kpis-h">
+      <h2 id="kpis-h">From filings <span className="muted">· extracted by rule from presentations, call transcripts, press releases &amp; order disclosures — check the quote</span></h2>
+      <dl className="ratios">
+        {book[0] && <div className="ratio"><dt>Order book{book[0].as_of ? ` (as on ${book[0].as_of})` : ''}</dt><dd>{money(book[0])}</dd></div>}
+        {util[0] && <div className="ratio"><dt>Capacity utilisation</dt><dd>{num(util[0].value)}%</dd></div>}
+        {wins.length > 0 && <div className="ratio"><dt>Order wins disclosed (latest {Math.min(wins.length, 8)})</dt>
+          <dd>₹{num(wins.slice(0, 8).reduce((a, k) => a + (k.value_cr || 0), 0))} cr</dd></div>}
+      </dl>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Metric</th><th scope="col" className="r">Value</th><th scope="col">Quote</th><th scope="col">Source</th></tr></thead>
+          <tbody>
+            {[...book.slice(0, 4), ...util.slice(0, 2), ...wins.slice(0, 8)].map((k) => (
+              <tr key={k.id}>
+                <td>{k.kpi.replace(/_/g, ' ')}</td>
+                <td className="r">{k.kpi === 'capacity_utilisation' ? `${num(k.value)}%` : money(k)}</td>
+                <td className="dim wrap">“{k.quote}”</td>
+                <td><Source k={k} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {guide.length > 0 && (
+        <>
+          <h3 className="small">Management guidance (quotes)</h3>
+          <ul className="plain">
+            {guide.map((k) => <li key={k.id}>“{k.quote}” — <Source k={k} /></li>)}
+          </ul>
+        </>
+      )}
+    </section>
+  )
+}
+
 export default function CompanyPage({ symbol }) {
   const [state, setState] = useState({ loading: true })
 
@@ -68,7 +122,7 @@ export default function CompanyPage({ symbol }) {
     let live = true
     setState({ loading: true })
     ;(async () => {
-      const [co, snap, ev, ipo, bb, cand, deals, fil] = await Promise.all([
+      const [co, snap, ev, ipo, bb, cand, deals, fil, kp] = await Promise.all([
         supabase.from('companies').select('*').eq('symbol', symbol).maybeSingle(),
         supabase.from('company_snapshot').select('*').eq('symbol', symbol).maybeSingle(),
         supabase.from('corporate_events').select('*').eq('symbol', symbol)
@@ -81,14 +135,16 @@ export default function CompanyPage({ symbol }) {
           .order('deal_date', { ascending: false }).limit(15),
         supabase.from('filings').select('seq_id,category,subject,disclosed_at,attachment_url')
           .eq('symbol', symbol).order('disclosed_at', { ascending: false }).limit(25),
+        supabase.from('company_kpis').select('id,kpi,value,unit,value_cr,as_of,quote,disclosed_at,filings(attachment_url,category)')
+          .eq('symbol', symbol).order('disclosed_at', { ascending: false }).limit(80),
       ])
-      const err = [co, snap, ev, ipo, bb, cand, deals, fil].find((r) => r.error)
+      const err = [co, snap, ev, ipo, bb, cand, deals, fil, kp].find((r) => r.error)
       if (!live) return
       if (err) setState({ loading: false, error: err.error.message })
       else setState({
         loading: false, company: co.data, snap: snap.data, events: ev.data || [],
         ipo: (ipo.data || [])[0], buybacks: bb.data || [], candidates: cand.data || [],
-        deals: deals.data || [], filings: fil.data || [],
+        deals: deals.data || [], filings: fil.data || [], kpis: kp.data || [],
       })
     })()
     return () => { live = false }
@@ -97,7 +153,7 @@ export default function CompanyPage({ symbol }) {
   const back = <a href="#/" className="back">← All signals</a>
   if (state.loading) return <>{back}<div className="banner">Loading {symbol}…</div></>
   if (state.error) return <>{back}<div className="banner error" role="alert">⚠ {state.error}</div></>
-  const { company: c, snap: s, events, ipo, buybacks, candidates, deals, filings } = state
+  const { company: c, snap: s, events, ipo, buybacks, candidates, deals, filings, kpis } = state
   if (!c) return <>{back}<div className="banner">No NSE company with symbol <code>{symbol}</code>.</div></>
   const h = s?.history || {}
   const upcoming = events.filter((e) => e.event_date >= new Date().toISOString().slice(0, 10))
@@ -208,6 +264,8 @@ export default function CompanyPage({ symbol }) {
           cols={[['promoter', 'Promoters', pct], ['fii', 'FIIs', pct], ['dii', 'DIIs', pct],
                  ['public', 'Public', pct], ['holders', 'Shareholders', (v) => num(v)]]} />
       </section>
+
+      <FilingKpis kpis={kpis} />
 
       <section className="panel" aria-labelledby="filings-h">
         <h2 id="filings-h">Filings <span className="muted">· NSE announcements (material categories)</span></h2>

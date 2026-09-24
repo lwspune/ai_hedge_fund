@@ -313,3 +313,34 @@ create index if not exists idx_filings_symbol_time on filings(symbol, disclosed_
 create index if not exists idx_filings_category_time on filings(category, disclosed_at desc);
 alter table filings enable row level security;
 create policy "anon read filings" on filings for select to anon using (true);
+
+-- ============================================================================
+-- F3 filing KPIs (scanner/kpis.py rule_v1, scripts/extract_kpis.py). Every value carries the
+-- exact quote it came from and its source filing. Chosen by docs/FILINGS_KPI_ANALYSIS.md.
+-- ============================================================================
+alter table filings add column if not exists extract_status text
+  check (extract_status is null or extract_status in ('ok','no_pdf','error'));
+alter table filings add column if not exists extracted_at timestamptz;
+create index if not exists idx_filings_unextracted on filings(disclosed_at desc) where extracted_at is null;
+
+create table if not exists company_kpis (
+  id           bigint generated always as identity primary key,
+  seq_id       bigint not null references filings(seq_id) on delete cascade,
+  symbol       text not null,
+  disclosed_at timestamptz not null,
+  kpi          text not null check (kpi in ('order_book','order_win_value','capacity_utilisation','guidance')),
+  value        numeric,
+  unit         text,                        -- canonical: crore | lakh | mn | bn | lakh crore | USD mn | USD bn | %
+  value_cr     numeric,                     -- INR crore equivalent (null for USD / %)
+  as_of        date,
+  quote        text not null check (length(quote) between 5 and 400),
+  quote_hash   text generated always as (md5(quote)) stored,
+  method       text not null default 'rule_v1',
+  created_at   timestamptz not null default now(),
+  unique (seq_id, kpi, quote_hash),
+  check ((kpi = 'guidance') = (value is null)),
+  check (kpi <> 'capacity_utilisation' or (value > 0 and value <= 100))
+);
+create index if not exists idx_kpis_symbol on company_kpis(symbol, kpi, disclosed_at desc);
+alter table company_kpis enable row level security;
+create policy "anon read company_kpis" on company_kpis for select to anon using (true);

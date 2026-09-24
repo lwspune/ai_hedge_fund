@@ -13,6 +13,7 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     assert ["refresh_events.py", "ipos"] in s
     assert ["refresh_events.py", "rights"] in s
     assert ["refresh_filings.py"] in s
+    assert s.index(["extract_kpis.py", "--limit", "1500"]) > s.index(["refresh_filings.py"])
     assert ["refill_deals.py", "--from", "2026-09-14"] in s  # 10-day lookback heals pauses
     assert ["-m", "scanner.run", "buyback_arb", "--save"] in s  # primary signal refreshed daily
     assert ["-m", "scanner.run", "rights_re", "--save"] in s   # RE panel data
