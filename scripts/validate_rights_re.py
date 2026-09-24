@@ -1,8 +1,8 @@
 """Validate candidate signal #4: rights-entitlement (RE) mispricing.
 
-Events: every rights issue since 2020 in corporate_events (nse_ca) with a face value on record
-and no later split/bonus/consolidation. RE prices: nselib `<SYM>-RE` (series BE) from ex-date
-to ex+60 days; stock: unadjusted NSE closes.
+Events: every NSE rights issue since 2020 in `rights_issues` (chittorgarh offer data: exact
+issue price, RE symbol, timetable); partly-paid and withdrawn issues excluded. RE prices: nselib
+(stored RE symbol, else <SYM>-RE) over the RE trading window; stock: unadjusted NSE closes.
 
 Measured (fixed in advance): daily gap = (S - issue - RE) / S at the close (positive = RE
 cheap: RE + subscription beats buying the stock). Tradable days = RE turnover >= Rs 5 lakh.
@@ -24,20 +24,20 @@ from scanner import db  # noqa: E402
 from scanner.eventstudy import summarize  # noqa: E402
 from scanner.pricestore import get_closes  # noqa: E402
 from scanner.rights import (  # noqa: E402
-    HURDLE, MIN_TURNOVER, SHARE_COUNT_CHANGES, fetch_re_frame, gap_series, re_symbol, rights_events)
+    HURDLE, MIN_TURNOVER, PENNY_ISSUE, PENNY_STOCK, events_from_issues, fetch_re_frame, gap_series, re_symbol)
 
 CACHE = Path(__file__).resolve().parent.parent / "cache" / "re"
 OUT = Path(__file__).resolve().parent.parent / "cache" / "rights_re_results.csv"
 
 
-def fetch_re(sym: str, start: date, end: date) -> pd.DataFrame | None:
+def fetch_re(sym: str, start: date, end: date, stored_re: str | None = None) -> pd.DataFrame | None:
     """RE daily close + turnover (cached CSV; RE windows are short and final once closed)."""
     CACHE.mkdir(parents=True, exist_ok=True)
     fp = CACHE / f"{re_symbol(sym).replace('&', '_and_')}_{start}.csv"
     if fp.exists():
         df = pd.read_csv(fp, parse_dates=["date"])
         return df.set_index("date") if len(df) else None
-    df = fetch_re_frame(sym, start, end)
+    df = fetch_re_frame(sym, start, end, stored_re)
     if df is None:
         pd.DataFrame(columns=["date", "close", "turnover"]).to_csv(fp, index=False)
         return None
@@ -56,25 +56,25 @@ def fmt(label: str, xs) -> str:
 
 
 def build() -> pd.DataFrame:
-    rights = db.select_all("corporate_events", {"select": "symbol,event_date,record_date,details",
-                                                "event_type": "eq.rights", "event_date": "gte.2020-01-01"})
-    acts = db.select_all("corporate_events", {"select": "symbol,event_type,event_date",
-                                              "event_type": f"in.({','.join(sorted(SHARE_COUNT_CHANGES))})",
-                                              "event_date": "gte.2020-01-01"})
-    fv = {c["symbol"]: c["face_value"] for c in db.select_all("companies", {"select": "symbol,face_value"})
-          if c["face_value"]}
-    cutoff = (date.today() - timedelta(days=45)).isoformat()   # RE window must be over
-    events = [e for e in rights_events(rights, fv, acts) if e["ex_date"] <= cutoff]
-    print(f"{len(rights)} rights issues since 2020 -> {len(events)} usable events", flush=True)
+    issues = db.select_all("rights_issues", {
+        "select": "symbol,issue_price,ratio_rights,ratio_held,record_date,re_credit_date,issue_open,"
+                  "renunciation_date,issue_close,re_symbol,partly_paid,withdrawn",
+        "issue_open": "gte.2020-01-01"})
+    cutoff = (date.today() - timedelta(days=10)).isoformat()   # RE window must be over
+    events = [e for e in events_from_issues(issues) if e["re_to"] <= cutoff]
+    print(f"{len(issues)} NSE rights issues since 2020 -> {len(events)} usable "
+          f"(fully paid, not withdrawn, RE window over)", flush=True)
 
     rows = []
     for k, e in enumerate(events, 1):
-        ex = date.fromisoformat(e["ex_date"])
-        re_df = fetch_re(e["symbol"], ex - timedelta(days=3), ex + timedelta(days=60))
+        ex = date.fromisoformat(e["re_from"])
+        re_df = fetch_re(e["symbol"], ex - timedelta(days=3), date.fromisoformat(e["re_to"]) + timedelta(days=2),
+                         e["re_symbol"])
         if re_df is None or not len(re_df):
             rows.append({**e, "re_days": 0})
             continue
-        stock = get_closes(e["symbol"], ex - timedelta(days=10), ex + timedelta(days=70), source="nse")
+        stock = get_closes(e["symbol"], ex - timedelta(days=10), date.fromisoformat(e["re_to"]) + timedelta(days=5),
+                           source="nse")
         if stock is None:
             rows.append({**e, "re_days": len(re_df), "stock": False})
             continue
@@ -84,7 +84,8 @@ def build() -> pd.DataFrame:
                      "liquid_days": int(liquid.sum()),
                      "gaps": ";".join(f"{v:.5f}" for v in g.values),
                      "liquid": ";".join("1" if x else "0" for x in liquid.values),
-                     "med_turnover": float(re_df["turnover"].median())})
+                     "med_turnover": float(re_df["turnover"].median()),
+                     "stock_px": float(stock.reindex(g.index).median()) if len(g) else None})
         if k % 25 == 0:
             print(f"  {k}/{len(events)}", flush=True)
     df = pd.DataFrame(rows)
@@ -102,7 +103,8 @@ def report(df: pd.DataFrame) -> None:
         lq = [x == "1" for x in str(r["liquid"]).split(";")]
         n = len(gs)
         for i, (g, l) in enumerate(zip(gs, lq)):
-            day_rows.append({"symbol": r["symbol"], "year": int(r["ex_date"][:4]), "gap": g, "liquid": l,
+            day_rows.append({"symbol": r["symbol"], "year": int(r["re_from"][:4]), "gap": g, "liquid": l,
+                             "penny": r["issue_price"] < PENNY_ISSUE or (r.get("stock_px") or 0) < PENNY_STOCK,
                              "first3": i < 3, "last3": i >= n - 3})
     d = pd.DataFrame(day_rows)
     print("\n=== DAY-LEVEL gap = (S - issue - RE)/S  (positive = RE cheap) ===")
@@ -112,6 +114,16 @@ def report(df: pd.DataFrame) -> None:
     print(fmt("liquid, last 3 days", d.loc[d.liquid & d.last3, "gap"]))
     for lo, hi in ((2020, 2022), (2023, 2024), (2025, 2026)):
         print(fmt(f"liquid, {lo}-{hi}", d.loc[d.liquid & d.year.between(lo, hi), "gap"]))
+
+    np_ = d.liquid & ~d.penny
+    print(f"\n=== ROBUSTNESS (post-hoc check, not a selection): non-penny = issue >= Rs {PENNY_ISSUE:.0f} "
+          f"and stock >= Rs {PENNY_STOCK:.0f} ===")
+    print(fmt("liquid, non-penny", d.loc[np_, "gap"]))
+    for lo, hi in ((2020, 2022), (2023, 2024), (2025, 2026)):
+        print(fmt(f"liquid, non-penny {lo}-{hi}", d.loc[np_ & d.year.between(lo, hi), "gap"]))
+    per_np = d[np_].groupby("symbol")["gap"].median()
+    print(f"  non-penny issues: {per_np.size}; per-issue median gap {per_np.median()*100:+.2f}%; "
+          f"issues with median above hurdle {(per_np > HURDLE).sum()}/{per_np.size}")
 
     print("\n=== ISSUE-LEVEL (one number per issue: its best liquid day / its liquid-day mean) ===")
     per = d[d.liquid].groupby("symbol")["gap"]

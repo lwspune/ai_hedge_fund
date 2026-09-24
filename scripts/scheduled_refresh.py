@@ -1,6 +1,6 @@
 """Scheduled infra refresh — run by GitHub Actions (.github/workflows/refresh-*.yml).
 
-    python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, deals refill, buybacks
+    python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, rights issues, deals refill, buybacks
     python scripts/scheduled_refresh.py weekly   # Sunday: company master + fundamentals
 
 Runs each step as a subprocess so one failure doesn't stop the rest, streams output to the
@@ -21,7 +21,7 @@ DEALS_LOOKBACK_DAYS = 10  # re-pull recent deals every day: heals paused/missed 
 def steps(mode: str, today: date) -> list[list[str]]:
     if mode == "daily":
         return [["refresh_events.py", "actions"], ["refresh_events.py", "fo-ban"],
-                ["refresh_events.py", "ipos"],
+                ["refresh_events.py", "ipos"], ["refresh_events.py", "rights"],
                 ["refill_deals.py", "--from", (today - timedelta(days=DEALS_LOOKBACK_DAYS)).isoformat()],
                 ["-m", "scanner.run", "buyback_arb", "--save"]]
     if mode == "weekly":  # fundamentals rows carry `history`, so no separate rebuild step

@@ -11,15 +11,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-SHARE_COUNT_CHANGES = {"split", "consolidation", "bonus"}  # make today's face value wrong
-
-
-def issue_price(face_value, premium):
-    if face_value is None or premium is None:
-        return None
-    return float(face_value) + float(premium)
-
-
 def re_gap(stock_close, re_close, issue):
     """(S - issue - RE) / S; None on missing/invalid inputs."""
     if not stock_close or re_close is None or issue is None or stock_close <= 0:
@@ -39,23 +30,29 @@ def gap_series(stock: pd.Series, re_px: pd.Series, issue: float, bound: float = 
     return g[g.abs() <= bound]
 
 
-def rights_events(rights: list[dict], face_values: dict, actions: list[dict]) -> list[dict]:
-    """corporate_events rights rows -> study events with the issue price. Dropped: no face value
-    on record, or a split/bonus/consolidation after the issue (today's FV isn't the old FV)."""
+def events_from_issues(rows: list[dict]) -> list[dict]:
+    """rights_issues rows -> study/scan events. Exact issue price from the offer document;
+    partly-paid issues (RE fair value differs) and withdrawn issues are skipped. The RE trades
+    from its credit date (else issue open) to the renunciation date (else issue close)."""
     out = []
-    for r in rights:
-        sym, d = r["symbol"], r["event_date"]
-        fv = face_values.get(sym)
-        det = r.get("details") or {}
-        if fv is None or det.get("premium") is None:
+    for r in rows:
+        if r.get("partly_paid") or r.get("withdrawn") or not r.get("issue_price"):
             continue
-        if any(a["symbol"] == sym and a["event_type"] in SHARE_COUNT_CHANGES and a["event_date"] > d
-               for a in actions):
+        frm = r.get("re_credit_date") or r.get("issue_open")
+        to = r.get("renunciation_date") or r.get("issue_close")
+        if not frm or not to:
             continue
-        out.append({"symbol": sym, "ex_date": d, "ratio": det.get("ratio"),
-                    "premium": float(det["premium"]), "face_value": float(fv),
-                    "issue_price": issue_price(fv, det["premium"])})
+        ratio = f"{r['ratio_rights']}:{r['ratio_held']}" if r.get("ratio_rights") and r.get("ratio_held") else None
+        out.append({"symbol": r["symbol"], "ratio": ratio, "issue_price": float(r["issue_price"]),
+                    "re_from": frm, "re_to": to, "issue_close": r.get("issue_close"),
+                    "re_symbol": r.get("re_symbol")})
     return out
+
+
+def re_symbols(symbol: str, stored: str | None) -> list[str]:
+    """NSE RE symbols vary (NDTVR, TILRR, SATIN-RE): try the stored one, then <SYM>-RE."""
+    cands = [s for s in (stored, re_symbol(symbol)) if s]
+    return list(dict.fromkeys(cands))
 
 
 MIN_TURNOVER = 5e5   # Rs 5 lakh / day: below this an RE print isn't reliably tradable
@@ -63,16 +60,20 @@ HURDLE = 0.005       # 0.5% of S: RE brokerage/STT + a few weeks' capital lock o
 PENNY_ISSUE, PENNY_STOCK = 10.0, 20.0  # validated on issue >= Rs 10 and stock >= Rs 20 only (tick noise)
 
 
-def fetch_re_frame(symbol: str, start, end) -> pd.DataFrame | None:
-    """Daily RE close + turnover from nselib (`<SYM>-RE`); None if it never traded."""
+def fetch_re_frame(symbol: str, start, end, stored_re: str | None = None) -> pd.DataFrame | None:
+    """Daily RE close + turnover from nselib (first RE symbol that has data); None if none."""
     from nselib import capital_market as cm
     from scanner.pricestore import nse_frame_to_series
-    try:
-        raw = cm.price_volume_and_deliverable_position_data(
-            symbol=re_symbol(symbol), from_date=pd.Timestamp(start).strftime("%d-%m-%Y"),
-            to_date=pd.Timestamp(end).strftime("%d-%m-%Y"))
-    except Exception:  # nselib raises on symbols with no data in the window
-        return None
+    raw = None
+    for sym in re_symbols(symbol, stored_re):
+        try:
+            raw = cm.price_volume_and_deliverable_position_data(
+                symbol=sym, from_date=pd.Timestamp(start).strftime("%d-%m-%Y"),
+                to_date=pd.Timestamp(end).strftime("%d-%m-%Y"))
+        except Exception:  # nselib raises on symbols with no data in the window
+            raw = None
+        if raw is not None and len(raw):
+            break
     if raw is None or len(raw) == 0:
         return None
     d = pd.to_datetime(raw["Date"], format="%d-%b-%Y", errors="coerce")
@@ -82,22 +83,24 @@ def fetch_re_frame(symbol: str, start, end) -> pd.DataFrame | None:
     return df if len(df) else None
 
 
-def open_res(today=None, lookback_days: int = 40) -> list[dict]:
-    """Rights issues whose RE traded in the last few days, with the latest gap (live scan)."""
+def open_res(today=None) -> list[dict]:
+    """Rights issues whose RE is trading now (credit/open date <= today <= renunciation date),
+    with the latest gap and the deadlines (live scan)."""
     from scanner import db
     from scanner.pricestore import get_closes
     today = pd.Timestamp(today or pd.Timestamp.today()).normalize()
-    since = (today - pd.Timedelta(days=lookback_days)).date().isoformat()
-    rights = db.select_all("corporate_events", {"select": "symbol,event_date,record_date,details",
-                                                "event_type": "eq.rights", "event_date": f"gte.{since}"})
-    fv = {c["symbol"]: c["face_value"] for c in db.select_all(
-        "companies", {"select": "symbol,face_value",
-                      "symbol": f"in.({','.join(sorted({r['symbol'] for r in rights}))})"})} if rights else {}
+    iso = today.date().isoformat()
+    rows = db.select_all("rights_issues", {
+        "select": "symbol,issue_price,ratio_rights,ratio_held,record_date,re_credit_date,issue_open,"
+                  "renunciation_date,issue_close,re_symbol,partly_paid,withdrawn",
+        "issue_close": f"gte.{iso}"})
     out = []
-    for e in rights_events(rights, fv, []):
-        re_df = fetch_re_frame(e["symbol"], pd.Timestamp(e["ex_date"]) - pd.Timedelta(days=3), today)
-        if re_df is None or re_df.index.max() < today - pd.Timedelta(days=5):
-            continue  # RE not trading (yet / any more)
+    for e in events_from_issues(rows):
+        if not (e["re_from"] <= iso <= e["re_to"]):
+            continue
+        re_df = fetch_re_frame(e["symbol"], pd.Timestamp(e["re_from"]) - pd.Timedelta(days=3), today, e["re_symbol"])
+        if re_df is None:
+            continue
         stock = get_closes(e["symbol"], today - pd.Timedelta(days=15), today, source="nse")
         g = gap_series(stock, re_df["close"], e["issue_price"]) if stock is not None else pd.Series(dtype=float)
         if not len(g):
@@ -106,7 +109,8 @@ def open_res(today=None, lookback_days: int = 40) -> list[dict]:
         out.append({"symbol": e["symbol"], "ratio": e["ratio"], "issue_price": e["issue_price"],
                     "stock": float(stock.asof(d)), "re": float(re_df["close"].asof(d)),
                     "gap": float(g.iloc[-1]), "turnover": float(re_df["turnover"].asof(d)),
-                    "re_date": d.date().isoformat()})
+                    "re_date": d.date().isoformat(), "re_last_day": e["re_to"],
+                    "issue_close": e["issue_close"]})
     return out
 
 
@@ -114,7 +118,7 @@ def format_open_res(rows: list[dict]) -> str:
     if not rows:
         return "No rights entitlements trading right now."
     out = [f"{'symbol':<12} {'ratio':<7} {'issue':>8} {'stock':>9} {'RE':>8} {'gap':>7} "
-           f"{'RE turnover':>12}  action"]
+           f"{'RE turnover':>12} {'RE last':>10} {'apply by':>10}  action"]
     for r in sorted(rows, key=lambda r: -r["gap"]):
         if r["turnover"] < MIN_TURNOVER:
             act = "illiquid"
@@ -127,5 +131,6 @@ def format_open_res(rows: list[dict]) -> str:
         else:
             act = "fair"
         out.append(f"{r['symbol']:<12} {r['ratio'] or '—':<7} {r['issue_price']:>8.2f} {r['stock']:>9.2f} "
-                   f"{r['re']:>8.2f} {r['gap']*100:>6.2f}% {r['turnover']/1e5:>9.1f} L  {act}")
+                   f"{r['re']:>8.2f} {r['gap']*100:>6.2f}% {r['turnover']/1e5:>9.1f} L "
+                   f"{r.get('re_last_day') or '—':>10} {r.get('issue_close') or '—':>10}  {act}")
     return "\n".join(out)

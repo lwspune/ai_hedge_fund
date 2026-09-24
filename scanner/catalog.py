@@ -157,10 +157,10 @@ SIGNALS: dict[str, Signal] = {
         _run_fno_ban),
     "rights_re": Signal(
         SignalMeta("rights_re", "spread", "conditional", "watch",
-                   "Rights entitlements (<SYM>-RE) trade below fair value S - issue price: median "
-                   "+3.4% of the share price on liquid days (n=251 days, 40 non-penny issues "
-                   "2020-26, every era). Capturable without shorting only if you want the stock "
-                   "(buy RE + subscribe instead) or hold it (switch shares -> REs). Small capacity."),
+                   "Rights entitlements trade below fair value S - issue price: median +3.5% of the "
+                   "share price on liquid days (55 non-penny, fully-paid issues 2020-26, 291 days; "
+                   "48/55 above cost). Capturable without shorting only if you want the stock (buy RE "
+                   "+ subscribe instead) or hold it (switch shares -> REs). Small capacity."),
         _run_rights_re),
 }
 

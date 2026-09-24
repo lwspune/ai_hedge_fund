@@ -211,3 +211,75 @@ def fetch_ipo(ipo_id: int, session=None) -> tuple[bool, dict | None]:
     if r.status_code != 200 or "IPO" not in r.text:
         return False, None
     return True, parse_ipo_page(r.text, ipo_id)
+
+
+RIGHTS_URL = "https://www.chittorgarh.com/rights-issue/x/{id}/"
+
+
+def _text_field(h: str, key: str) -> str | None:
+    """A string field with Next.js escapes undone ('u0026#8377;' -> '₹')."""
+    import html as _html
+    v = _field(h, key)
+    if not isinstance(v, str):
+        return None
+    v = _html.unescape(v.replace("u0026", "&")).strip()
+    return v or None
+
+
+def _rupees(s: str | None) -> float | None:
+    m = re.search(r"(\d[\d,]*(?:\.\d+)?)", s or "")
+    return float(m[1].replace(",", "")) if m else None
+
+
+def parse_rights_page(html: str, ri_id: int) -> dict | None:
+    """chittorgarh rights-issue page -> `rights_issues` row. None unless it has an NSE symbol and
+    a positive issue price (BSE-only / incomplete pages are skipped)."""
+    h = (html or "").replace("\\", "")
+    sym = (_field(h, "nse_symbol") or "").strip() if isinstance(_field(h, "nse_symbol"), str) else ""
+    price = _rupees(_text_field(h, "issue_price"))
+    if not sym or not price or price <= 0:
+        return None
+    re_sym = _text_field(h, "re_nse_symbol")
+    if sym.endswith("-RE"):  # older pages put the RE symbol in the stock-symbol field
+        re_sym, sym = re_sym or sym, sym[:-3]
+    terms = _text_field(h, "amount_of_payment")
+    # a bare number = amount payable on application; below the issue price -> partly paid
+    app = float(terms.replace(",", "")) if terms and re.fullmatch(r"[\d,]+(?:\.\d+)?", terms) else None
+    partly = (app is not None and app < price) or bool(terms and re.search(r"call|partly|balance", terms, re.I))
+    num = lambda k: int(v) if isinstance(v := _field(h, k), float) else None  # noqa: E731
+    return {
+        "chittorgarh_id": ri_id, "symbol": sym, "company": _text_field(h, "company_name"),
+        "isin": _text_field(h, "isin"), "face_value": _rupees(_text_field(h, "face_value")),
+        "issue_price": price,
+        "ratio_rights": num("entitlement_rights_equity_share"),
+        "ratio_held": num("entitlement_fully_paid_equity_share"),
+        "issue_size_shares": num("issue_size_in_shares_number"),
+        "record_date": _long_date(_field(h, "record_dt")),
+        "re_credit_date": _long_date(_field(h, "rights_entitlements_credit_dt")),
+        "issue_open": _long_date(_field(h, "issue_open_date")),
+        "renunciation_date": _long_date(_field(h, "timetable_renunciation_dt")),
+        "issue_close": _long_date(_field(h, "issue_close_date")),
+        "allotment_date": _long_date(_field(h, "timetable_allotment_dt")),
+        "listing_date": _long_date(_field(h, "timetable_listing_dt")),
+        "re_symbol": re_sym,
+        "payment_terms": terms, "application_amount": app,
+        "partly_paid": partly,
+        "withdrawn": _field(h, "issue_withdraw_status") == 1.0,
+    }
+
+
+def fetch_rights(ri_id: int, session=None) -> tuple[bool, dict | None]:
+    """(page_exists, parsed_row). Unknown ids 307-redirect to a list page -> never follow."""
+    r = (session or requests).get(RIGHTS_URL.format(id=ri_id), headers=_UA, timeout=20,
+                                  allow_redirects=False)
+    if r.status_code != 200 or "Rights Issue" not in r.text:
+        return False, None
+    return True, parse_rights_page(r.text, ri_id)
+
+
+def rights_recheck_ids(rows: list[dict], today: date, days: int = 45) -> list[int]:
+    """Rights pages to re-read: closing within `days` of today (or later) or still undated —
+    timetable dates and RE symbols are filled in after the page first appears."""
+    cutoff = (today - timedelta(days=days)).isoformat()
+    return sorted(r["chittorgarh_id"] for r in rows
+                  if r.get("issue_close") is None or r["issue_close"] >= cutoff)

@@ -2,13 +2,7 @@
 import pandas as pd
 import pytest
 
-from scanner.rights import issue_price, re_gap, re_symbol, gap_series, rights_events
-
-
-def test_issue_price_is_face_value_plus_premium():
-    assert issue_price(10, 14) == 24.0
-    assert issue_price(1, 0.63) == pytest.approx(1.63)
-    assert issue_price(None, 5) is None and issue_price(10, None) is None
+from scanner.rights import re_gap, re_symbol, gap_series, events_from_issues, re_symbols
 
 
 def test_re_gap_positive_when_entitlement_is_cheap():
@@ -29,20 +23,6 @@ def test_gap_series_aligns_dates_and_drops_nonsense():
     g = gap_series(stock, re_px, issue=60.0, bound=0.5)
     assert list(g.index) == [idx[1]]
     assert g.iloc[0] == pytest.approx((102 - 60 - 38) / 102)
-
-
-def test_rights_events_need_face_value_and_skip_later_splits():
-    rights = [{"symbol": "ABC", "event_date": "2024-05-01", "record_date": "2024-05-01",
-               "details": {"ratio": "1:5", "premium": 90}},
-              {"symbol": "SPL", "event_date": "2023-01-01", "record_date": None,
-               "details": {"ratio": "1:2", "premium": 5}},
-              {"symbol": "NOFV", "event_date": "2024-01-01", "record_date": None,
-               "details": {"ratio": "1:2", "premium": 5}}]
-    fv = {"ABC": 10.0, "SPL": 2.0}
-    splits = [{"symbol": "SPL", "event_type": "split", "event_date": "2024-06-01"}]
-    ev = rights_events(rights, fv, splits)
-    assert ev == [{"symbol": "ABC", "ex_date": "2024-05-01", "ratio": "1:5", "premium": 90.0,
-                   "face_value": 10.0, "issue_price": 100.0}]
 
 
 def test_format_open_res_ranks_by_gap_and_flags_hurdle():
@@ -69,3 +49,31 @@ def test_format_open_res_flags_penny_issues():
              "gap": 0.0852, "turnover": 1140000.0, "re_date": "2026-09-23"}]
     line = format_open_res(rows).splitlines()[1]
     assert "penny" in line and "BUY RE" not in line
+
+
+def test_events_from_issues_use_exact_prices_and_skip_partly_paid_or_withdrawn():
+    rows = [
+        {"symbol": "NDTV", "issue_price": 82.0, "ratio_rights": 3, "ratio_held": 4,
+         "record_date": "2025-09-12", "re_credit_date": "2025-09-16", "issue_open": "2025-09-22",
+         "renunciation_date": "2025-10-03", "issue_close": "2025-10-08", "re_symbol": "NDTVR",
+         "partly_paid": False, "withdrawn": False},
+        {"symbol": "TIL", "issue_price": 165.0, "ratio_rights": 11, "ratio_held": 64,
+         "record_date": "2026-03-20", "re_credit_date": None, "issue_open": "2026-03-30",
+         "renunciation_date": "2026-04-01", "issue_close": "2026-04-08", "re_symbol": "TILRR",
+         "partly_paid": True, "withdrawn": False},
+        {"symbol": "GONE", "issue_price": 10.0, "ratio_rights": 1, "ratio_held": 1,
+         "record_date": "2025-01-01", "re_credit_date": None, "issue_open": "2025-01-10",
+         "renunciation_date": None, "issue_close": "2025-01-20", "re_symbol": None,
+         "partly_paid": False, "withdrawn": True},
+    ]
+    ev = events_from_issues(rows)
+    assert [e["symbol"] for e in ev] == ["NDTV"]
+    e = ev[0]
+    assert e["issue_price"] == 82.0 and e["ratio"] == "3:4"
+    assert e["re_from"] == "2025-09-16" and e["re_to"] == "2025-10-03" and e["issue_close"] == "2025-10-08"
+
+
+def test_re_symbols_try_stored_symbol_then_dash_re():
+    assert re_symbols("NDTV", "NDTVR") == ["NDTVR", "NDTV-RE"]
+    assert re_symbols("SATIN", "SATIN-RE") == ["SATIN-RE"]
+    assert re_symbols("ABC", None) == ["ABC-RE"]

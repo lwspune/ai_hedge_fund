@@ -11,6 +11,7 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     assert ["refresh_events.py", "actions"] in s
     assert ["refresh_events.py", "fo-ban"] in s
     assert ["refresh_events.py", "ipos"] in s
+    assert ["refresh_events.py", "rights"] in s
     assert ["refill_deals.py", "--from", "2026-09-14"] in s  # 10-day lookback heals pauses
     assert ["-m", "scanner.run", "buyback_arb", "--save"] in s  # primary signal refreshed daily
 

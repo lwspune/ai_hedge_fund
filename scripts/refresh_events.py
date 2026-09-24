@@ -2,6 +2,7 @@
 
     python scripts/refresh_events.py actions [--from 2025-01-01] [--to 2025-12-31]  # default: last 45d
     python scripts/refresh_events.py fo-ban  [--from 2024-01-01] [--to ...]         # default: last 10d
+    python scripts/refresh_events.py rights  [--from-id 1] [--to-id 700]            # chittorgarh rights issues
     python scripts/refresh_events.py ipos    [--from-id 1] [--to-id 3000]           # default: frontier probe
                                                                                    #  + recheck last 120d
 
@@ -21,7 +22,8 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner import db  # noqa: E402
 from scanner.events import (  # noqa: E402
-    dedupe_events, fetch_corp_actions, fetch_fo_ban, fetch_ipo, ipo_events, recheck_ids)
+    dedupe_events, fetch_corp_actions, fetch_fo_ban, fetch_ipo, fetch_rights, ipo_events, recheck_ids,
+    rights_recheck_ids)
 
 CHUNK = 500
 GAP_STOP = 30      # consecutive missing IPO pages that end a frontier probe
@@ -111,9 +113,44 @@ def _flush_ipos(rows: list[dict]) -> None:
     print(f"  ipos: +{len(rows)} (last id {rows[-1]['chittorgarh_id']}), {n} events")
 
 
+def run_rights(from_id: int | None, to_id: int | None) -> None:
+    """chittorgarh rights-issue pages -> rights_issues. Default: probe up from the stored
+    frontier (gap-stop) and re-read issues closing in the last 45 days (dates fill in late)."""
+    s = requests.Session()
+    stored = db.select_all("rights_issues", {"select": "chittorgarh_id,issue_close"})
+    if from_id is None:
+        top = max((r["chittorgarh_id"] for r in stored), default=1)
+        ids = rights_recheck_ids(stored, date.today()) + list(range(max(top - 5, 1), top + 1))
+        i, gap = top + 1, 0
+    else:
+        ids, i, gap = [], from_id, 0
+    rows = []
+
+    def take(rid):
+        try:
+            exists, row = fetch_rights(rid, s)
+        except requests.RequestException as e:
+            print(f"  rights {rid}: {e!r}"[:120])
+            return True
+        if row:
+            rows.append(row)
+        time.sleep(0.4)
+        return exists
+
+    for rid in sorted(set(ids)):
+        take(rid)
+    while (to_id is None and gap < GAP_STOP) or (to_id is not None and i <= to_id):
+        gap = 0 if take(i) else gap + 1
+        i += 1
+    good, bad = db.upsert_resilient("rights_issues", rows, "chittorgarh_id")
+    for r, err in bad:
+        print(f"  rejected rights {r['chittorgarh_id']} {r['symbol']}: {err[-160:]}")
+    print(f"upserted {len(good)} rights issues (scan ended at id {i - 1})")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["actions", "fo-ban", "ipos"])
+    ap.add_argument("what", choices=["actions", "fo-ban", "ipos", "rights"])
     ap.add_argument("--from", dest="frm", type=date.fromisoformat)
     ap.add_argument("--to", type=date.fromisoformat)
     ap.add_argument("--from-id", type=int)
@@ -124,6 +161,8 @@ def main():
         run_actions(a.frm or today - timedelta(days=45), a.to or today)
     elif a.what == "fo-ban":
         run_fo_ban(a.frm or today - timedelta(days=10), a.to or today)
+    elif a.what == "rights":
+        run_rights(a.from_id, a.to_id)
     else:
         run_ipos(a.from_id, a.to_id)
         if a.from_id is None:  # daily mode: also refresh recent pages (lock-in dates fill in late)

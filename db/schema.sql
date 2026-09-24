@@ -255,3 +255,39 @@ grant execute on function public.reload_market_deals(date, jsonb) to service_rol
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('fundamentals', 'fundamentals', false, 5242880)
 on conflict (id) do nothing;
+
+-- ============================================================================
+-- Rights issues (scanner/events.parse_rights_page, scripts/refresh_events.py rights):
+-- exact issue price, RE symbol and timetable per NSE rights issue (chittorgarh).
+-- ============================================================================
+create table if not exists rights_issues (
+  id                 bigint generated always as identity primary key,
+  chittorgarh_id     integer not null unique,
+  symbol             text not null,
+  company            text,
+  isin               text,
+  face_value         numeric check (face_value is null or face_value > 0),
+  issue_price        numeric not null check (issue_price > 0),
+  ratio_rights       integer check (ratio_rights is null or ratio_rights > 0),
+  ratio_held         integer check (ratio_held is null or ratio_held > 0),
+  issue_size_shares  bigint check (issue_size_shares is null or issue_size_shares > 0),
+  record_date        date,
+  re_credit_date     date,
+  issue_open         date,
+  renunciation_date  date,                   -- last day REs trade (market renunciation)
+  issue_close        date,                   -- application deadline
+  allotment_date     date,
+  listing_date       date,
+  re_symbol          text,                   -- NSE RE symbol (NDTVR, TILRR, SATIN-RE, ...)
+  payment_terms      text,
+  application_amount numeric check (application_amount is null or application_amount > 0),
+  partly_paid        boolean not null default false,
+  withdrawn          boolean not null default false,
+  updated_at         timestamptz not null default now(),
+  check (issue_close is null or issue_open is null or issue_close >= issue_open),
+  check (application_amount is null or application_amount <= issue_price)
+);
+create index if not exists idx_rights_symbol on rights_issues(symbol);
+create index if not exists idx_rights_open on rights_issues(issue_open);
+alter table rights_issues enable row level security;
+create policy "anon read rights_issues" on rights_issues for select to anon using (true);

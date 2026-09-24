@@ -167,3 +167,69 @@ def test_recheck_ids_recent_listings_and_missing_lockins():
         {"chittorgarh_id": 4, "listing_date": "2026-10-10", "anchor_lockin_30": None, "anchor_lockin_90": None},
     ]
     assert recheck_ids(rows, date(2026, 9, 24), days=120) == [1, 4]
+
+
+# --- chittorgarh rights issues ------------------------------------------------------
+
+RI = dict(
+    company_name='\\"New Delhi Television Limited\\"', nse_symbol='\\"NDTV\\"', isin='\\"INE155G01029\\"',
+    face_value='\\"u0026#8377;4 per share\\"', issue_price='\\"u0026#8377;82 per share\\"',
+    entitlement_rights_equity_share="3", entitlement_fully_paid_equity_share="4",
+    issue_size_in_shares_number="48353450",
+    record_dt='\\"September 12, 2025\\"', rights_entitlements_credit_dt='\\"September 16, 2025\\"',
+    issue_open_date='\\"September 22, 2025\\"', timetable_renunciation_dt='\\"October 3, 2025\\"',
+    issue_close_date='\\"October 8, 2025\\"', timetable_allotment_dt='\\"October 9, 2025\\"',
+    timetable_listing_dt='\\"October 13, 2025\\"', re_nse_symbol='\\"NDTVR\\"',
+    amount_of_payment='\\"\\"', issue_withdraw_status="0",
+)
+
+
+def test_parse_rights_page_full():
+    from scanner.events import parse_rights_page
+    assert parse_rights_page(_page(**RI), 454) == {
+        "chittorgarh_id": 454, "symbol": "NDTV", "company": "New Delhi Television Limited",
+        "isin": "INE155G01029", "face_value": 4.0, "issue_price": 82.0,
+        "ratio_rights": 3, "ratio_held": 4, "issue_size_shares": 48353450,
+        "record_date": "2025-09-12", "re_credit_date": "2025-09-16", "issue_open": "2025-09-22",
+        "renunciation_date": "2025-10-03", "issue_close": "2025-10-08",
+        "allotment_date": "2025-10-09", "listing_date": "2025-10-13",
+        "re_symbol": "NDTVR", "payment_terms": None, "application_amount": None,
+        "partly_paid": False, "withdrawn": False,
+    }
+
+
+def test_parse_rights_page_partly_paid_withdrawn_and_guards():
+    from scanner.events import parse_rights_page
+    pp = parse_rights_page(_page(**{**RI, "amount_of_payment": '\\"u0026#8377;20.50 on application, balance in one or more calls\\"',
+                                    "issue_withdraw_status": "1"}), 1)
+    assert pp["partly_paid"] is True and pp["withdrawn"] is True
+    assert pp["payment_terms"].startswith("₹20.50 on application")
+    assert parse_rights_page(_page(**{**RI, "nse_symbol": '\\"\\"'}), 2) is None        # BSE-only
+    assert parse_rights_page(_page(**{**RI, "issue_price": '\\"\\"'}), 3) is None
+    assert parse_rights_page("<html>404</html>", 4) is None
+
+
+def test_parse_rights_page_numeric_application_amount_means_partly_paid():
+    from scanner.events import parse_rights_page
+    r = parse_rights_page(_page(**{**RI, "amount_of_payment": '\\"124\\"', "issue_price": '\\"u0026#8377;165 per share\\"'}), 540)
+    assert r["partly_paid"] is True and r["application_amount"] == 124.0
+    full = parse_rights_page(_page(**{**RI, "amount_of_payment": '\\"82\\"'}), 541)
+    assert full["partly_paid"] is False and full["application_amount"] == 82.0
+    assert parse_rights_page(_page(**RI), 454)["application_amount"] is None
+
+
+def test_parse_rights_page_re_symbol_in_symbol_field():
+    """Older pages put the RE symbol (SATIN-RE) where the stock symbol belongs."""
+    from scanner.events import parse_rights_page
+    r = parse_rights_page(_page(**{**RI, "nse_symbol": '\\"SATIN-RE\\"', "re_nse_symbol": '\\"\\"'}), 1)
+    assert r["symbol"] == "SATIN" and r["re_symbol"] == "SATIN-RE"
+
+
+def test_rights_recheck_ids_recent_or_undated():
+    from datetime import date
+    from scanner.events import rights_recheck_ids
+    rows = [{"chittorgarh_id": 1, "issue_close": "2026-09-01"},
+            {"chittorgarh_id": 2, "issue_close": "2026-01-01"},
+            {"chittorgarh_id": 3, "issue_close": None},
+            {"chittorgarh_id": 4, "issue_close": "2026-10-15"}]
+    assert rights_recheck_ids(rows, date(2026, 9, 24), days=45) == [1, 3, 4]
