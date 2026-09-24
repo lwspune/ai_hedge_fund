@@ -79,7 +79,25 @@ FLOORS = {
 }
 
 
+# name -> (table, numerator filters, denominator filters, minimum share)
+RATIOS = {
+    "industry_known": ("companies", {"status": "eq.listed", "industry": "not.is.null"},
+                       {"status": "eq.listed"}, 0.95),
+}
+
+
 # --- pure rules ---------------------------------------------------------------
+
+def ratio_low(counts: dict, mins: dict) -> list[tuple]:
+    """[(name, share, min)] for ratios under their minimum; counts: {name: (num, den)}."""
+    out = []
+    for name, lo in mins.items():
+        num, den = counts.get(name, (None, None))
+        share = None if num is None or not den else num / den
+        if share is None or share < lo:
+            out.append((name, share, lo))
+    return out
+
 
 def stale(latest: dict, rules: dict, today: date) -> list[tuple]:
     """[(name, newest_date, age_days, max_age)] for every table older than its rule (or empty)."""
@@ -178,6 +196,7 @@ def main():
     latest_td = {name: _newest(t, c, f) for name, (t, c, f, _) in TRADING_QUERIES.items()}
     age_rules = {k: v for k, v in RULES.items() if k != "buyback_frontier"}
     counts = {name: _window_count(spec, today) for name, spec in FLOORS.items()}
+    ratios = {name: (db.count(t, num), db.count(t, den)) for name, (t, num, den, _) in RATIOS.items()}
     try:
         size = db.rpc("db_size_bytes", {})
     except Exception as e:
@@ -193,6 +212,8 @@ def main():
     print(f"  {'floor':<20}{'rows':>8}{'min':>8}")
     for name, spec in FLOORS.items():
         print(f"  {name:<20}{str(counts[name]):>8}{spec['min']:>8}")
+    for name, (num, den) in ratios.items():
+        print(f"  {name:<20}{num}/{den} (min {RATIOS[name][3]:.0%})")
     size_state = db_size_status(size)
     print(f"  db_size             {(size or 0) / MB:>7.0f} MB  ({size_state})")
 
@@ -201,6 +222,8 @@ def main():
                  stale_trading(latest_td, TRADING_RULES, today, holidays())]
     failures += [f"THIN: {n} rows={c} < {f}" for n, c, f in
                  too_thin(counts, {n: s["min"] for n, s in FLOORS.items()})]
+    failures += [f"RATIO: {n} = {r} < {m}" for n, r, m in
+                 ratio_low(ratios, {n: v[3] for n, v in RATIOS.items()})]
     if frontier:
         failures.append(f"FRONTIER: {frontier}")
     if size_state == "fail":

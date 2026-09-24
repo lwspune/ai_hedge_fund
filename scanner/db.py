@@ -172,13 +172,24 @@ def update(table: str, filters: dict, values: dict) -> None:
     _check(r)
 
 
-def rpc(fn: str, args: dict):
+def rpc(fn: str, args: dict, params: dict | None = None):
     """Call a Postgres function via PostgREST (/rpc/<fn>) — used for atomic multi-step writes."""
     url, key = config()
     r = requests.post(f"{url}/rest/v1/rpc/{fn}", headers=_headers(key, "return=representation"),
-                      json=args, timeout=60)
+                      params=params or {}, json=args, timeout=60)
     _check(r)
     return r.json()
+
+
+def rpc_all(fn: str, args: dict, page: int = 1000) -> list[dict]:
+    """A set-returning RPC paged past PostgREST's max-rows cap (1000)."""
+    out, off = [], 0
+    while True:
+        rows = rpc(fn, args, {"limit": str(page), "offset": str(off)})
+        out += rows
+        if len(rows) < page:
+            return out
+        off += page
 
 
 def storage_put(bucket: str, path: str, data: bytes,

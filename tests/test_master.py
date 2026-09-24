@@ -132,3 +132,87 @@ def test_build_companies_dedupes_isin_across_lists():
            "OLDSME,Old Sme Name,SM,01-Jan-18,10,INE144J01027,5,\n")
     rows = build_companies(parse_equity_list(EQUITY_L) + parse_equity_list(sme), {}, [])
     assert [r["symbol"] for r in rows if r["isin"] == "INE144J01027"] == ["20MICRONS"]
+
+
+# --- WP4: industry fallback, delisting by diff, renames, truncation guard -----------------
+
+TODAY = date(2026, 9, 27)
+
+
+def _prev(symbol, isin, name="Old Name"):
+    return {"symbol": symbol, "name": name, "series": "EQ", "listing_date": "2010-01-01",
+            "face_value": 10.0, "isin": isin, "industry": None, "industry_source": None,
+            "indices": [], "is_financial": None, "status": "listed", "delisted_on": None,
+            "delist_source": None, "last_seen_listed": "2026-09-20"}
+
+
+def test_industry_falls_back_to_screener_sector():
+    rows = build_companies(parse_equity_list(EQUITY_L), {"nifty50": parse_index_list(NIFTY50)}, [],
+                           screener_sectors={"TINYCO": "Financial Services", "20MICRONS": "Commodities",
+                                             "HDFCBANK": "Banks??"}, today=TODAY)
+    by = {r["symbol"]: r for r in rows}
+    assert by["HDFCBANK"]["industry"] == "Financial Services"          # niftyindices wins
+    assert by["HDFCBANK"]["industry_source"] == "niftyindices"
+    assert by["TINYCO"]["industry"] == "Financial Services" and by["TINYCO"]["is_financial"] is True
+    assert by["TINYCO"]["industry_source"] == "screener"
+    assert by["20MICRONS"]["industry"] == "Commodities" and by["20MICRONS"]["is_financial"] is False
+    assert by["20MICRONS"]["last_seen_listed"] == "2026-09-27"
+
+
+def test_listed_rows_clear_delist_fields_and_tag_csv_delistings():
+    rows = build_companies(parse_equity_list(EQUITY_L), {}, parse_delisted(DELISTED), today=TODAY)
+    by = {r["symbol"]: r for r in rows}
+    assert by["HDFCBANK"]["delist_source"] is None
+    assert by["HEXAWARE"]["delist_source"] == "nse_delisted_csv"
+
+
+def test_symbol_missing_from_today_lists_is_delisted_by_diff():
+    prev = [_prev("GONECO", "INE555G01011", "Gone Co Ltd"), _prev("HDFCBANK", "INE040A01034")]
+    rows = build_companies(parse_equity_list(EQUITY_L), {}, [], previous_listed=prev, today=TODAY)
+    by = {r["symbol"]: r for r in rows}
+    g = by["GONECO"]
+    assert (g["status"], g["delisted_on"], g["delist_source"]) == ("delisted", "2026-09-27", "equity_l_diff")
+    assert g["name"] == "Gone Co Ltd" and g["isin"] == "INE555G01011"   # history kept, row never deleted
+    assert g["last_seen_listed"] == "2026-09-20"
+    assert by["HDFCBANK"]["status"] == "listed"
+
+
+def test_renamed_symbol_old_row_delisted_and_releases_isin_first():
+    """The new symbol carries the same ISIN (unique in DB): the old row must give it up, and be
+    written before the new one."""
+    prev = [_prev("OLDMICRO", "INE144J01027", "20 Microns (old name)")]
+    changes = [{"old_symbol": "OLDMICRO", "new_symbol": "20MICRONS", "changed_on": date(2026, 9, 25)}]
+    rows = build_companies(parse_equity_list(EQUITY_L), {}, [], previous_listed=prev, changes=changes,
+                           today=TODAY)
+    old = next(r for r in rows if r["symbol"] == "OLDMICRO")
+    assert old["status"] == "delisted" and old["delist_source"] == "equity_l_diff"
+    assert old["isin"] is None and old["name"] == "20 Microns (old name)"
+    assert resolve_symbol("OLDMICRO", changes) == "20MICRONS"
+    order = [r["symbol"] for r in rows]
+    assert order.index("OLDMICRO") < order.index("20MICRONS")
+
+
+def test_previously_delisted_by_diff_relists_cleanly():
+    prev = []  # not listed last week
+    rows = build_companies(parse_equity_list(EQUITY_L), {}, [], previous_listed=prev, today=TODAY)
+    h = next(r for r in rows if r["symbol"] == "TINYCO")
+    assert (h["status"], h["delisted_on"], h["delist_source"]) == ("listed", None, None)
+
+
+def test_list_size_guard():
+    import pytest
+    from scanner.master import TruncatedList, check_list_sizes
+    check_list_sizes(2400, 650)
+    with pytest.raises(TruncatedList):
+        check_list_sizes(1700, 650)
+    with pytest.raises(TruncatedList):
+        check_list_sizes(2400, 250)
+
+
+def test_delisting_sanity_cap():
+    import pytest
+    from scanner.master import TooManyDelistings, check_delistings
+    rows = [{"status": "delisted", "delist_source": "equity_l_diff", "delisted_on": "2026-09-27"}] * 51
+    with pytest.raises(TooManyDelistings):
+        check_delistings(rows, TODAY)
+    check_delistings(rows[:50], TODAY)

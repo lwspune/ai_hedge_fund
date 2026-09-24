@@ -465,3 +465,41 @@ grant execute on function public.prune_daily_prices(integer) to service_role;
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('prices', 'prices', false, 20971520)
 on conflict (id) do nothing;
+
+-- ============================================================================
+-- WP4 company master (scanner/master.build_companies): industry fallback + delisting by diff.
+-- ============================================================================
+alter table companies add column if not exists industry_source text
+  check (industry_source is null or industry_source in ('niftyindices','screener'));
+alter table companies add column if not exists last_seen_listed date;      -- last EQUITY_L that had it
+alter table companies add column if not exists delist_source text
+  check (delist_source is null or delist_source in ('nse_delisted_csv','equity_l_diff','manual'));
+
+-- Orphans: symbols seen in filings / deals / events but absent from companies, with the
+-- latest filing company name and last-seen date. Feeds scripts/backfill_orphans.py.
+create or replace function public.orphan_symbols()
+returns table (symbol text, company text, last_seen date)
+language sql
+security definer
+set search_path = public
+as $$
+  with seen as (
+    select f.symbol, max(f.disclosed_at)::date d from filings f group by 1
+    union all select m.symbol, max(m.deal_date) from market_deals m group by 1
+    union all select e.symbol, max(e.event_date) from corporate_events e
+      where e.event_date <= current_date group by 1
+  )
+  select s.symbol,
+         (select f.company from filings f where f.symbol = s.symbol and f.company is not null
+            order by f.disclosed_at desc limit 1),
+         max(s.d)
+  from seen s
+  where not exists (select 1 from companies c where c.symbol = s.symbol)
+    and not exists (select 1 from symbol_changes sc where sc.old_symbol = s.symbol)  -- renames
+    and s.symbol !~ '-RE[0-9]*$'                                                    -- rights entitlements
+    and s.symbol !~ '^[0-9]+$'                                                      -- non-equity codes
+  group by s.symbol
+  order by s.symbol
+$$;
+revoke execute on function public.orphan_symbols() from public, anon, authenticated;
+grant execute on function public.orphan_symbols() to service_role;

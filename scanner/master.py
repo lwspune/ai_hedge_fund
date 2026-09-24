@@ -125,10 +125,43 @@ def _iso(d):
     return d.isoformat() if d else None
 
 
-def build_companies(equities: list[dict], indices: dict[str, list[dict]],
-                    delisted: list[dict]) -> list[dict]:
+MIN_MAINBOARD, MIN_SME = 1800, 300   # a truncated download must never mass-delist the market
+MAX_NEW_DELISTINGS = 50              # per weekly run; NSE delists a handful a week
+
+
+class TruncatedList(ValueError):
+    """EQUITY_L / SME_EQUITY_L parsed to implausibly few rows."""
+
+
+class TooManyDelistings(ValueError):
+    """The diff would delist more symbols in one run than is plausible."""
+
+
+def check_list_sizes(n_mainboard: int, n_sme: int) -> None:
+    if n_mainboard < MIN_MAINBOARD or n_sme < MIN_SME:
+        raise TruncatedList(f"EQUITY_L {n_mainboard} (< {MIN_MAINBOARD}?) / SME {n_sme} (< {MIN_SME}?)")
+
+
+def check_delistings(rows: list[dict], today: date) -> None:
+    n = sum(r["status"] == "delisted" and r.get("delist_source") == "equity_l_diff"
+            and r["delisted_on"] == today.isoformat() for r in rows)
+    if n > MAX_NEW_DELISTINGS:
+        raise TooManyDelistings(f"{n} symbols newly delisted by diff (> {MAX_NEW_DELISTINGS})")
+
+
+def build_companies(equities: list[dict], indices: dict[str, list[dict]], delisted: list[dict],
+                    screener_sectors: dict | None = None, previous_listed: list[dict] | None = None,
+                    changes: list[dict] | None = None, today: date | None = None) -> list[dict]:
     """Merge the listed universe with index membership/industry and historical delistings
-    into `companies` rows (JSON-ready). A symbol currently listed is never marked delisted."""
+    into `companies` rows (JSON-ready). A symbol currently listed is never marked delisted.
+
+    Industry: niftyindices first, else the screener sector (same 'Financial Services' label, so
+    `is_financial` agrees wherever both exist). Delisting by diff: a row listed last run
+    (`previous_listed`) that is absent today is marked delisted today — never deleted. A renamed
+    symbol's old row also gives up its ISIN (the new row carries it; ISIN is unique) and is
+    emitted first so the upsert frees the ISIN before the new row claims it."""
+    today = today or date.today()
+    sectors = screener_sectors or {}
     industry, member = {}, {}
     for key, rows in indices.items():
         for r in rows:
@@ -141,22 +174,38 @@ def build_companies(equities: list[dict], indices: dict[str, list[dict]],
         # mainboard list comes first: a migrated SME (same symbol or same ISIN) keeps that row
         if e["symbol"] in listed or e["isin"] in isins:
             continue
-        ind = industry.get(e["symbol"])
+        ind, src = industry.get(e["symbol"]), "niftyindices"
+        if ind is None and sectors.get(e["symbol"]):
+            ind, src = sectors[e["symbol"]], "screener"
         listed.add(e["symbol"])
         isins.add(e["isin"])
         out.append({**e, "listing_date": _iso(e["listing_date"]), "industry": ind,
+                    "industry_source": src if ind else None,
                     "indices": sorted(member.get(e["symbol"], [])),
                     "is_financial": None if ind is None else ind == FINANCIAL_INDUSTRY,
-                    "status": "listed", "delisted_on": None})
+                    "status": "listed", "delisted_on": None, "delist_source": None,
+                    "last_seen_listed": today.isoformat()})
+
+    gone = []
+    for p in previous_listed or []:
+        if p["symbol"] in listed:
+            continue
+        renamed = resolve_symbol(p["symbol"], changes or []) != p["symbol"]
+        gone.append({**p, "status": "delisted", "delisted_on": today.isoformat(),
+                     "delist_source": "equity_l_diff",
+                     "isin": None if renamed or p.get("isin") in isins else p.get("isin")})
+        listed.add(p["symbol"])
+
     for d in delisted:
         if d["symbol"] in listed:
             continue
         listed.add(d["symbol"])
         out.append({"symbol": d["symbol"], "name": d["name"], "series": None,
                     "listing_date": None, "face_value": None, "isin": None, "industry": None,
-                    "indices": [], "is_financial": None, "status": "delisted",
-                    "delisted_on": _iso(d["delisted_on"])})
-    return out
+                    "industry_source": None, "indices": [], "is_financial": None,
+                    "status": "delisted", "delisted_on": _iso(d["delisted_on"]),
+                    "delist_source": "nse_delisted_csv", "last_seen_listed": None})
+    return gone + out
 
 
 def _get(url: str) -> str:
@@ -165,11 +214,16 @@ def _get(url: str) -> str:
     return r.text
 
 
-def fetch_all() -> tuple[list[dict], list[dict]]:
-    """Fetch every source; returns (companies rows, symbol_changes rows)."""
-    equities = parse_equity_list(_get(EQUITY_URL)) + parse_equity_list(_get(SME_EQUITY_URL))
+def fetch_all(screener_sectors: dict | None = None, previous_listed: list[dict] | None = None,
+              today: date | None = None) -> tuple[list[dict], list[dict]]:
+    """Fetch every source; returns (companies rows, symbol_changes rows). Raises TruncatedList
+    / TooManyDelistings rather than write a market-wide delisting from a bad download."""
+    today = today or date.today()
+    main, sme = parse_equity_list(_get(EQUITY_URL)), parse_equity_list(_get(SME_EQUITY_URL))
+    check_list_sizes(len(main), len(sme))
     indices = {k: parse_index_list(_get(u)) for k, u in INDEX_URLS.items()}
-    companies = build_companies(equities, indices, parse_delisted(_get(DELISTED_URL)))
-    changes = [{**c, "changed_on": _iso(c["changed_on"])}
-               for c in parse_symbol_changes(_get(SYMBOL_CHANGE_URL))]
-    return companies, changes
+    changes = parse_symbol_changes(_get(SYMBOL_CHANGE_URL))
+    companies = build_companies(main + sme, indices, parse_delisted(_get(DELISTED_URL)),
+                                screener_sectors, previous_listed, changes, today)
+    check_delistings(companies, today)
+    return companies, [{**c, "changed_on": _iso(c["changed_on"])} for c in changes]

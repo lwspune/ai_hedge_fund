@@ -103,3 +103,12 @@ def test_stale_trading_counts_trading_days_not_calendar_days():
         [("prices", date(2026, 9, 30), 2, 1)]
     assert stale_trading({"prices": None}, {"prices": 1}, date(2026, 10, 5), hol) == [("prices", None, None, 1)]
     assert {"prices", "index_prices"} <= set(TRADING_RULES)
+
+
+def test_ratio_rules():
+    from scripts.check_freshness import RATIOS, ratio_low
+    assert ratio_low({"industry_known": (3147, 3156)}, {"industry_known": 0.95}) == []
+    assert ratio_low({"industry_known": (2000, 3156)}, {"industry_known": 0.95}) == \
+        [("industry_known", 2000 / 3156, 0.95)]
+    assert ratio_low({"industry_known": (None, 3156)}, {"industry_known": 0.95})[0][1] is None
+    assert "industry_known" in RATIOS
