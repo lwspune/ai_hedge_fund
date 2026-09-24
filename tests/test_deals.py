@@ -91,3 +91,20 @@ def test_aggregate_ranks_by_distinct_institutions_then_value():
 def _deal_sym(symbol, client, side, qty, price):
     return {"symbol": symbol, "client": client, "side": side,
             "qty": qty, "price": price, "value": qty * price}
+
+
+def test_market_deal_rows_from_nselib_records():
+    """nselib bulk/block frames -> market_deals rows (same shape the edge function writes)."""
+    from scanner.deals import market_deal_rows
+    recs = [
+        {"Date": "02-Jan-2026", "Symbol": " ABC ", "SecurityName": "ABC Ltd",
+         "ClientName": " SOME FUND ", "Buy/Sell": "buy", "QuantityTraded": "1,000",
+         "TradePrice/Wght.Avg.Price": "12.50"},
+        {"Date": "bad", "Symbol": "X", "ClientName": "Y", "Buy/Sell": "SELL",
+         "QuantityTraded": "1", "TradePrice/Wght.Avg.Price": "1"},
+        {"Date": "02-Jan-2026", "Symbol": "", "ClientName": "Y", "Buy/Sell": "SELL",
+         "QuantityTraded": "1", "TradePrice/Wght.Avg.Price": "1"},
+    ]
+    assert market_deal_rows(recs, "bulk") == [{
+        "deal_date": "2026-01-02", "symbol": "ABC", "security": "ABC Ltd", "client": "SOME FUND",
+        "side": "BUY", "qty": 1000, "price": 12.5, "value": 12500.0, "kind": "bulk"}]

@@ -123,3 +123,32 @@ def fetch_deals() -> list[dict]:
     for url, kind in ((_BULK_URL, "bulk"), (_BLOCK_URL, "block")):
         deals.extend(_parse(_fetch_csv(url), kind))
     return deals
+
+
+def market_deal_rows(records: list[dict], kind: str) -> list[dict]:
+    """nselib bulk/block records -> `market_deals` rows; rows without a date, symbol or side
+    are dropped (same shape the refresh-deals edge function writes)."""
+    from datetime import datetime
+
+    def num(v):
+        try:
+            return float(str(v).replace(",", "").strip())
+        except (TypeError, ValueError):
+            return None
+
+    out = []
+    for r in records:
+        try:
+            d = datetime.strptime(str(r.get("Date", "")).strip(), "%d-%b-%Y").date().isoformat()
+        except ValueError:
+            continue
+        sym = str(r.get("Symbol") or "").strip()
+        side = str(r.get("Buy/Sell") or "").strip().upper()
+        if not sym or not side:
+            continue
+        q, p = num(r.get("QuantityTraded")), num(r.get("TradePrice/Wght.Avg.Price"))
+        out.append({"deal_date": d, "symbol": sym, "security": r.get("SecurityName"),
+                    "client": str(r.get("ClientName") or "").strip(), "side": side,
+                    "qty": int(q) if q is not None else None, "price": p,
+                    "value": q * p if q and p else None, "kind": kind})
+    return out

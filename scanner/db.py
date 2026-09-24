@@ -134,6 +134,15 @@ def update(table: str, filters: dict, values: dict) -> None:
     _check(r)
 
 
+def rpc(fn: str, args: dict):
+    """Call a Postgres function via PostgREST (/rpc/<fn>) — used for atomic multi-step writes."""
+    url, key = config()
+    r = requests.post(f"{url}/rest/v1/rpc/{fn}", headers=_headers(key, "return=representation"),
+                      json=args, timeout=60)
+    _check(r)
+    return r.json()
+
+
 # --- high-level helpers ------------------------------------------------------
 
 def log_scan(signal_name: str, verdict: str, candidates: list[dict] | None = None,

@@ -228,3 +228,24 @@ alter table company_snapshot add constraint company_snapshot_history_shape
          and history ? 'annual' and history ? 'quarterly' and history ? 'shareholding'));
 alter table company_snapshot enable row level security;
 create policy "anon read company_snapshot" on company_snapshot for select to anon using (true);
+
+-- Atomic per-date reload of market_deals (delete + insert in one transaction).
+-- Used by scripts/refill_deals.py; service-role only.
+create or replace function public.reload_market_deals(p_date date, p_rows jsonb)
+returns integer
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare n integer;
+begin
+  delete from market_deals where deal_date = p_date;
+  insert into market_deals (deal_date, symbol, security, client, side, qty, price, value, kind)
+  select deal_date, symbol, security, client, side, qty, price, value, kind
+  from jsonb_populate_recordset(null::market_deals, p_rows)
+  where deal_date = p_date;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke execute on function public.reload_market_deals(date, jsonb) from public, anon, authenticated;
+grant execute on function public.reload_market_deals(date, jsonb) to service_role;
