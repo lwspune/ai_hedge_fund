@@ -1,71 +1,46 @@
-import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { companyHref } from '../useHashRoute'
+import useLoad from '../lib/useLoad'
+import { addDaysIso, fmtDate, fmtQty, fmtRelative, todayIso } from '../lib/format'
+import { signalHeadline } from '../lib/signalLabels'
+import Section from './ui/Section'
+import DataTable from './ui/DataTable'
+import SymbolLink from './ui/SymbolLink'
+import { ErrorNote } from './ui/States'
+import { Loading, SkeletonTable } from './ui/Skeleton'
 
-const DAYS = 30
-const iso = (d) => d.toISOString().slice(0, 10)
-const qty = (v) => (v == null ? '—' : Number(v).toLocaleString('en-IN'))
+const DAYS = 14
 
-// lockin_expiry lens: anchor lock-in expiries in the next 30 days. The validated dip is
-// T-1 -> T+2 (strongest at the 90-day unlock); not shortable, so it is an avoid/exit rule.
+const COLUMNS = [
+  {
+    key: 'event_date', header: 'Date', nowrap: true,
+    render: (r) => <>{fmtDate(r.event_date)} <span className="rel">{fmtRelative(r.event_date)}</span></>,
+  },
+  { key: 'symbol', header: 'Company', render: (r) => <SymbolLink symbol={r.symbol} /> },
+  { key: 'event_type', header: 'Unlock', render: (r) => (r.event_type === 'anchor_lockin_90' ? 'Rest at 90 d' : '50% at 30 d') },
+  { key: 'board', header: 'Board', render: (r) => (r.details?.board === 'sme' ? 'SME' : r.details?.board ? 'Mainboard' : null) },
+  { key: 'anchor_shares', header: 'Anchor shares', align: 'right', render: (r) => fmtQty(r.details?.anchor_shares) },
+]
+
+// lockin_expiry lens: anchor lock-in expiries coming up. The dip is real but not shortable, so
+// this is an avoid / exit list.
 export default function UpcomingUnlocks() {
-  const [rows, setRows] = useState(null)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    const today = new Date()
-    const until = new Date(today.getTime() + DAYS * 864e5)
-    supabase
-      .from('corporate_events')
+  const { loading, error, data } = useLoad(() => {
+    const today = todayIso()
+    return supabase.from('corporate_events')
       .select('id,symbol,event_type,event_date,details')
       .in('event_type', ['anchor_lockin_30', 'anchor_lockin_90'])
-      .gte('event_date', iso(today))
-      .lte('event_date', iso(until))
-      .order('event_date')
-      .order('symbol')
-      .then(({ data, error }) => {
-        setError(error ? error.message : null)
-        setRows(data || [])
-      })
+      .gte('event_date', today).lte('event_date', addDaysIso(today, DAYS))
+      .order('event_date').order('symbol')
   }, [])
 
   return (
-    <section className="panel" aria-labelledby="unlocks-h">
-      <h2 id="unlocks-h">
-        Upcoming anchor unlocks <span className="muted">· lockin_expiry lens · next {DAYS} days</span>
-      </h2>
-      <p className="dim small">
-        Validated dip T-1 → T+2 vs NIFTY 500 (−1.25% at the 90-day unlock, placebo ~0). Not shortable —
-        avoid buying into it; consider exiting a recent IPO before T-1.
-      </p>
-      {error && <p className="note error" role="alert">Failed to load: {error}</p>}
-      {rows === null ? (
-        <p className="empty">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p className="empty">No anchor lock-in expiries in the next {DAYS} days.</p>
-      ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Date</th><th scope="col">Symbol</th><th scope="col">Unlock</th>
-                <th scope="col">Board</th><th scope="col" className="r">Anchor shares</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td className="dim">{r.event_date}</td>
-                  <td><a href={companyHref(r.symbol)}><code>{r.symbol}</code></a></td>
-                  <td>{r.event_type === 'anchor_lockin_90' ? '90d (rest)' : '30d (50%)'}</td>
-                  <td className="dim">{r.details?.board || '—'}</td>
-                  <td className="r">{qty(r.details?.anchor_shares)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <Section id="unlocks" title={`Anchor unlocks, next ${DAYS} days`}
+             info={`${signalHeadline('lockin_expiry')}. Avoid buying into it; consider exiting a recent IPO before T−1.`}
+             infoHref="#/signals">
+      {loading ? <Loading label="Loading anchor unlocks"><SkeletonTable rows={3} cols={5} /></Loading>
+        : error ? <ErrorNote what="anchor unlocks" message={error} />
+        : <DataTable dense maxHeight="22rem" caption="Anchor unlocks" columns={COLUMNS} rows={data} rowKey={(r) => r.id}
+                     emptyText={`No anchor lock-in expiries in the next ${DAYS} days.`} />}
+    </Section>
   )
 }

@@ -1,48 +1,43 @@
-const pct = (v) => (v == null ? '—' : (v * 100).toFixed(1) + '%')
-const inr = (v) => (v == null ? '—' : Number(v).toLocaleString('en-IN'))
+import { supabase } from '../supabaseClient'
+import useLoad from '../lib/useLoad'
+import { fmtDate, fmtInr, fmtPct, fmtQty } from '../lib/format'
+import Section from './ui/Section'
+import DataTable from './ui/DataTable'
+import SymbolLink from './ui/SymbolLink'
+import { ErrorNote } from './ui/States'
+import { Loading, SkeletonTable } from './ui/Skeleton'
 
-export default function TrackedPositions({ rows }) {
+const outcome = (t) => (t.outcomes && t.outcomes[0]) || {}
+
+const COLUMNS = [
+  { key: 'symbol', header: 'Company', render: (t) => <SymbolLink symbol={t.buybacks?.symbol} name={t.buybacks?.company} /> },
+  { key: 'decided_on', header: 'Decided', nowrap: true, sortable: true, render: (t) => fmtDate(t.decided_on) },
+  { key: 'shares_bought', header: 'Shares', align: 'right', render: (t) => fmtQty(t.shares_bought) },
+  { key: 'capital', header: 'Capital', align: 'right', sortable: true, render: (t) => fmtInr(t.capital, 0) },
+  { key: 'accepted', header: 'Accepted', align: 'right', render: (t) => fmtQty(outcome(t).accepted_shares) },
+  { key: 'acc', header: 'Realised acceptance', align: 'right', render: (t) => fmtPct(outcome(t).realized_acceptance) },
+  {
+    key: 'ret', header: 'Realised return', align: 'right', sortable: true,
+    sortValue: (t) => outcome(t).realized_return,
+    render: (t) => {
+      const v = outcome(t).realized_return
+      return <span className={v > 0 ? 'tone-pos' : v < 0 ? 'tone-neg' : undefined}>{fmtPct(v)}</span>
+    },
+  },
+]
+
+export default function TrackedPositions() {
+  const { loading, error, data } = useLoad(() => supabase.from('tenders')
+    .select('*, buybacks(symbol,company), outcomes(accepted_shares,realized_acceptance,realized_return)')
+    .order('decided_on', { ascending: false }), [])
   return (
-    <section className="panel" aria-labelledby="pos-h">
-      <h2 id="pos-h">Tracked positions <span className="muted">· feedback loop</span></h2>
-      {rows.length === 0 ? (
-        <p className="empty">
-          No tenders yet. Record one with <code>python -m scanner.track tender …</code>,
-          then <code>… outcome …</code> — realized acceptance vs the floor calibrates selection.
-        </p>
-      ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Decided</th>
-                <th className="r">Shares</th>
-                <th className="r">Capital ₹</th>
-                <th className="r">Accepted</th>
-                <th className="r">Realized accept.</th>
-                <th className="r">Return</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((t) => {
-                const o = (t.outcomes && t.outcomes[0]) || {}
-                return (
-                  <tr key={t.id}>
-                    <td><code>{t.buybacks?.symbol || '—'}</code></td>
-                    <td className="dim">{t.decided_on}</td>
-                    <td className="r">{t.shares_bought ?? '—'}</td>
-                    <td className="r">{inr(t.capital)}</td>
-                    <td className="r">{o.accepted_shares ?? '—'}</td>
-                    <td className="r accent">{pct(o.realized_acceptance)}</td>
-                    <td className="r">{pct(o.realized_return)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <Section id="positions" title="Positions"
+             info="Tenders you recorded and their outcomes; realised acceptance vs the floor calibrates the acceptance model.">
+      {loading ? <Loading label="Loading positions"><SkeletonTable rows={3} cols={7} /></Loading>
+        : error ? <ErrorNote what="positions" message={error} />
+        : <DataTable caption="Positions" columns={COLUMNS} rows={data} rowKey={(t) => t.id}
+                     emptyText="No tenders recorded."
+                     emptyHint={<>Record one with <code>python -m scanner.track tender …</code></>} />}
+    </Section>
   )
 }

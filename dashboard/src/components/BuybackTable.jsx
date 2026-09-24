@@ -1,75 +1,45 @@
-import { useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { companyHref } from '../useHashRoute'
+import useLoad from '../lib/useLoad'
+import useEdgeRefresh, { describeBuybackRefresh } from '../lib/useEdgeRefresh'
+import { fmtCrValue, fmtDate, fmtInr, fmtPct } from '../lib/format'
+import Section from './ui/Section'
+import DataTable from './ui/DataTable'
+import SymbolLink from './ui/SymbolLink'
+import Button from './ui/Button'
+import { StatusBadge } from './ui/Badge'
+import { ErrorNote } from './ui/States'
+import { Loading, SkeletonTable } from './ui/Skeleton'
 
-const pct = (v) => (v == null ? '—' : (v * 100).toFixed(1) + '%')
-const num = (v) =>
-  v == null ? '—' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+const COLUMNS = [
+  { key: 'symbol', header: 'Company', sortable: true, render: (b) => <SymbolLink symbol={b.symbol} name={b.company} /> },
+  { key: 'buyback_price', header: 'Buyback price', align: 'right', sortable: true, render: (b) => fmtInr(b.buyback_price) },
+  { key: 'entitlement_small', header: 'Entitlement', align: 'right', sortable: true, render: (b) => fmtPct(b.entitlement_small, 0) },
+  { key: 'issue_size_cr', header: 'Issue size', align: 'right', sortable: true, render: (b) => fmtCrValue(b.issue_size_cr) },
+  { key: 'est_return', header: 'Floor est.', align: 'right', sortable: true, render: (b) => fmtPct(b.est_return) },
+  { key: 'record_date', header: 'Record date', nowrap: true, sortable: true, render: (b) => fmtDate(b.record_date) },
+  { key: 'close_date', header: 'Close date', nowrap: true, sortable: true, render: (b) => fmtDate(b.close_date) },
+  { key: 'status', header: 'Status', render: (b) => <StatusBadge status={b.status} /> },
+]
 
-export default function BuybackTable({ rows, onRefresh }) {
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState(null)
-
-  async function refresh() {
-    setBusy(true)
-    setMsg(null)
-    try {
-      const { data, error } = await supabase.functions.invoke('refresh-buybacks', { method: 'POST' })
-      if (error) throw error
-      if (data?.ok === false) throw new Error(data.error || 'refresh failed')
-      setMsg(`Scanned ${data.scanned} ids, upserted ${data.upserted} (${(data.found || []).join(', ') || '—'}).`)
-      if (onRefresh) await onRefresh()
-    } catch (e) {
-      setMsg('Refresh failed: ' + (e.message || String(e)))
-    } finally {
-      setBusy(false)
-    }
-  }
+// Every stored buyback (the user's lifecycle table). Status is set by the track CLI.
+export default function BuybackTable({ statuses }) {
+  const { loading, error, data, reload } = useLoad(() => supabase.from('buybacks').select('*')
+    .order('record_date', { ascending: false, nullsFirst: false }).limit(200), [])
+  const r = useEdgeRefresh('refresh-buybacks', describeBuybackRefresh, reload)
+  const rows = (data || []).filter((b) => !statuses || statuses.size === 0 || statuses.has(b.status))
 
   return (
-    <section className="panel" aria-labelledby="bb-h">
-      <div className="panel-head">
-        <h2 id="bb-h">Buyback candidates <span className="muted">· primary edge</span></h2>
-        <button className="btn" onClick={refresh} disabled={busy} aria-busy={busy}
-                aria-label="Discover current buybacks from chittorgarh">
-          {busy ? 'Refreshing…' : '↻ Refresh'}
-        </button>
-      </div>
-      {msg && <p className="note" role="status">{msg}</p>}
-      {rows.length === 0 ? (
-        <p className="empty">No buybacks stored. Hit Refresh, or run <code>python -m scanner.run buyback_arb --save</code>.</p>
-      ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Company</th>
-                <th className="r">Buyback ₹</th>
-                <th className="r">Entitlement</th>
-                <th className="r">Issue ₹cr</th>
-                <th className="r">Est. floor</th>
-                <th>Record date</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((b) => (
-                <tr key={b.id}>
-                  <td>{b.symbol ? <a href={companyHref(b.symbol)}><code>{b.symbol}</code></a> : '—'}</td>
-                  <td className="dim">{b.company}</td>
-                  <td className="r">{num(b.buyback_price)}</td>
-                  <td className="r">{pct(b.entitlement_small)}</td>
-                  <td className="r">{num(b.issue_size_cr)}</td>
-                  <td className="r">{pct(b.est_return)}</td>
-                  <td className="dim">{b.record_date || '—'}</td>
-                  <td><span className={`status status-${b.status}`}>{b.status}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <Section id="buybacks" title="Buybacks"
+             info="Floor est. = guaranteed-acceptance return before tax; after-tax ranking is on the Desk."
+             status={r.status}
+             action={<Button busy={r.busy} onClick={r.refresh}
+                             aria-label="Refresh buybacks from chittorgarh">Refresh</Button>}>
+      {r.error && <ErrorNote what="new buybacks" message={r.error} />}
+      {loading && !data ? <Loading label="Loading buybacks"><SkeletonTable rows={6} cols={8} /></Loading>
+        : error ? <ErrorNote what="buybacks" message={error} />
+        : <DataTable caption="Buybacks" columns={COLUMNS} rows={rows} rowKey={(b) => b.id}
+                     emptyText="No buybacks stored."
+                     emptyHint={<>Run <code>python -m scanner.run buyback_arb --save</code></>} />}
+    </Section>
   )
 }

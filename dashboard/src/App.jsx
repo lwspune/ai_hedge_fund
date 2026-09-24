@@ -1,5 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
-import { supabase, configured } from './supabaseClient'
+import { configured } from './supabaseClient'
 import signals from './signals.json'
 import SignalsOverview from './components/SignalsOverview'
 import BuybackTable from './components/BuybackTable'
@@ -14,98 +13,38 @@ import useHashRoute from './useHashRoute'
 
 export default function App() {
   const route = useHashRoute()
-  const [buybacks, setBuybacks] = useState([])
-  const [deals, setDeals] = useState([])
-  const [runs, setRuns] = useState([])
-  const [positions, setPositions] = useState([])
-  const [error, setError] = useState(null)
-  const [loading, setLoading] = useState(true)
 
-  const loadDeals = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('market_deals')
-      .select('*')
-      .order('deal_date', { ascending: false })
-      .order('value', { ascending: false, nullsFirst: false })
-      .limit(60)
-    if (!error) setDeals(data || [])
-  }, [])
-
-  const loadBuybacks = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('buybacks')
-      .select('*')
-      .order('record_date', { ascending: false })
-      .limit(100)
-    if (!error) setBuybacks(data || [])
-  }, [])
-
-  useEffect(() => {
-    if (!configured) {
-      setError('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — set them in dashboard/.env')
-      setLoading(false)
-      return
-    }
-    ;(async () => {
-      try {
-        const [sr, td] = await Promise.all([
-          supabase.from('scan_runs').select('*').order('run_at', { ascending: false }).limit(25),
-          supabase
-            .from('tenders')
-            .select('*, buybacks(symbol), outcomes(accepted_shares,realized_acceptance,realized_return)')
-            .order('decided_on', { ascending: false }),
-        ])
-        for (const r of [sr, td]) if (r.error) throw r.error
-        setRuns(sr.data || [])
-        setPositions(td.data || [])
-        await Promise.all([loadBuybacks(), loadDeals()])
-      } catch (e) {
-        setError(e.message || String(e))
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [loadDeals, loadBuybacks])
+  if (!configured) {
+    return (
+      <main className="banner-error" role="alert">
+        Missing <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_ANON_KEY</code>. Set them in <code>dashboard/.env</code>.
+      </main>
+    )
+  }
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Market-Intel <span className="accent">Scanner</span></h1>
-        <p className="subtitle">
-          Indian equities · validated signals · manual execution. Every signal carries its
-          verdict — falsified ones are kept as lenses, never traded as edge.
-        </p>
+    <>
+      <header className="topbar">
+        <div className="topbar-inner">
+          <a className="wordmark" href="#/">Market Intel</a>
+          <span className="topbar-spacer" />
+          <CompanySearch />
+        </div>
       </header>
-
-      {error && <div className="banner error" role="alert">⚠ {error}</div>}
-
-      {configured && route.page === 'company' ? (
-        <CompanyPage symbol={route.symbol} />
-      ) : (
-      <>
-      <CompanySearch />
-
-      <SignalsOverview signals={signals} />
-
-      {loading ? (
-        <div className="banner">Loading live data…</div>
-      ) : (
-        <>
-          <RightsPanel />
-          <UpcomingUnlocks />
-          <BuybackTable rows={buybacks} onRefresh={loadBuybacks} />
-          <DealsView rows={deals} onRefresh={loadDeals} />
-          <TrackedPositions rows={positions} />
-          <ScanHistory rows={runs} />
-        </>
-      )}
-      </>
-      )}
-
-      <footer className="app-footer">
-        Read-only surfacing · data from Supabase (RLS read-only) · writes via the <code>track</code> CLI ·
-        deals refresh via Supabase Edge Function · fundamentals from screener.in
-      </footer>
-    </div>
+      <main className="content">
+        {route.page === 'company' ? <CompanyPage symbol={route.symbol} /> : (
+          <>
+            <SignalsOverview signals={signals} />
+            <RightsPanel />
+            <UpcomingUnlocks />
+            <BuybackTable />
+            <DealsView />
+            <TrackedPositions />
+            <ScanHistory />
+          </>
+        )}
+      </main>
+      <footer className="app-footer">Read-only · data via Supabase · updated by scheduled refresh</footer>
+    </>
   )
 }
