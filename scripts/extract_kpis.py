@@ -22,16 +22,19 @@ from scanner.kpis import extract_all, kpi_rows, pdf_text  # noqa: E402
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0",
       "Referer": "https://www.nseindia.com/"}
 # PostgREST filter: presentations, press releases, order wins, and call transcripts
-KPI_FILTER = ("(category.eq.Investor Presentation,category.like.Press Release*,"
-              "category.eq.Bagging/Receiving of orders/contracts,"
-              "category.eq.Awarding of order(s)/contract(s),"
-              "and(category.like.Analysts*,subject.ilike.*transcript*))")
+# (values with parentheses are double-quoted, or PostgREST's or() parser splits on them)
+KPI_FILTER = ('(category.eq."Investor Presentation",category.like.Press Release*,'
+              'category.eq."Bagging/Receiving of orders/contracts",'
+              'category.eq."Awarding of order(s)/contract(s)",'
+              'and(category.like.Analysts*,subject.ilike.*transcript*))')
+ORDERS_FILTER = '(category.eq."Bagging/Receiving of orders/contracts",category.eq."Awarding of order(s)/contract(s)")'
 
 
-def pending(limit: int, since: str) -> list[dict]:
+def pending(limit: int, since: str, orders_only: bool = False) -> list[dict]:
     return db.select("filings", {
         "select": "seq_id,symbol,category,subject,disclosed_at,attachment_url",
-        "extracted_at": "is.null", "disclosed_at": f"gte.{since}", "or": KPI_FILTER,
+        "extracted_at": "is.null", "disclosed_at": f"gte.{since}",
+        "or": ORDERS_FILTER if orders_only else KPI_FILTER,
         "order": "disclosed_at.desc", "limit": str(limit)})
 
 
@@ -39,8 +42,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=1500)
     ap.add_argument("--since", default="2025-07-01")
+    ap.add_argument("--orders-only", action="store_true", help="only order-win disclosures (event studies)")
     a = ap.parse_args()
-    todo = pending(a.limit, a.since)
+    todo = pending(a.limit, a.since, a.orders_only)
     print(f"{len(todo)} filings to extract", flush=True)
     sector = {r["symbol"]: r["sector"] for r in db.select_all("company_snapshot", {"select": "symbol,sector"})}
     s, stats, n_kpis = requests.Session(), {"ok": 0, "no_pdf": 0, "error": 0}, 0
