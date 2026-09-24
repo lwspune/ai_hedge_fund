@@ -4,7 +4,7 @@
     "type": "structural",
     "verdict": "conditional",
     "role": "primary",
-    "summary": "Small-shareholder tender arb; edge on selected high-acceptance, high-premium small-caps. The one validated edge."
+    "summary": "Small-shareholder tender arb; edge on selected high-acceptance, high-premium small-caps. Post-Oct-2024 it needs a <=20% tax slab (~0 after tax at 30%). The one validated edge."
   },
   {
     "name": "mean_reversion",

@@ -77,7 +77,8 @@ SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
                    "Small-shareholder tender arb; edge on selected high-acceptance, "
-                   "high-premium small-caps. The one validated edge."),
+                   "high-premium small-caps. Post-Oct-2024 it needs a <=20% tax slab "
+                   "(~0 after tax at 30%). The one validated edge."),
         _run_buyback),
     "mean_reversion": Signal(
         SignalMeta("mean_reversion", "drift", "null", "lens",
