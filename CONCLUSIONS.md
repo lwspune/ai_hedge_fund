@@ -181,7 +181,7 @@ lock on the application money). Partly-paid issues are excluded (their RE values
 Fits the thesis: REs are a procedural, illiquid, short-lived instrument that institutions
 ignore and many retail holders don't understand (they dump or let entitlements lapse) — a
 friction barrier, with retail able to sit on the right side of it.
-*Evidence:* `evidence/rights_re/2026-09-24` (results + RE closes zip) · sha 4f552e3 (laptop baseline).
+*Evidence:* re-run on Actions `evidence/rights_re/2026-09-24T073019Z` (reproduces: non-penny median +3.52%, 48/55 issues above hurdle); laptop baseline `evidence/rights_re/2026-09-24` (+ RE closes zip) · sha 4f552e3.
 
 ### 9. Delisting reverse book-building (#3) — PARKED (data not reachable)
 No free, automatable source of delisting offers with floor/discovered prices and outcomes:

@@ -240,6 +240,14 @@ cap as of the record date. `scripts/validate_buyback_arb.py` was switched to all
 - *Recommendation:* **do**, then decide whether §3's numbers change; the verdict is expected to
   hold (the thesis is structural, not sample-dependent).
 
+**Re-run done 2026-09-24 on Actions** (`evidence/buyback_arb/2026-09-24T073004Z`), n=101 (was 81):
+gross floor median **−0.21%** (was +0.4%), 3× entitlement median **+4.94%** (was +5.4%), 30%-slab
+after-tax 3× median −0.84% (was −1.5%); post-Oct-2024 floor median −0.27% (n=35). By as-of mcap
+at *floor* acceptance: small −1.41% (n=26), small_mid −0.58%, mid +1.66%, large +6.14% (n=14) —
+floor acceptance is not how small-caps earn (their edge is near-100% acceptance), so this cut does
+not test the prior; outcome data still does. **Decision needed:** update §3's table to n=101?
+Verdict reading unchanged (blind ≈ break-even; selection + low slab).
+
 ### `buybacks.status` is wrong for scan-discovered rows — **OPEN (360 below)**
 
 **Learning (WP1 browser check):** the Python scan upserts buybacks without `status`, so every row it
