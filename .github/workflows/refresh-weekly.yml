@@ -33,4 +33,4 @@ jobs:
       - if: ${{ inputs.smoke }}
         run: |
           python -u scripts/refresh_companies.py
-          python -u scripts/refresh_fundamentals.py --symbols TCS,3MINDIA,NECLIFE,M&M,VIGOR --stale-days 0
+          python -u scripts/refresh_fundamentals.py --symbols "TCS,3MINDIA,NECLIFE,M&M,VIGOR" --stale-days 0
