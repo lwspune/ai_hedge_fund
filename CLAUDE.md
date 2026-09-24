@@ -74,7 +74,9 @@ drift-signal chasing.
     (unadjusted) for any premium vs a nominal rupee price.** Replaces per-script caches.
   - **I3 events calendar** — `scanner/events.py` → `corporate_events` (bonus/split/rights/
     dividend/buyback/demerger via nselib; F&O ban days; IPO listing + 30/90-day anchor
-    lock-in expiries) + `ipos`. `scripts/refresh_events.py actions|fo-ban|ipos`.
+    lock-in expiries) + `ipos` + **`rights_issues`** (chittorgarh offer data: exact issue price,
+    RE symbol — NSE RE symbols vary, e.g. `NDTVR`/`TILRR`/`SATIN-RE` — timetable incl. renunciation
+    + application deadline, partly-paid flag). `scripts/refresh_events.py actions|fo-ban|ipos|rights`.
   - **I4 fundamentals** — `scanner/fundamentals.py` (`parse_company_page`, `pick_view`) → full
     statement history in `cache/fundamentals/<SYM>.parquet` (`load_statements`) + one
     `company_snapshot` row/company (ratios, D/E, shareholding, `history` jsonb). Statement
@@ -106,7 +108,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (141 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (163 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` (dashboard). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -116,7 +118,10 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
 10-day deals refill, buyback scan) and `refresh-weekly` (Sun 10:00 IST: company master +
 fundamentals; `smoke` input for a 5-company test). Both call `scripts/scheduled_refresh.py`;
 secrets `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` live in repo Actions secrets; a failed step
-fails the run → GitHub emails the owner. Manual: `gh workflow run refresh-daily.yml`.
+fails the run → GitHub emails the owner; the last step `scripts/check_freshness.py` also fails
+the run if any table's newest row is older than its cadence (catches loaders that "succeed" while
+writing nothing). **CI** (`ci.yml`): pytest + dashboard lint/build on every push.
+Manual: `gh workflow run refresh-daily.yml`.
 Individual loaders: `scripts/refresh_companies.py` · `scripts/refresh_events.py actions|fo-ban|ipos` ·
 `scripts/refresh_fundamentals.py [--symbols A,B] [--stale-days 7]` · `scripts/refill_deals.py --from`
 · `scripts/validate_lockin.py` · `scripts/rebuild_snapshot_history.py` (no re-scrape).
