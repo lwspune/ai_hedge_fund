@@ -1,6 +1,6 @@
 # CONCLUSIONS — Indian Market Inefficiency Validations
 
-**Status: active platform. Eight signals validated. One tradable edge; one real but unshortable effect.**
+**Status: active platform. Nine signals validated. Two actionable edges (buyback tender, rights-entitlement discount); one real but unshortable effect.**
 
 The question that started this: *are there real, past-tested inefficiencies in Indian
 markets exploitable for quick gains?* We tested four, with honest event studies and
@@ -148,6 +148,42 @@ The one clean effect — stocks *sold* into the ban keep falling during it (−0
 opened. Thesis check: the ban blocks new derivatives but the cash market stays open to all — no
 competitor is excluded, so nothing is left for retail. (`scanner/fnoban.py`,
 `scripts/validate_fno_ban.py`, results `cache/fnoban_results.csv`.)
+
+### 8. Rights-entitlement (RE) discount — CONDITIONAL (actionable, small)
+Since Jan-2020 NSE lists rights entitlements as `<SYM>-RE` during the issue. One RE + the
+issue price (face value + premium) = one new share, so fair RE = S − issue. Gap =
+(S − issue − RE)/S at the close; positive = RE cheap. 223 rights issues since 2020 → 186
+with a face value and no later split; 58 had NSE RE prices (the rest traded elsewhere / not
+at all). Liquid day = RE turnover ≥ ₹5 L. Hurdle 0.5% (RE costs + ~4-5 weeks' capital lock).
+
+| Liquid days | Median gap | Days above hurdle |
+|---|---|---|
+| all (n=303) | +3.6% | 81% |
+| first 3 days | +4.0% | 85% |
+| last 3 days | +4.0% | 79% |
+| 2020-22 / 2023-24 / 2025-26 | +3.9% / +3.3% / +3.8% | 72% / 79% / 93% |
+
+- **Robustness (post-hoc filter, reported as a check not a selection):** excluding penny
+  issues (issue < ₹10 or stock < ₹20, where tick size distorts), 40 issues / 251 days: median
+  **+3.35%**, 80% of days above hurdle, every era positive; per-issue median +3.2%, 34/40 issues.
+- Inputs verified against an external source (NDTV 2025: ₹82 issue, 3:4, FV ₹4).
+- **How to capture it without shorting:** if you want the stock anyway, buy the RE and
+  subscribe before the issue closes instead of buying shares; if you hold it, sell shares and
+  buy REs (same end position, cash freed). Net ≈ 2.5-3% per issue after costs/capital lock.
+- **Limits:** capacity is a few lakh/day; partly-paid issues value differently (e.g. GRASIM
+  2024 traded rich); penny issues are noisy. Live: `python -m scanner.run rights_re`.
+
+Fits the thesis: REs are a procedural, illiquid, short-lived instrument that institutions
+ignore and many retail holders don't understand (they dump or let entitlements lapse) — a
+friction barrier, with retail able to sit on the right side of it.
+
+### 9. Delisting reverse book-building (#3) — PARKED (data not reachable)
+No free, automatable source of delisting offers with floor/discovered prices and outcomes:
+chittorgarh has no delisting pages, BSE's API 403s (Akamai), NSE has no public endpoint, SEBI
+doesn't file delisting offers as a category, and nselib's board-meeting calendar showed only 7
+"voluntary delisting" items in 2024 (several single-exchange exits). Needs manual curation
+from exchange/news PDFs (~5-15 promoter offers/yr); the Sep-2024 fixed-price route (15% over
+floor) likely compresses the RBB premium. Revisit only as a curation project.
 
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter

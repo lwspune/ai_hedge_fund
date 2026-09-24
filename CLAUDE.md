@@ -13,8 +13,8 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Eight signals validated this way; one tradable edge,
-plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
+falsified signal is never read as edge. Nine signals validated this way; two actionable edges
+(buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
 | Signal | Type | Verdict | Role |
@@ -27,6 +27,7 @@ of untested ideas, ordered by the thesis.
 | `index_rebalance` | structural | **null** | lens (informational only) |
 | `lockin_expiry` | structural | **conditional** | lens (avoid/exit rule — real dip, unshortable) |
 | `fno_ban` | structural | **null** | lens (informational only) |
+| `rights_re` | spread | **conditional** | watch (buy RE instead of stock — ~3% discount) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -181,6 +182,12 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **2026-09-24** — `fno_ban` reversal validated **null** (n=920 episodes, same-stock control).
   *Reason:* the ban only blocks fresh derivatives; the cash market stays open to all, so no one is
   fenced out — consistent with the thesis. Next structural candidate: delisting RBB (#3).
+
+- **2026-09-24** — `rights_re` = **conditional / watch**: REs trade ~3.4% below S − issue price
+  (non-penny liquid days, every era 2020-26). *Reason:* capturable without shorting only when you
+  want or hold the stock; tiny capacity; friction barrier (institutions ignore REs, retail dumps).
+- **2026-09-24** — Delisting RBB (#3) **parked**: no reachable free source of offers/outcomes
+  (chittorgarh none, BSE 403, NSE gated). Revisit only as a manual-curation project.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

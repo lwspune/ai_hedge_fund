@@ -97,6 +97,14 @@ def _run_fno_ban(**kw) -> str:
             "unshortable. Run scripts/validate_fno_ban.py.")
 
 
+def _run_rights_re(**kw) -> str:
+    from scanner.rights import HURDLE, MIN_TURNOVER, format_open_res, open_res
+    return (f"Rights entitlements trading now. gap = (S - issue - RE)/S; BUY RE when gap > "
+            f"{HURDLE*100:.1f}% and RE turnover >= Rs {MIN_TURNOVER/1e5:.0f} L -- only if you want the "
+            "stock anyway (then subscribe before the issue closes), or hold it and switch shares -> REs.\n\n"
+            + format_open_res(open_res()))
+
+
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
@@ -147,6 +155,13 @@ SIGNALS: dict[str, Signal] = {
                    "open to everyone, so nothing is fenced off. Real-looking effects (sold-into-ban "
                    "names keep falling during the ban) sit where retail can't short."),
         _run_fno_ban),
+    "rights_re": Signal(
+        SignalMeta("rights_re", "spread", "conditional", "watch",
+                   "Rights entitlements (<SYM>-RE) trade below fair value S - issue price: median "
+                   "+3.4% of the share price on liquid days (n=251 days, 40 non-penny issues "
+                   "2020-26, every era). Capturable without shorting only if you want the stock "
+                   "(buy RE + subscribe instead) or hold it (switch shares -> REs). Small capacity."),
+        _run_rights_re),
 }
 
 

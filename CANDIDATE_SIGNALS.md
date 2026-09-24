@@ -22,8 +22,8 @@ Prior = honest expectation before testing.
 |---|---|---|---|---|---|
 | 1 | ~~**Index rebalance front-run** — NIFTY 50 / Next 50 inclusions & exclusions force index-fund buying/selling on a known effective date.~~ **TESTED → NULL (2026-06-24).** n=151 verified Next 50 events; front-run earns ~0 (tight window flat); lone deletion-rebound was a 2021-22 regime artifact. Pre-announced ⇒ arbitraged before a follower can act (no barrier excludes competitors). See `CONCLUSIONS.md` §5, `scripts/validate_index_rebalance.py` + `segment_index_rebalance.py`. | 🟢 | ✅ done | ~~most promising~~ → **null** | — |
 | 2 | ~~**Anchor / pre-IPO lock-in expiry overhang**~~ **TESTED → CONDITIONAL (2026-09-24).** Real, control-verified dip T-1→T+2 (90d −1.25%, t=−4.6; 30d −0.7%; placebo ~0; holds 2022-26). Not shortable by retail (new IPOs not in F&O) → avoid/exit-timing lens `lockin_expiry`. Pre-IPO (6-mo/18-mo promoter) lock-ins not yet tested. See `CONCLUSIONS.md` §6. | 🟢 | ✅ done | ~~plausible edge~~ → **real, unshortable** | — |
-| 3 | **Delisting / reverse-book-building arb** — promoter delisting via RBB; retail tenders at discovered price, floor price often revised up; failed-delisting re-rating. | 🟢 | ⚠️ chittorgarh/NSE delisting announcements (manual list) | structural (retail tender mechanics, like buybacks) — worth a hard look | Collect completed delistings; measure floor→final discovered price and post-announcement drift. |
-| 4 | **Rights-entitlement (RE) mispricing** — REs trade in their own NSE series during the rights window; often illiquid & priced off theoretical (cum-rights − rights price). | 🟢 | ⚠️ nselib RE-series prices + NSE corp-action terms | spread-ish but structurally retail-accessible | For each rights issue, compare RE market price vs theoretical entitlement value; measure capturable gap after costs. |
+| 3 | ~~**Delisting / reverse-book-building arb**~~ **PARKED (2026-09-24): data not reachable** — no free automatable source of offers + discovered prices (chittorgarh none, BSE 403, NSE gated, SEBI no category). Needs manual PDF curation; post-Sep-2024 fixed-price route likely compresses the premium. See `CONCLUSIONS.md` §9. | 🟢 | ❌ | structural, but unmeasurable for now | manual curation only |
+| 4 | ~~**Rights-entitlement (RE) mispricing**~~ **TESTED → CONDITIONAL (2026-09-24).** REs trade ~3.4% (median, non-penny liquid days) below fair S − issue price, every era 2020-26, 34/40 issues. Capturable without shorting if you want/hold the stock (buy RE + subscribe / switch). Live: `scanner.run rights_re`. See `CONCLUSIONS.md` §8. | 🟢 | ✅ done | ~~spread-ish~~ → **conditional, actionable** | — |
 | 5 | **ASM / GSM surveillance entry-exit** — entering Additional/Graded Surveillance forces 100% margin & trade-to-trade → liquidity shock; exit → relief bounce. | 🟢 | ✅ NSE ASM/GSM static lists + prices | forced-margin shock → mean-revert on exit; test both legs | Event study on entry date (drift down?) and exit date (bounce?). |
 | 6 | ~~**F&O ban-period reversal**~~ **TESTED → NULL (2026-09-24).** n=920 episodes 2020-26: the pre-ban move doesn't reverse at entry/during/exit/post (|t|<1, no better than same-stock controls); flickers are fat-tail means or single-era. Ban blocks derivatives, not the cash market → no barrier. See `CONCLUSIONS.md` §7. | 🟢 | ✅ done | ~~over-reaction → revert~~ → **null** | — |
 
@@ -62,8 +62,8 @@ Prior = honest expectation before testing.
 1. **#1 Index rebalance front-run** — cleanest forced-flow, fully reachable, strong prior. Start here.
 2. ~~**#2 Lock-in expiry overhang**~~ — done: real dip, not shortable (lens).
 3. **#5 ASM/GSM** (blocked: JSON-gated) + ~~**#6 F&O ban**~~ (done: null).
-4. **#3 Delisting RBB** — structural like buybacks; worth the manual data collection.
-5. **#4 Rights-entitlement** — structural + retail-accessible; needs RE-series price plumbing.
+4. ~~**#3 Delisting RBB**~~ — parked: data not reachable (manual curation only).
+5. ~~**#4 Rights-entitlement**~~ — done: conditional, actionable (RE discount ~3%).
 6. Everything in Tier 3/4 as **cheap controls** (run to document efficiency, not to find edge).
 
 ## Testing protocol (per signal — keep it honest)

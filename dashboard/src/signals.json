@@ -54,5 +54,12 @@
     "verdict": "null",
     "role": "lens",
     "summary": "F&O ban (95% MWPL) reversal. Null: n=920 episodes 2020-26 -- the pre-ban move does not reverse at entry, during, exit or after (all |t|<1, no better than same-stock controls). The ban blocks fresh derivatives but the cash market stays open to everyone, so nothing is fenced off. Real-looking effects (sold-into-ban names keep falling during the ban) sit where retail can't short."
+  },
+  {
+    "name": "rights_re",
+    "type": "spread",
+    "verdict": "conditional",
+    "role": "watch",
+    "summary": "Rights entitlements (<SYM>-RE) trade below fair value S - issue price: median +3.4% of the share price on liquid days (n=251 days, 40 non-penny issues 2020-26, every era). Capturable without shorting only if you want the stock (buy RE + subscribe instead) or hold it (switch shares -> REs). Small capacity."
   }
 ]
