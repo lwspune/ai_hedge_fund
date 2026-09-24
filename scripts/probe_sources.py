@@ -36,6 +36,8 @@ def main():
     probe("yfinance ^CRSLDX", lambda: len(_fetch_yf("^CRSLDX", raw=True)))
     probe("NSE SAST reg29 JSON", lambda: len(__import__("scanner.insider", fromlist=["x"]).fetch_reg29(
         date.today() - timedelta(days=14), date.today())))
+    probe("NSE corporate announcements", lambda: len(__import__("scanner.filings", fromlist=["x"]).fetch_announcements(
+        date.today() - timedelta(days=2), date.today())))
     probe("chittorgarh rights page", lambda: events.fetch_rights(454)[1]["symbol"])
     probe("screener.in TCS", lambda: fundamentals.fetch_company_page("TCS")[0]["ratios"].get("market_cap_cr"))
 

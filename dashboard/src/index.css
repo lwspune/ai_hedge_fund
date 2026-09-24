@@ -121,3 +121,4 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .ratio dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
 .ratio dd { margin: 2px 0 0; color: var(--text-h); font-size: 15px; }
 tbody th { color: var(--dim); text-transform: none; font-size: 13px; font-weight: 400; letter-spacing: 0; }
+td.wrap { white-space: normal; min-width: 260px; }

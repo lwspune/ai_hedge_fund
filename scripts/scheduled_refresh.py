@@ -22,6 +22,7 @@ def steps(mode: str, today: date) -> list[list[str]]:
     if mode == "daily":
         return [["refresh_events.py", "actions"], ["refresh_events.py", "fo-ban"],
                 ["refresh_events.py", "ipos"], ["refresh_events.py", "rights"],
+                ["refresh_filings.py"],
                 ["refill_deals.py", "--from", (today - timedelta(days=DEALS_LOOKBACK_DAYS)).isoformat()],
                 ["-m", "scanner.run", "buyback_arb", "--save"],
                 ["-m", "scanner.run", "rights_re", "--save"], ["check_freshness.py"]]

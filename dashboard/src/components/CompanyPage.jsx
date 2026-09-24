@@ -68,7 +68,7 @@ export default function CompanyPage({ symbol }) {
     let live = true
     setState({ loading: true })
     ;(async () => {
-      const [co, snap, ev, ipo, bb, cand, deals] = await Promise.all([
+      const [co, snap, ev, ipo, bb, cand, deals, fil] = await Promise.all([
         supabase.from('companies').select('*').eq('symbol', symbol).maybeSingle(),
         supabase.from('company_snapshot').select('*').eq('symbol', symbol).maybeSingle(),
         supabase.from('corporate_events').select('*').eq('symbol', symbol)
@@ -79,14 +79,16 @@ export default function CompanyPage({ symbol }) {
           .order('created_at', { ascending: false }).limit(20),
         supabase.from('market_deals').select('*').eq('symbol', symbol)
           .order('deal_date', { ascending: false }).limit(15),
+        supabase.from('filings').select('seq_id,category,subject,disclosed_at,attachment_url')
+          .eq('symbol', symbol).order('disclosed_at', { ascending: false }).limit(25),
       ])
-      const err = [co, snap, ev, ipo, bb, cand, deals].find((r) => r.error)
+      const err = [co, snap, ev, ipo, bb, cand, deals, fil].find((r) => r.error)
       if (!live) return
       if (err) setState({ loading: false, error: err.error.message })
       else setState({
         loading: false, company: co.data, snap: snap.data, events: ev.data || [],
         ipo: (ipo.data || [])[0], buybacks: bb.data || [], candidates: cand.data || [],
-        deals: deals.data || [],
+        deals: deals.data || [], filings: fil.data || [],
       })
     })()
     return () => { live = false }
@@ -95,7 +97,7 @@ export default function CompanyPage({ symbol }) {
   const back = <a href="#/" className="back">← All signals</a>
   if (state.loading) return <>{back}<div className="banner">Loading {symbol}…</div></>
   if (state.error) return <>{back}<div className="banner error" role="alert">⚠ {state.error}</div></>
-  const { company: c, snap: s, events, ipo, buybacks, candidates, deals } = state
+  const { company: c, snap: s, events, ipo, buybacks, candidates, deals, filings } = state
   if (!c) return <>{back}<div className="banner">No NSE company with symbol <code>{symbol}</code>.</div></>
   const h = s?.history || {}
   const upcoming = events.filter((e) => e.event_date >= new Date().toISOString().slice(0, 10))
@@ -205,6 +207,30 @@ export default function CompanyPage({ symbol }) {
         <SeriesTable caption="Shareholding pattern" rows={h.shareholding}
           cols={[['promoter', 'Promoters', pct], ['fii', 'FIIs', pct], ['dii', 'DIIs', pct],
                  ['public', 'Public', pct], ['holders', 'Shareholders', (v) => num(v)]]} />
+      </section>
+
+      <section className="panel" aria-labelledby="filings-h">
+        <h2 id="filings-h">Filings <span className="muted">· NSE announcements (material categories)</span></h2>
+        {filings.length === 0 ? <p className="empty">No filings indexed.</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Date</th><th scope="col">Category</th><th scope="col">Subject</th><th scope="col">Document</th></tr></thead>
+              <tbody>
+                {filings.map((f) => (
+                  <tr key={f.seq_id}>
+                    <td className="dim">{f.disclosed_at.slice(0, 10)}</td>
+                    <td>{f.category}</td>
+                    <td className="dim wrap" title={f.subject}>{(f.subject || '').slice(0, 110)}</td>
+                    <td>{f.attachment_url
+                      ? <a href={f.attachment_url} target="_blank" rel="noopener noreferrer"
+                           aria-label={`Open ${f.category} filing from ${f.disclosed_at.slice(0, 10)} (opens in a new tab)`}>PDF ↗</a>
+                      : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {deals.length > 0 && (

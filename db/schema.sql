@@ -291,3 +291,25 @@ create index if not exists idx_rights_symbol on rights_issues(symbol);
 create index if not exists idx_rights_open on rights_issues(issue_open);
 alter table rights_issues enable row level security;
 create policy "anon read rights_issues" on rights_issues for select to anon using (true);
+
+-- ============================================================================
+-- Filings index F1 (scanner/filings.py, scripts/refresh_filings.py): NSE corporate
+-- announcements, material categories only, with the attachment (PDF) link.
+-- ============================================================================
+create table if not exists filings (
+  seq_id         bigint primary key,           -- NSE announcement id
+  symbol         text not null,
+  isin           text,
+  company        text,
+  category       text not null,                -- NSE `desc`, e.g. 'Investor Presentation'
+  subject        text,
+  disclosed_at   timestamptz not null,
+  attachment_url text check (attachment_url is null or attachment_url like 'https://%'),
+  size_kb        numeric check (size_kb is null or size_kb >= 0),
+  has_xbrl       boolean not null default false,
+  created_at     timestamptz not null default now()
+);
+create index if not exists idx_filings_symbol_time on filings(symbol, disclosed_at desc);
+create index if not exists idx_filings_category_time on filings(category, disclosed_at desc);
+alter table filings enable row level security;
+create policy "anon read filings" on filings for select to anon using (true);

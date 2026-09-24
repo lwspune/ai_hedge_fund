@@ -17,4 +17,5 @@ def test_stale_flags_old_and_missing_tables_only():
 
 
 def test_rules_cover_the_scheduled_tables():
-    assert set(RULES) >= {"deals", "corporate_actions", "ipo_listings", "companies", "fundamentals"}
+    assert set(RULES) >= {"deals", "corporate_actions", "ipo_listings", "companies", "fundamentals",
+                          "filings"}

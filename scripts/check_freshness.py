@@ -22,6 +22,7 @@ QUERIES = {
     "ipo_listings": ("ipos", "listing_date", {"listing_date": f"lte.{date.today()}"}, 14),
     "companies": ("companies", "updated_at", {}, 8),                     # weekly refresh
     "fundamentals": ("company_snapshot", "fetched_at", {}, 8),           # weekly refresh
+    "filings": ("filings", "disclosed_at", {}, 5),                       # ~500 filings / trading day
 }
 RULES = {name: q[3] for name, q in QUERIES.items()}
 
