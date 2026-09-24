@@ -1,9 +1,11 @@
 name: backfill
 # One-off / catch-up loads, run on demand from Actions (never the laptop):
 #   board-meetings  results + board-meeting dates  (from/to = dates, default 2020-01-01..today)
-#   prices          NSE bhavcopy -> daily_prices + bucket  (from/to = dates; run a year at a time)
+#   prices          NSE bhavcopy -> daily_prices + bucket  (from = date; to defaults to the end of
+#                   LAST month, so it never races the daily run's read-modify-write of this month)
 #   orphans         companies rows for symbols seen in filings/deals/events but not the master
-# Shares the `refresh` concurrency group so it never overlaps the scheduled runs.
+# One concurrency group per kind: backfills of different kinds run side by side and alongside the
+# scheduled refresh (they write different rows); two of the same kind queue.
 on:
   workflow_dispatch:
     inputs:
@@ -15,12 +17,12 @@ on:
         description: "start date YYYY-MM-DD (board-meetings / prices)"
         required: false
       to:
-        description: "end date YYYY-MM-DD (default today)"
+        description: "end date YYYY-MM-DD (default: today; prices: end of last month)"
         required: false
 permissions:
   contents: read
 concurrency:
-  group: refresh
+  group: backfill-${{ inputs.what }}
   cancel-in-progress: false
 jobs:
   backfill:
@@ -42,9 +44,9 @@ jobs:
       - name: run
         run: |
           set -euo pipefail
-          TO="${TO:-$(date +%F)}"
           case "$WHAT" in
-            board-meetings) python -u scripts/refresh_events.py board-meetings --from "${FROM:-2020-01-01}" --to "$TO" ;;
-            prices)         python -u scripts/refresh_prices.py --from "${FROM:?from is required}" --to "$TO" ;;
+            board-meetings) python -u scripts/refresh_events.py board-meetings --from "${FROM:-2020-01-01}" --to "${TO:-$(date +%F)}" ;;
+            prices)         LAST_MONTH_END="$(date -d "$(date +%Y-%m-01) -1 day" +%F)"
+                            python -u scripts/refresh_prices.py --from "${FROM:?from is required}" --to "${TO:-$LAST_MONTH_END}" ;;
             orphans)        python -u scripts/backfill_orphans.py ;;
           esac
