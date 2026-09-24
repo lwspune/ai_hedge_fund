@@ -66,7 +66,7 @@ def _run_open_offer(**kw) -> str:
 
 def _run_index_rebalance(**kw) -> str:
     return ("index_rebalance is NULL: front-running NIFTY 50 / Next 50 reconstitution forced "
-            "flows earns ~0 abnormal return (n=151 Next 50; tight effective-window flat). The "
+            "flows earns ~0 abnormal return (n=149 Next 50; tight effective-window flat). The "
             "change is publicly pre-announced ~4 weeks out, so the flow is arbitraged before a "
             "follower can act -- no barrier keeps competitors out (contrast the buyback quota). "
             "The lone deletion-rebound flicker was a 2021-22 regime artifact (gone by 2023-25). "
@@ -163,9 +163,11 @@ def _run_ofs_retail(**kw) -> str:
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
-                   "Small-shareholder tender arb; edge on selected high-acceptance, "
-                   "high-premium small-caps. Post-Oct-2024 it needs a <=20% tax slab "
-                   "(~0 after tax at 30%). The one validated edge."),
+                   "Small-shareholder tender arb, entered at the last cum-entitlement close "
+                   "(the record date is ex). Blind tendering loses ~2%; selected high-acceptance "
+                   "tenders earn ~+3% gross = -3% after tax at a 30% slab, ~+1% at 20%, +8-9% "
+                   "at a <=5% slab. Actionable only from a nil/5%-slab account, on selected "
+                   "tenders. The one structural edge, narrow."),
         _run_buyback),
     "mean_reversion": Signal(
         SignalMeta("mean_reversion", "drift", "null", "lens",
@@ -191,7 +193,7 @@ SIGNALS: dict[str, Signal] = {
         SignalMeta("index_rebalance", "structural", "null", "lens",
                    "Front-run NIFTY 50/Next 50 reconstitution forced flows. Null: the "
                    "change is publicly pre-announced ~4wks out, so the flow is arbitraged "
-                   "before a follower can act (n=151 Next 50; tight window flat; the lone "
+                   "before a follower can act (n=149 Next 50; tight window flat; the lone "
                    "deletion-rebound was a 2021-22 regime artifact). Pre-announced forced "
                    "flow has no barrier keeping competitors out -- contrast the buyback quota."),
         _run_index_rebalance),

@@ -19,7 +19,7 @@ of untested ideas, ordered by the thesis.
 
 | Signal | Type | Verdict | Role |
 |---|---|---|---|
-| `buyback_arb` | structural | **conditional edge** | **primary (actionable)** |
+| `buyback_arb` | structural | **conditional edge (narrow)** | **primary (actionable only from a ≤5%-slab account, on selected tenders; thin at 20%, negative at 30%)** |
 | `merger_arb` | spread | thin | watch |
 | `mean_reversion` | drift | **null** | lens (informational only) |
 | `smart_money_deals` | drift | **null** | lens (informational only) |
@@ -205,7 +205,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (433 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (482 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -365,6 +365,15 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **2026-09-24** — Telegram alerts for **new Act candidates only** (no digest, no failure pings —
   GitHub already emails those). Every open buyback alerts (not gated on `exp_return`): the verdict is
   tax-slab conditional, so the call stays manual. *Reason:* signal over noise; dedup is a DB constraint.
+
+- **2026-09-24** — Backtest review: the buyback study now enters at the **last cum-entitlement
+  close** (`buyback.last_buy_close`; T+1: record −1 session), not the record-day close, which is
+  ex-entitlement (median −2.7% that day). Verdict narrowed: floor −2.3%, 3× +3.0% gross, 20%-slab
+  +1.3%, ≤5%-slab +8-9% (n=101). `is_open` now also requires today ≤ `last_buy_date`; alerts carry
+  it. Rebalance scripts gained the corporate-action guard (`rebalance.drop_blocked`; BEL bonus was a
+  −66% "add"); `eventstudy.summarize(..., clusters=)` adds a cluster-robust t. *Reason:* every
+  record-date study must price the last cum session; a null is robust to inflating biases, a
+  positive is not — so the corrections concentrate on the signals we would act on.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

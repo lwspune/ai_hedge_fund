@@ -40,27 +40,32 @@ the institutional signal itself carries no follower edge.
 
 ### 3. Buyback small-shareholder tender arb — CONDITIONAL EDGE (the keeper)
 101 tender buybacks (record dates Dec-2022 → Jul-2026, incl. the 2026 tenders recovered by the
-chittorgarh format fix), ₹2L, **unadjusted closes** (cloud price store; see correction note),
-residual sold 21 trading days after close. Re-run on GitHub Actions 2026-09-24:
+chittorgarh format fix), ₹2L, **unadjusted closes** (cloud price store), **entry at the last
+cum-entitlement close** (the session before the record date — see the 2026-09-24 correction
+note; the record date itself is ex-entitlement under T+1), residual sold 21 trading days after
+close. Re-run 2026-09-24 after the backtest review:
 
 | Scenario | Mean | Median | Win |
 |---|---|---|---|
-| Buyback premium vs entry | +23% | +21% | 99% |
-| Gross @ entitlement floor | +1.6% | **−0.2%** | 50% |
-| Gross @ 3× entitlement (high-acceptance) | +6.0% | **+4.9%** | 70% |
-| After-tax today's rules, 30% slab — floor | −1.2% | −1.9% | 41% |
-| After-tax today's rules, 30% slab — 3× | −0.1% | **−0.8%** | 42% |
-| After-tax today's rules, 20% slab — 3× | +4.0% | +3.8% | 69% |
-| After-tax today's rules, 0–5% slab — 3× | +10–12% | +10–12% | 83–84% |
+| Record-day (ex) close vs the cum entry | −2.9% | −2.7% | 11% |
+| Buyback premium vs entry | +19.6% | +18.1% | 99% |
+| Gross @ entitlement floor | −1.3% | **−2.3%** | 43% |
+| Gross @ 3× entitlement (high-acceptance) | +2.9% | **+3.0%** | 60% |
+| After-tax today's rules, 30% slab — floor | −3.7% | −3.8% | 32% |
+| After-tax today's rules, 30% slab — 3× | −2.7% | **−3.2%** | 34% |
+| After-tax today's rules, 20% slab — 3× | +1.3% | **+1.3%** | 57% |
+| After-tax today's rules, 5% / 0% slab — 3× | +7.3% / +9.3% | +8.2% / +8.9% | 67% / 73% |
 
-Blind tendering ≈ break-even; the money is in **selecting high-acceptance, high-premium
-small-caps** (the structural 15% small-shareholder reservation — barred to institutions —
-gives near-100% retail acceptance). **Since Oct-2024 the edge is also conditional on the
-tax slab:** payouts are taxed as dividend at slab, so at 30% the high-acceptance trade is
-~0 after tax; it works at ≤20% (low-income / family ₹2L accounts). The low-slab rows assume
-the accepted shares' cost is used as a capital loss **against other short-term gains** (credited
-at the 20% STCG rate in `after_tax_return`); without gains to offset, that benefit only
-carries forward. **Still the one signal worth building selection around — for the right account.**
+Blind tendering **loses** ~2% at the floor; the high-acceptance (3×) case earns ~+3% gross, which
+the Oct-2024 dividend tax turns into **−3% at a 30% slab, ~+1% at 20%, +8-9% at a ≤5% slab**.
+So the edge survives only for a **nil / 5%-slab ₹2L account** (family members without other
+income), and even there only on **selected high-acceptance, high-premium tenders** (the
+structural 15% small-shareholder reservation — barred to institutions — is what makes acceptance
+high). At 20% it is thin; at 30% it is negative. The low-slab rows assume the accepted shares'
+cost is used as a capital loss **against other short-term gains** (credited at the 20% STCG rate
+in `after_tax_return`); without gains to offset, that benefit only carries forward. **Still the
+one structural signal, but its actionable envelope is now narrow: the right account, the right
+tender.**
 
 *Realized acceptance (2026-09-24):* the post-buyback public announcements each company files on NSE
 carry the actual response table, and 24 of the 106 settled tenders since 2023 parse cleanly (65 are
@@ -83,8 +88,18 @@ store. Every reading holds: floor median +0.4% → −0.2%, 3× median +5.4% →
 median −1.5% → −0.8%, 20%-slab 3× +3.8% (unchanged). A new as-of market-cap cut at *floor*
 acceptance (small −1.4%, n=26 … large +6.1%, n=14) is not a test of the acceptance prior — small-caps
 earn through near-100% acceptance, which only logged outcomes can measure.
-*Evidence:* `evidence/buyback_arb/2026-09-24T073956Z` (Actions re-run, results + report); laptop
-event list `evidence/buyback_arb/2026-09-24` · sha 4f552e3.
+*Correction note (2026-09-24, backtest review — the one that changed the reading):* every earlier
+table entered at the **record-day close**. Under T+1 settlement (all stocks from 2023-01-27) the
+record date is the ex-date: a buyer must own the shares the session before, and the record-day
+close is an ex-entitlement price that already lacks the tender's value — stocks fall a median 2.7%
+that day (11% rise). The old tables therefore booked the entitlement's own value as premium.
+Entry is now `buyback.last_buy_close` (T+1: record −1 session; T+2: record −2). Effect on the
+medians: floor −0.2% → −2.3%; 3× +4.9% → +3.0%; 20%-slab 3× +3.8% → +1.3%; 30%-slab 3× −0.8% →
+−3.2%. The as-of market-cap cut at floor acceptance keeps its shape (small −6.2%, n=26 … large
++5.5%, n=14). Same lesson for every record-date study (demerger, rights, dividends).
+*Evidence:* pre-correction `evidence/buyback_arb/2026-09-24T073956Z` (Actions re-run); laptop
+event list `evidence/buyback_arb/2026-09-24` · sha 4f552e3; corrected run published from Actions
+after this commit (see `validation_runs`).
 
 ### 4. Stock-swap merger arb — THIN
 3 verified completed deals (HDFC, LTIMindtree, Shriram): announcement spreads +2.7/2.4/6.7%
@@ -95,17 +110,23 @@ why buybacks work.)
 
 ### 5. Index-rebalance front-run (NIFTY 50 / Next 50 reconstitution) — NULL
 Buy index additions / short deletions on the announcement, exit at the effective date.
-Event study over **151 verified NIFTY Next 50 clean entries/exits, 2018→2025** (announce +
+Event study over **149 verified NIFTY Next 50 clean entries/exits, 2018→2025** (announce +
 effective dates extracted verbatim from niftyindices.com press-release PDFs; promotion/
-relegation and ad-hoc/merger events excluded as confounded), benchmark-adjusted vs NIFTY:
+relegation and ad-hoc/merger events excluded as confounded; 2 events with a bonus/split inside
+the window dropped — see correction note), benchmark-adjusted vs NIFTY. `t` treats events as
+independent; `t_cl` clusters by review (16 reviews), since every event of a review shares dates:
 
 | Window | Adds (long) | Drops (short) | Combined |
 |---|---|---|---|
-| announce+1 → effective | +0.83% (t=0.5) | −0.12% (t=−0.1) | +0.36% (t=0.4) |
-| **effective−5 → effective** (forced-flow window) | −0.11% | −0.03% | **−0.07% (t=−0.1)** |
-| effective → effective+5 (reversal) | −0.38% | −1.54% (t=−2.4) | −0.95% (t=−2.0) |
+| announce+1 → effective | +1.88% (t=1.3, t_cl=1.5), median +1.0% | −0.12% (t=−0.1) | +0.88% (t=0.9, t_cl=0.9) |
+| **effective−5 → effective** (forced-flow window) | +0.06% | −0.03% | **+0.02% (t=0.0)** |
+| effective → effective+5 (reversal) | −0.01% | −1.54% (t=−2.4, t_cl=−2.0) | −0.77% (t=−1.8, t_cl=−2.1) |
 
 The front-run is **null** — even the tight window where funds are forced to trade is flat.
+*Correction note (2026-09-24, backtest review):* the original table (n=151, adds wide +0.83%)
+read unadjusted closes with no corporate-action guard; BEL's 2:1 bonus of 2022-09-15 sat inside
+its Sep-2022 add window and counted as −66%. `rebalance.drop_blocked` now removes such events
+(BEL, MOTHERSON). The adds wide mean roughly doubles but stays inside noise; nothing else moves.
 **Why:** NSE pre-announces reconstitutions ~4 weeks out, so the forced flow is *anticipated*
 and arbitraged before a public follower can act. The lone significant effect (deletions
 rebound post-effective) **failed segmentation**: the liquidity gradient runs opposite to the

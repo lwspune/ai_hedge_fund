@@ -240,6 +240,32 @@ the `prices` row floor (it doesn't — the floor is per-day).
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
+### ~~`buyback_arb` study entered at the record-day close (= ex-entitlement price)~~ — **DONE 2026-09-24** (entry moved to the last cum close via `buyback.last_buy_close`; CONCLUSIONS §3 re-tabled; verdict narrowed)
+
+**Learning (backtest review, 2026-09-24):** under T+1 settlement the record date is the ex-date;
+a buyer must own the shares the session before. `validate_buyback_arb.py` entered at the
+record-day close, and stocks drop a median ~2.5% that day (n=105), so the study booked the
+entitlement's own value as premium. Any record-date study (demerger, rights, dividend) has the
+same trap — the convention now lives in `last_buy_close` / `last_buy_date` and is what the
+demerger study must use.
+
+**360:**
+- *Scope:* the study script; CONCLUSIONS §3; the catalog verdict/summary; the live scan's
+  `is_open` (kept a tender in Act after its record date) + the alert text (no last buy day).
+- *Blast radius:* the primary signal's evidence; the Desk "Act" list; Telegram alerts.
+- *Does it really apply:* yes to every event (T+1 from 2023-01-27; T+2 two sessions before).
+- *Risk / reversibility:* re-run is read-only; text + verdict change; reversible.
+- *Cost:* small (pure helper + tests, one script line, scan flag, alert line).
+- *Recommendation:* **do** — done.
+
+### ~~`index_rebalance` study had no corporate-action guard (BEL 2:1 bonus inside its Sep-2022 window = −66%)~~ — **DONE 2026-09-24** (`rebalance.drop_blocked` in both scripts; CONCLUSIONS §5 re-tabled)
+
+**Learning:** the rebalance scripts read unadjusted nselib closes but, unlike every 2020+ study,
+never applied `blocking_action`. One bonus inside a wide window moved the adds mean by ~0.9pp.
+The tight (forced-flow) window was clean, so the null verdict stood; the published wide-window
+number was wrong. Also: events of one review share dates, so the iid t was overstated — the
+summary now carries a cluster-robust t (`summarize(..., clusters=)`).
+
 ### ~~`buyback_arb` validation compares a nominal buyback price to split-adjusted entry prices~~ — **DONE 2026-09-24** (re-run on unadjusted NSE closes, n=81; verdict holds, new tax-slab condition — CONCLUSIONS §3)
 
 **Learning:** yfinance closes are split/bonus-adjusted backwards, so any "premium vs a nominal
