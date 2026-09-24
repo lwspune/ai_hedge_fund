@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Fourteen signals validated this way; two actionable edges
+falsified signal is never read as edge. Fifteen signals validated this way; two actionable edges
 (buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -33,6 +33,7 @@ of untested ideas, ordered by the thesis.
 | `turn_of_month` | drift | **null** | documented control (2022-23 flicker, ~0 since) |
 | `promoter_sells` | drift | **null** | lens (sign flips every era) |
 | `pref_lockin` | structural | **null** | documented control (allottees aren't forced sellers) |
+| `ofs_retail` | structural | **thin** | watch (OFS 10% retail quota: ~+2% by T+1 at the floor, n=26, one era; cut-off unrecorded) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -137,8 +138,23 @@ drift-signal chasing.
     corporate_events `pref_lockin_expiry` (`scanner/prefissues.py`, daily 45-day window + backfill
     2023→; the listing XBRL gives each lock-in tranche — 6 m non-promoter / 18 m promoter — and the
     ICDR 6-m default is flagged; study `scripts/validate_pref_lockin.py`).
+  - **Buyback lifecycle (2026-09-24)** — `parse_buyback` keeps a **tender before its letter of offer**
+    (entitlement `None`, `issue_type='tender'`); the scan fills the floor from the small-holder float
+    (`entitlement_source='estimated'`, printed `31%~`) and treats no-close-date as OPEN — the record
+    date is when you must buy, and chittorgarh's ratio only arrives after it (Global Pet id 248 was
+    invisible the day before its record date). Market cap comes from `company_snapshot` when < 14 d
+    old (`market_cap_for`), else screener. **Realized acceptance**: `scanner/buyback_results.py` solves
+    the response table of each NSE *Post Buyback Public Announcement* (per-symbol
+    `api/corporate-announcements`, reaches 2023) by arithmetic consistency (reserved × response % =
+    tendered; column order and OCR noise vary) → `buyback_results` (`ss_acceptance`; `needs_manual`
+    rows are newspaper scans → `python -m scanner.track result --buyback-id … --ss-reserved … --ss-tendered …`).
+    `scripts/refresh_buyback_results.py [--all] [--retry-manual]` (daily, after the scan);
+    `python -m scanner.calibrate` compares realized acceptance with `_MCAP_ACCEPTANCE_PRIOR`.
+  - **OFS events (#23)** — `scanner/ofs.py` → `ofs_events` (chittorgarh `/ofs/x/<id>/`, 2025→: floor,
+    both days, share split, seller; cut-off is never populated there). `scripts/refresh_ofs.py`
+    (daily id probe) · `scripts/validate_ofs_retail.py` · live `python -m scanner.run ofs_retail`.
   - **Filings (F1-F3)** — `scanner/filings.py` → `filings` (NSE corporate announcements, material
-    categories only, PDF link; `scripts/refresh_filings.py`, daily). F2 analysis
+    categories only + the buyback lifecycle categories, PDF link; `scripts/refresh_filings.py`, daily). F2 analysis
     (`docs/FILINGS_KPI_ANALYSIS.md`) chose what to extract; `scanner/kpis.py` rule_v1 extracts
     order book, order-win value, current capacity utilisation and guidance *quotes* from filing
     PDFs (PyMuPDF text; every value keeps its exact quote + source filing) → `company_kpis`
@@ -217,7 +233,9 @@ actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_pr
 `scripts/refill_deals.py --from` · `scripts/archive_filings.py` · `scripts/backfill_orphans.py` ·
 `scripts/refresh_shareholding.py [--symbols] [--per-symbol N] [--xbrl-limit N]` · `scripts/refresh_insider.py
 [--from --to | --all]` · `scripts/refresh_surveillance.py` · `scripts/refresh_prefissues.py [--from --to]` ·
-`scripts/rebuild_snapshot_history.py` (no re-scrape). Validations: `scripts/validate_*.py
+`scripts/rebuild_snapshot_history.py` (no re-scrape) · `scripts/refresh_buyback_results.py [--all]
+[--retry-manual]` · `scripts/refresh_ofs.py [--from 1]` · `python -m scanner.calibrate` ·
+`python -m scanner.track results|result`. Validations: `scripts/validate_*.py
 [--exclude-results-window N] [--publish]`.
 
 ## Stack
@@ -326,6 +344,23 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   allottees. Thesis refined, not broken.
 - **2026-09-24** — BSE JSON stays out: 403 from GitHub runners (works only residential). *Reason:*
   the laptop must never be a dependency; delisting RBB remains parked.
+
+- **2026-09-24** — A tender buyback is kept in the scan **before its letter of offer** (entitlement
+  unknown → estimated from the small-holder float, OPEN until a close date exists). *Reason:* the
+  ratio chittorgarh publishes arrives after the record date, i.e. after the only moment a buyer can
+  act; the old rule hid Global Pet (record date T+1) and a live VRL Logistics tender.
+- **2026-09-24** — Realized small-shareholder acceptance is read from NSE *Post Buyback Public
+  Announcements* by **arithmetic solving** (reserved × response% = tendered), not fixed columns.
+  *Reason:* the SEBI table's column order, wording and OCR quality vary per registrar; a pair that
+  fails the arithmetic is dropped rather than stored. Newspaper-scan PDFs (≈60%) stay
+  `needs_manual`; no OCR dependency in CI.
+- **2026-09-24** — Acceptance prior is **flat 45%** (was 90% small-cap → 12% large-cap). *Reason:* 24
+  published response tables show ~50% in every cap bucket (median 42%); the gradient was invented.
+  Re-fit only via `scanner.calibrate` on more parsed/hand-entered results; the premium→acceptance
+  link is the open question.
+- **2026-09-24** — `ofs_retail` (#23) validated **thin / watch** (n=26, 2025-26, T+1 vs floor +1.9%
+  median). *Reason:* a reservation exists but the clearing price is not the floor when the book is
+  oversubscribed, and the source has no cut-off; one-day capital ≤ ₹2 lakh. Not a trade.
 
 - **2026-09-24** — Telegram alerts for **new Act candidates only** (no digest, no failure pings —
   GitHub already emails those). Every open buyback alerts (not gated on `exp_return`): the verdict is

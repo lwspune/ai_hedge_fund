@@ -62,6 +62,17 @@ the accepted shares' cost is used as a capital loss **against other short-term g
 at the 20% STCG rate in `after_tax_return`); without gains to offset, that benefit only
 carries forward. **Still the one signal worth building selection around — for the right account.**
 
+*Realized acceptance (2026-09-24):* the post-buyback public announcements each company files on NSE
+carry the actual response table, and 24 of the 106 settled tenders since 2023 parse cleanly (65 are
+newspaper scans awaiting hand entry, 17 not yet announced). **Small-shareholder acceptance is ~50%
+flat across market-cap buckets** — 52% (small, n=9), 59% (small/mid, n=8), 16% (mid, n=2), 51%
+(large, n=5); median 42%, range 6% (Symphony) to 100% (IITL, Triveni, SIS-2025, Weizmann). The
+"small-caps ≈ 90%, large-caps ≈ 12%" prior the selection model used was a guess in both directions
+and is retired for a flat 45%. Practical reading: the "3×" high-acceptance case above is the
+*top half* of tenders, not a small-cap property; the six 2026 tenders hint that a bigger premium
+draws more retail tendering (Go Colors 19% premium → 23% accepted; IITL 1.6% → 100%), which is the
+next calibration question. (`scanner/buyback_results.py`, `python -m scanner.calibrate`.)
+
 *Correction note (2026-09-24):* the original table (n=48: floor median −0.1%, 3× median
 +6.4%, 3× mean +23%) used yfinance closes, which are back-adjusted for later splits/bonuses
 while the buyback price is nominal (SPORTKING's 1:10 split showed as a "+1282%" premium),
@@ -295,6 +306,31 @@ windows dropped, mcap as of the event. Run on Actions.
 (`scanner/prefissues.py`, `scripts/validate_pref_lockin.py`.) *Evidence:*
 `evidence/pref_lockin/2026-09-24T092623Z` (Actions).
 
+### 15. Offer-for-sale retail quota (#23) — THIN (watch)
+An OFS reserves 10% for retail bids (≤ ₹2 lakh) on day 2, at or above a floor the non-retail book
+priced on day 1 — a reservation only retail can use, so the thesis says measure it. 45 OFS from
+chittorgarh `/ofs/x/<id>/` (Jan-2025 →, the page's coverage floor), 34 priced from the cloud store,
+everything vs the **floor** (the cut-off price is not on the page; an oversubscribed book clears
+above the floor, so these numbers are an upper bound on the retail leg).
+
+| vs floor | all (n=34) | floor within 15% of pre-close (n=26) | PSU (n=14) | private (n=12) |
+|---|---|---|---|---|
+| floor discount to pre-close | −8.0% median | −7.9% | −8.0% | −7.7% |
+| retail-day close | +3.4% | +2.7% (88% up, t=3.6) | +1.5% | +4.7% |
+| **T+1 (allotment, first sellable)** | +3.0% | **+1.9% median, +1.6% net, 69% up, t=2.3** | +1.1% | +3.8% |
+| T+20 | +4.5% | +4.1% (t=1.5) | +4.1% | +3.3% |
+
+- The pooled +3% is carried by floors set 20-40% below the market (Wendt, Eimco Elecon, HMA Agro):
+  those books clearly cleared far above the floor, so the floor-based return is fiction. The
+  robust cut (floor within 15%) is the honest read: **~+2% by T+1**, ~1.6% after costs.
+- One era (2025-26, chittorgarh has nothing earlier), n=26, one-day capital, ≤ ₹2 lakh, and the
+  retail allotment is pro-rata when the quota is oversubscribed. A PSU retail discount (when DIPAM
+  grants one) is unrecorded and would add to the PSU rows.
+- **Verdict: thin / watch.** Bid at the floor only in a name you would hold anyway; not a trade
+  on its own. Re-test when n doubles and if a cut-off source appears.
+(`scanner/ofs.py`, `scripts/refresh_ofs.py`, `scripts/validate_ofs_retail.py`, live screen
+`python -m scanner.run ofs_retail`.) *Evidence:* `evidence/ofs_retail/2026-09-24T110239Z`.
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -304,8 +340,8 @@ windows dropped, mcap as of the event. Run on Actions.
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
 ## The tally (2026-09-24)
-Fourteen signals validated: 2 actionable (`buyback_arb` conditional edge, `rights_re` conditional
-watch), 1 real-but-unshortable lens (`lockin_expiry`), 1 thin (`merger_arb`), 10 null
+Fifteen signals validated: 2 actionable (`buyback_arb` conditional edge, `rights_re` conditional
+watch), 1 real-but-unshortable lens (`lockin_expiry`), 2 thin (`merger_arb`, `ofs_retail`), 10 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
 order_wins, turn_of_month, promoter_sells, pref_lockin).
 

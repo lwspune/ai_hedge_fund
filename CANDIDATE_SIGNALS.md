@@ -8,7 +8,7 @@ Untested signals to validate **one by one** through the event-study harness
 > Forced-flow / reservation / supply-overhang events → the only place to *expect* edge.
 
 Already validated (don't re-test): `buyback_arb` (conditional edge), `merger_arb` (thin),
-`mean_reversion` (null), `smart_money_deals` (null), `open_offer_arb` (null). See `CONCLUSIONS.md`.
+`mean_reversion` (null), `smart_money_deals` (null), `open_offer_arb` (null), `ofs_retail` (thin, #23). See `CONCLUSIONS.md`.
 
 **Legend** — Bucket: 🟢 structural/forced-flow (test first) · 🟡 event/over-reaction · 🔵 spread · ⚪ drift/calendar (cheap, expect null).
 Data: ✅ reachable on our free stack · ⚠️ partially (gated/manual) · ❌ blocked.
@@ -29,6 +29,7 @@ Prior = honest expectation before testing.
 
 | 20 | ~~**Preferential-allotment lock-in expiry**~~ **TESTED → NULL (2026-09-24).** n=1,394 tranches 2023-26: 6-month event T-1→T+2 −0.24% (t=−1.2) = same-stock placebo; 18-month promoter tranches −0.63% (t=−2.1, inside costs); no recovery leg. Pref allottees are strategic holders, not forced sellers — the anchor-unlock mechanism needs a holder who must exit. `CONCLUSIONS.md` §14. | 🟢 | ✅ done | ~~real dip likely~~ → **null** | — |
 | 21 | **Pledge invocation → forced sale** — a lender invoking pledged promoter shares sells into the market; no pre-announcement, nobody can front-run, retail can buy the dip. | 🟢 | ⚠️ PIT forward feed only (`insider_trades` txn_type Pledge/Invocation, from May-2026) | dip real, rebound unknown | Event study at disclosure once ≥ ~50 invocations accrue; contrast with pledge release (#8). |
+| 23 | ~~**OFS retail quota**~~ — 10% of every offer for sale reserved for retail bids (≤ ₹2 lakh) at/above the floor set by the non-retail book the day before. **TESTED → THIN (2026-09-24).** n=26 floors within 15% of the pre-close (2025-26): T+1 close vs floor +1.9% median (+1.6% net, 69% up, t=2.3); the pooled +3% is floors set 20-40% below market whose books cleared far above the floor (cut-off unrecorded). One era, one-day capital, pro-rata allotment. Watch: bid at the floor only in a name you want. `CONCLUSIONS.md` §15. | 🟢 | ✅ chittorgarh `/ofs/x/<id>/` (2025→) | ~~reservation → edge~~ → **thin** | — |
 
 ## Tier 2 — Corporate-action over-reaction (retail behavioural, mixed priors)
 
