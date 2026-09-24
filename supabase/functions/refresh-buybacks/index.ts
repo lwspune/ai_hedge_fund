@@ -1,4 +1,4 @@
-// Supabase Edge Function: refresh-buybacks (v2: 2026 chittorgarh wording — ratio table, "Buyback Price N per share")
+// Supabase Edge Function: refresh-buybacks (v3: writes via rpc upsert_buybacks — keeps manual tendered/skipped; v2: 2026 chittorgarh wording)
 // Discovers current tender buybacks by probing chittorgarh ids upward from the stored
 // frontier (gap-stop), regex-parsing each page (no pandas needed — all fields are in the
 // text), pricing via Yahoo, and upserting the buyback master. The richer acceptance/exp
@@ -125,7 +125,8 @@ Deno.serve(async (req) => {
       rows.push({ ...bb, est_return, status });
     }
     if (rows.length) {
-      const { error } = await supa.from("buybacks").upsert(rows, { onConflict: "chittorgarh_id" });
+      // via the RPC: it derives open/settled and never overwrites a manual tendered/skipped
+      const { error } = await supa.rpc("upsert_buybacks", { p_rows: rows });
       if (error) throw error;
     }
     return new Response(

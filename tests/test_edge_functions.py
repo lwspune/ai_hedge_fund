@@ -42,3 +42,10 @@ def test_refresh_buybacks_ts_parser_matches_python(bid):
     assert ts["close_date"] == py["close_date"].date().isoformat()
     assert ts["entitlement_small"] == pytest.approx(py["entitlement_small"])
     assert ts["issue_size_cr"] == pytest.approx(py["issue_size_cr"])
+
+
+def test_refresh_buybacks_writes_through_the_status_guarding_rpc():
+    """A direct upsert would overwrite a manual 'tendered'/'skipped' status."""
+    src = (ROOT / "supabase" / "functions" / "refresh-buybacks" / "index.ts").read_text(encoding="utf-8")
+    assert 'rpc("upsert_buybacks"' in src
+    assert '.from("buybacks").upsert' not in src

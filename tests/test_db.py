@@ -121,3 +121,40 @@ def test_insert_ignore_duplicates_sets_prefer(monkeypatch):
     db.insert("t", [{"a": 1}], on_conflict="a", return_rows=False, ignore_duplicates=True)
     assert "resolution=ignore-duplicates" in seen["headers"]["Prefer"]
     assert seen["params"] == {"on_conflict": "a"}
+
+
+# --- buybacks.status: derived from the window, never overwrites the manual lifecycle ---------
+
+def test_buyback_status_from_close_date():
+    today = date(2026, 9, 24)
+    assert db.buyback_status(date(2026, 9, 30), today) == "open"
+    assert db.buyback_status(date(2026, 9, 24), today) == "open"       # last day still open
+    assert db.buyback_status(date(2026, 9, 17), today) == "settled"
+    assert db.buyback_status(None, today) == "open"                     # timetable not out yet
+
+
+def test_buyback_row_carries_derived_status():
+    r = db.buyback_row({"id": 1, "close_date": date(2026, 9, 17)}, today=date(2026, 9, 24))
+    assert r["status"] == "settled"
+
+
+def test_upsert_buybacks_goes_through_the_guarded_rpc(monkeypatch):
+    """A plain upsert would overwrite 'tendered'/'skipped'; the RPC keeps them."""
+    calls = []
+    monkeypatch.setattr(db, "rpc", lambda fn, args, params=None: calls.append((fn, args)) or 1)
+    monkeypatch.setattr(db, "insert", lambda *a, **k: pytest.fail("no direct upsert"))
+    db.upsert_buybacks([{"id": 7, "symbol": "X", "close_date": date(2026, 9, 17)}])
+    fn, args = calls[0]
+    assert fn == "upsert_buybacks" and args["p_rows"][0]["chittorgarh_id"] == 7
+    assert args["p_rows"][0]["status"] == "settled"
+
+
+def test_record_tender_marks_the_buyback_tendered(monkeypatch):
+    updates = []
+    monkeypatch.setattr(db, "insert", lambda table, rows, **k: [{"id": 5, **rows}])
+    monkeypatch.setattr(db, "update", lambda table, filters, values: updates.append((table, filters, values)))
+    db.record_tender(42, date(2026, 9, 20), shares_bought=100)
+    assert updates == [("buybacks", {"id": "eq.42"}, {"status": "tendered"})]
+    updates.clear()
+    db.record_tender(42, date(2026, 9, 20), tendered=False)   # bought but didn't tender: no lifecycle change
+    assert updates == []

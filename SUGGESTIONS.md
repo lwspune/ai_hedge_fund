@@ -248,7 +248,7 @@ floor acceptance is not how small-caps earn (their edge is near-100% acceptance)
 not test the prior; outcome data still does. **Decision needed:** update §3's table to n=101?
 Verdict reading unchanged (blind ≈ break-even; selection + low slab).
 
-### `buybacks.status` is wrong for scan-discovered rows — **OPEN (360 below)**
+### ~~`buybacks.status` is wrong for scan-discovered rows~~ — **DONE 2026-09-24** (RPC `upsert_buybacks` derives open/settled, keeps tendered/skipped, settles closed windows; both writers use it; `record_tender` marks `tendered`; 23 rows corrected; status check constraint)
 
 **Learning (WP1 browser check):** the Python scan upserts buybacks without `status`, so every row it
 creates keeps the default `'open'` — the Data → Buybacks view lists all 23 closed 2026 tenders as

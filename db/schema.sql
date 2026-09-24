@@ -566,3 +566,43 @@ on conflict (id) do nothing;
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('filings', 'filings', false, 52428800)
 on conflict (id) do nothing;
+
+-- ============================================================================
+-- buybacks.status: 'open'/'settled' derived from close_date by every write; 'tendered'/'skipped'
+-- are the manual lifecycle (scanner.track) and are never overwritten by a scan. Both writers
+-- (scanner.run buyback_arb --save, edge fn refresh-buybacks) go through this RPC.
+-- ============================================================================
+alter table buybacks add constraint buybacks_status_check
+  check (status in ('open','tendered','settled','skipped'));
+
+create or replace function public.upsert_buybacks(p_rows jsonb)
+returns integer
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare n integer;
+begin
+  insert into buybacks (chittorgarh_id, company, symbol, buyback_price, record_date, close_date,
+                        entitlement_small, issue_size_cr, est_return, status)
+  select chittorgarh_id, company, symbol, buyback_price, record_date, close_date,
+         entitlement_small, issue_size_cr, est_return,
+         case when close_date is not null and close_date < current_date then 'settled' else 'open' end
+  from jsonb_populate_recordset(null::buybacks, p_rows)
+  on conflict (chittorgarh_id) do update set
+    company = excluded.company, symbol = excluded.symbol, buyback_price = excluded.buyback_price,
+    record_date = excluded.record_date, close_date = excluded.close_date,
+    entitlement_small = excluded.entitlement_small, issue_size_cr = excluded.issue_size_cr,
+    est_return = excluded.est_return,
+    -- the manual lifecycle (scanner.track) is never overwritten by a scan
+    status = case when buybacks.status in ('tendered','skipped') then buybacks.status
+                  else excluded.status end,
+    updated_at = now();
+  get diagnostics n = row_count;
+  -- windows that closed since the row was last written (the scan only re-reads recent ids)
+  update buybacks set status = 'settled', updated_at = now()
+   where status = 'open' and close_date < current_date;
+  return n;
+end $$;
+revoke execute on function public.upsert_buybacks(jsonb) from public, anon, authenticated;
+grant execute on function public.upsert_buybacks(jsonb) to service_role;

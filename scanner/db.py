@@ -65,13 +65,25 @@ def candidate_row(run_id, signal_name, symbol, score=None, payload=None) -> dict
             "score": score, "payload": payload or {}}
 
 
-def buyback_row(bb: dict, est_return=None) -> dict:
+def buyback_status(close_date, today=None) -> str:
+    """Window status: 'open' through the closing date (or while it isn't published), then
+    'settled'. The manual lifecycle ('tendered' / 'skipped') is never derived here — the
+    upsert_buybacks RPC keeps it."""
+    from datetime import date as _date
+    import pandas as pd
+    if close_date is None or pd.isna(close_date):
+        return "open"
+    return "open" if pd.Timestamp(close_date).date() >= (today or _date.today()) else "settled"
+
+
+def buyback_row(bb: dict, est_return=None, today=None) -> dict:
     return {"chittorgarh_id": bb.get("id"), "company": bb.get("company"),
             "symbol": bb.get("symbol"), "buyback_price": bb.get("buyback_price"),
             "record_date": _iso(bb.get("record_date")), "close_date": _iso(bb.get("close_date")),
             "entitlement_small": bb.get("entitlement_small"),
             "issue_size_cr": bb.get("issue_size_cr"),
-            "est_return": est_return if est_return is not None else bb.get("est_return")}
+            "est_return": est_return if est_return is not None else bb.get("est_return"),
+            "status": buyback_status(bb.get("close_date"), today)}
 
 
 def tender_row(buyback_id, decided_on, shares_bought=None, avg_cost=None,
@@ -229,15 +241,21 @@ def log_scan(signal_name: str, verdict: str, candidates: list[dict] | None = Non
     return rid
 
 
-def upsert_buybacks(buybacks: list[dict]) -> list[dict]:
-    """Upsert buyback masters (idempotent on chittorgarh_id)."""
+def upsert_buybacks(buybacks: list[dict]):
+    """Upsert buyback masters (idempotent on chittorgarh_id) through the `upsert_buybacks` RPC,
+    which keeps a manual 'tendered'/'skipped' status and settles closed windows. Returns the
+    number of rows written."""
     rows = [bb if "chittorgarh_id" in bb else buyback_row(bb, bb.get("est_return"))
             for bb in buybacks]
-    return insert("buybacks", rows, on_conflict="chittorgarh_id")
+    return rpc("upsert_buybacks", {"p_rows": rows})
 
 
 def record_tender(buyback_id, decided_on, **kw) -> dict:
-    return insert("tenders", tender_row(buyback_id, decided_on, **kw))[0]
+    """Log a tender decision; a tendered one also moves the buyback's lifecycle to 'tendered'."""
+    row = insert("tenders", tender_row(buyback_id, decided_on, **kw))[0]
+    if kw.get("tendered", True):
+        update("buybacks", {"id": f"eq.{buyback_id}"}, {"status": "tendered"})
+    return row
 
 
 def record_outcome(tender_id, **kw) -> dict:
