@@ -134,6 +134,23 @@ def upsert_resilient(table: str, rows: list[dict], on_conflict: str):
         return good, bad
 
 
+def _total(content_range: str | None) -> int | None:
+    """Row total from a PostgREST Content-Range header ("0-0/3155", "*/0")."""
+    if not content_range or "/" not in content_range:
+        return None
+    tail = content_range.rsplit("/", 1)[1]
+    return int(tail) if tail.isdigit() else None
+
+
+def count(table: str, params: dict | None = None) -> int | None:
+    """Exact row count for PostgREST filters, without fetching the rows."""
+    url, key = config()
+    r = requests.get(f"{url}/rest/v1/{table}", headers=_headers(key, "count=exact"),
+                     params={**(params or {}), "select": "*", "limit": "1"}, timeout=30)
+    _check(r)
+    return _total(r.headers.get("Content-Range"))
+
+
 def select_all(table: str, params: dict | None = None, page: int = 1000) -> list[dict]:
     """`select` paged past PostgREST's max-rows cap (1000)."""
     out, off = [], 0

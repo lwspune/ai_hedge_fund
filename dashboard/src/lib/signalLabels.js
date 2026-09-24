@@ -13,6 +13,7 @@ const SIGNALS = {
   index_rebalance: ['Index rebalance front-run', 'Pre-announced flow is arbitraged before you can act (n=151)'],
   fno_ban: ['F&O ban reversal', 'n=920 episodes, no reversal at any window'],
   promoter_buying: ['Promoter open-market buying', 'Worked 2020–23, gone 2024–26'],
+  order_wins: ['Order wins', 'Priced on announcement day (+0.9%); follower +20d ≈ control'],
 }
 
 const ROLES = { primary: 'Trade', watch: 'Watch', lens: 'Lens', documented: 'Control' }

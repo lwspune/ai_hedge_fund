@@ -1,7 +1,13 @@
-"""The freshness check: every table's newest row must be within its expected cadence."""
+"""The freshness check: every table's newest row must be within its expected cadence, windows
+must hold a minimum row volume, the buyback frontier must keep advancing, the DB must fit."""
+import re
 from datetime import date
+from pathlib import Path
 
-from scripts.check_freshness import RULES, stale
+from scripts.check_freshness import (FLOORS, RULES, db_size_status, frontier_stuck, stale,
+                                     too_thin, window_start)
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_stale_flags_old_and_missing_tables_only():
@@ -18,4 +24,69 @@ def test_stale_flags_old_and_missing_tables_only():
 
 def test_rules_cover_the_scheduled_tables():
     assert set(RULES) >= {"deals", "corporate_actions", "ipo_listings", "companies", "fundamentals",
-                          "filings"}
+                          "filings", "fo_ban", "rights_issues", "kpis", "scans_buyback_arb",
+                          "scans_rights_re", "buyback_frontier"}
+
+
+def test_too_thin_flags_windows_under_their_floor():
+    floors = {"deals": 40, "filings": 300, "companies": 2500}
+    counts = {"deals": 39, "filings": 300, "companies": None}
+    assert too_thin(counts, floors) == [("deals", 39, 40), ("companies", None, 2500)]
+
+
+def test_floors_are_positive_and_named_like_rules():
+    for name, spec in FLOORS.items():
+        assert spec["min"] > 0, name
+
+
+def test_window_start_counts_back_weekdays():
+    # Thu 2026-09-24: 3 trading days = Tue, Wed, Thu -> window starts Tue 22nd
+    assert window_start(date(2026, 9, 24), 3) == date(2026, 9, 22)
+    # Mon 2026-09-28: Thu, Fri, Mon -> starts Thu 24th (weekend skipped)
+    assert window_start(date(2026, 9, 28), 3) == date(2026, 9, 24)
+
+
+def test_window_start_skips_holidays():
+    hol = {date(2026, 9, 23)}
+    assert window_start(date(2026, 9, 24), 3, holidays=hol) == date(2026, 9, 21)
+
+
+def test_frontier_stuck_by_age():
+    today = date(2026, 9, 24)
+    assert frontier_stuck(date(2026, 7, 1), {}, today, max_days=60)            # 85 days
+    assert not frontier_stuck(date(2026, 8, 1), {}, today, max_days=60)
+
+
+def test_frontier_stuck_when_pages_seen_but_nothing_parses():
+    """The WP1 failure: pages exist, every one rejected — a format change, not a quiet market."""
+    today = date(2026, 9, 24)
+    fresh = date(2026, 9, 20)
+    assert frontier_stuck(fresh, {"pages_seen": 12, "tender_parsed": 0}, today, 60)
+    assert not frontier_stuck(fresh, {"pages_seen": 4, "tender_parsed": 0}, today, 60)
+    assert not frontier_stuck(fresh, {"pages_seen": 30, "tender_parsed": 3}, today, 60)
+    assert frontier_stuck(None, {}, today, 60)
+
+
+def test_db_size_status():
+    mb = 1024 * 1024
+    assert db_size_status(250 * mb) == "ok"
+    assert db_size_status(301 * mb) == "warn"
+    assert db_size_status(401 * mb) == "fail"
+    assert db_size_status(None) == "fail"
+
+
+def _schema_tables_with_dates():
+    sql = (ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
+    out = set()
+    for m in re.finditer(r"create table if not exists (\w+)\s*\((.*?)\n\);", sql, re.S | re.I):
+        if re.search(r"\b(date|timestamptz)\b", m.group(2)):
+            out.add(m.group(1))
+    return out
+
+
+def test_every_dated_table_has_a_rule():
+    from scripts.check_freshness import QUERIES
+    covered = {q[0] for q in QUERIES.values()} | {f["table"] for f in FLOORS.values()}
+    allow = {"tenders", "outcomes", "symbol_changes", "candidates"}  # manual / written with scan_runs
+    missing = _schema_tables_with_dates() - covered - allow
+    assert not missing, f"tables with no freshness rule: {missing}"

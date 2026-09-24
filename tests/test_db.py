@@ -92,3 +92,10 @@ def test_upsert_resilient_keeps_good_rows_when_one_is_rejected(monkeypatch):
     assert [r["symbol"] for r in good] == ["A", "C"] == [r["symbol"] for r in stored]
     assert [r["symbol"] for r, _ in rejected] == ["BAD"] and "foreign key" in rejected[0][1]
     assert db.upsert_resilient("t", [], "symbol") == ([], [])
+
+
+def test_total_from_content_range():
+    from scanner.db import _total
+    assert _total("0-0/3155") == 3155
+    assert _total("*/0") == 0
+    assert _total(None) is None

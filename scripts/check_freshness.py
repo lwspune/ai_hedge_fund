@@ -1,31 +1,71 @@
 """Data-freshness check — the last step of the scheduled refresh workflows.
 
 A loader can "succeed" while writing nothing (a source changes its format), so GitHub's
-failure email alone misses silent staleness. This checks each table's newest row against its
-expected cadence and exits non-zero if any is stale -> the run fails -> GitHub emails.
+failure email alone misses silent staleness. Four kinds of rule, any failure exits non-zero ->
+the run fails -> GitHub emails:
+
+  age       newest row of each table within its cadence (QUERIES)
+  floor     a recent window holds a minimum row volume (FLOORS) — catches a loader that
+            writes one row and drops the rest
+  frontier  the buyback id frontier keeps advancing, and a scan that sees pages but parses
+            none fails (the 2026 chittorgarh format change went unnoticed for nine months)
+  db size   Postgres stays inside the 500 MB free tier (warn > 300 MB, fail > 400 MB)
 
     python scripts/check_freshness.py
 """
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# name -> (table, date column, extra PostgREST filters, max age in calendar days)
-QUERIES = {
-    "deals": ("market_deals", "deal_date", {}, 6),                       # daily, weekends + a holiday
-    "corporate_actions": ("corporate_events", "event_date",
-                          {"source": "eq.nse_ca", "event_date": f"lte.{date.today()}"}, 7),
-    "ipo_listings": ("ipos", "listing_date", {"listing_date": f"lte.{date.today()}"}, 14),
-    "companies": ("companies", "updated_at", {}, 8),                     # weekly refresh
-    "fundamentals": ("company_snapshot", "fetched_at", {}, 8),           # weekly refresh
-    "filings": ("filings", "disclosed_at", {}, 5),                       # ~500 filings / trading day
-}
+MB = 1024 * 1024
+DB_WARN_BYTES, DB_FAIL_BYTES = 300 * MB, 400 * MB
+FRONTIER_MAX_DAYS = 60
+FRONTIER_MIN_PAGES = 10   # a scan that saw this many pages and parsed none = format change
+
+
+def queries(today: date) -> dict:
+    """name -> (table, date column, extra PostgREST filters, max age in calendar days)."""
+    return {
+        "deals": ("market_deals", "deal_date", {}, 6),                    # daily, weekends + a holiday
+        "corporate_actions": ("corporate_events", "event_date",
+                              {"source": "eq.nse_ca", "event_date": f"lte.{today}"}, 7),
+        "fo_ban": ("corporate_events", "created_at", {"source": "eq.nse_fo"}, 6),  # can be empty: age only
+        "ipo_listings": ("ipos", "listing_date", {"listing_date": f"lte.{today}"}, 14),
+        "rights_issues": ("rights_issues", "updated_at", {}, 10),
+        "companies": ("companies", "updated_at", {}, 8),                  # weekly refresh
+        "fundamentals": ("company_snapshot", "fetched_at", {}, 8),        # weekly refresh
+        "filings": ("filings", "disclosed_at", {}, 5),                    # ~500 filings / trading day
+        "kpis": ("company_kpis", "created_at", {}, 5),
+        "scans_buyback_arb": ("scan_runs", "run_at", {"signal_name": "eq.buyback_arb"}, 3),
+        "scans_rights_re": ("scan_runs", "run_at", {"signal_name": "eq.rights_re"}, 3),
+        # evaluated by frontier_stuck(), not stale(): a new buyback row = the frontier advanced
+        "buyback_frontier": ("buybacks", "created_at", {}, FRONTIER_MAX_DAYS),
+    }
+
+
+QUERIES = queries(date.today())
 RULES = {name: q[3] for name, q in QUERIES.items()}
 
+# name -> window volume floor. `days` = trading days back from today (None = whole table).
+# Floors sit well under the live 2nd-percentile volume (measured 2026-09-24) so they only
+# fire on a real loader failure, not a quiet week.
+FLOORS = {
+    "deals": {"table": "market_deals", "col": "deal_date", "filters": {}, "days": 3, "min": 40},
+    "corporate_actions": {"table": "corporate_events", "col": "event_date",
+                          "filters": {"source": "eq.nse_ca"}, "days": 21, "min": 20},
+    "companies_listed": {"table": "companies", "col": None,
+                         "filters": {"status": "eq.listed"}, "days": None, "min": 2500},
+    "fundamentals": {"table": "company_snapshot", "col": "fetched_at", "filters": {},
+                     "days": 6, "min": 2000},
+    "filings": {"table": "filings", "col": "disclosed_at", "filters": {}, "days": 3, "min": 300},
+}
+
+
+# --- pure rules ---------------------------------------------------------------
 
 def stale(latest: dict, rules: dict, today: date) -> list[tuple]:
     """[(name, newest_date, age_days, max_age)] for every table older than its rule (or empty)."""
@@ -39,26 +79,111 @@ def stale(latest: dict, rules: dict, today: date) -> list[tuple]:
     return out
 
 
-def _newest(table: str, col: str, filters: dict):
-    from scanner import db
-    rows = db.select(table, {"select": col, **filters, "order": f"{col}.desc.nullslast", "limit": "1"})
-    if not rows or rows[0][col] is None:
+def too_thin(counts: dict, floors: dict) -> list[tuple]:
+    """[(name, n, floor)] for every window whose row count is under its floor (None = failed)."""
+    return [(name, counts.get(name), floor) for name, floor in floors.items()
+            if counts.get(name) is None or counts[name] < floor]
+
+
+def window_start(today: date, n_trading: int, holidays=frozenset()) -> date:
+    """First day of the window holding the last `n_trading` trading days up to today
+    (weekends and `holidays` skipped)."""
+    d, seen = today, 0
+    while True:
+        if d.weekday() < 5 and d not in holidays:
+            seen += 1
+            if seen == n_trading:
+                return d
+        d -= timedelta(days=1)
+
+
+def frontier_stuck(last_advance: date | None, scan_params: dict, today: date,
+                   max_days: int = FRONTIER_MAX_DAYS) -> str | None:
+    """Why the buyback frontier looks stuck, or None if it's healthy."""
+    if last_advance is None:
+        return "no buyback rows"
+    if (today - last_advance).days > max_days:
+        return f"no new buyback for {(today - last_advance).days}d > {max_days}d"
+    seen, parsed = scan_params.get("pages_seen") or 0, scan_params.get("tender_parsed")
+    if seen >= FRONTIER_MIN_PAGES and parsed == 0:
+        return f"last scan saw {seen} pages and parsed 0 tenders (page format changed?)"
+    return None
+
+
+def db_size_status(n_bytes: int | None) -> str:
+    if n_bytes is None or n_bytes > DB_FAIL_BYTES:
+        return "fail"
+    return "warn" if n_bytes > DB_WARN_BYTES else "ok"
+
+
+# --- thin I/O -------------------------------------------------------------------
+
+def _as_date(v):
+    if v is None:
         return None
-    v = rows[0][col]
     return datetime.fromisoformat(v.replace("Z", "+00:00")).date() if "T" in v else date.fromisoformat(v)
 
 
+def _newest(table: str, col: str, filters: dict):
+    from scanner import db
+    rows = db.select(table, {"select": col, **filters, "order": f"{col}.desc.nullslast", "limit": "1"})
+    return _as_date(rows[0][col]) if rows else None
+
+
+def _window_count(spec: dict, today: date):
+    from scanner import db
+    params = dict(spec["filters"])
+    if spec["days"]:
+        params[spec["col"]] = f"gte.{window_start(today, spec['days'])}"
+    try:
+        return db.count(spec["table"], params)
+    except Exception as e:
+        print(f"  count failed for {spec['table']}: {e}")
+        return None
+
+
+def _last_scan_params() -> dict:
+    from scanner import db
+    rows = db.select("scan_runs", {"select": "params", "signal_name": "eq.buyback_arb",
+                                   "order": "run_at.desc", "limit": "1"})
+    return (rows[0].get("params") or {}) if rows else {}
+
+
 def main():
+    from scanner import db
     today = date.today()
     latest = {name: _newest(t, c, f) for name, (t, c, f, _) in QUERIES.items()}
+    age_rules = {k: v for k, v in RULES.items() if k != "buyback_frontier"}
+    counts = {name: _window_count(spec, today) for name, spec in FLOORS.items()}
+    try:
+        size = db.rpc("db_size_bytes", {})
+    except Exception as e:
+        print(f"  db_size_bytes failed: {e}")
+        size = None
+    frontier = frontier_stuck(latest["buyback_frontier"], _last_scan_params(), today)
+
+    print(f"  {'rule':<20}{'newest':<12}{'max age':>8}")
     for name, d in latest.items():
-        print(f"  {name:<18} newest {d}  (max age {RULES[name]}d)")
-    bad = stale(latest, RULES, today)
-    if bad:
-        for name, d, age, max_age in bad:
-            print(f"STALE: {name} newest={d} age={age}d > {max_age}d")
+        print(f"  {name:<20}{str(d):<12}{RULES[name]:>7}d")
+    print(f"  {'floor':<20}{'rows':>8}{'min':>8}")
+    for name, spec in FLOORS.items():
+        print(f"  {name:<20}{str(counts[name]):>8}{spec['min']:>8}")
+    size_state = db_size_status(size)
+    print(f"  db_size             {(size or 0) / MB:>7.0f} MB  ({size_state})")
+
+    failures = [f"STALE: {n} newest={d} age={a}d > {m}d" for n, d, a, m in stale(latest, age_rules, today)]
+    failures += [f"THIN: {n} rows={c} < {f}" for n, c, f in
+                 too_thin(counts, {n: s["min"] for n, s in FLOORS.items()})]
+    if frontier:
+        failures.append(f"FRONTIER: {frontier}")
+    if size_state == "fail":
+        failures.append(f"DB SIZE: {size} bytes > {DB_FAIL_BYTES} (or unreadable)")
+    elif size_state == "warn":
+        print(f"WARN: database {size / MB:.0f} MB > {DB_WARN_BYTES / MB:.0f} MB")
+    if failures:
+        print("\n".join(failures))
         sys.exit(1)
-    print("all tables fresh")
+    print("all freshness rules pass")
 
 
 if __name__ == "__main__":

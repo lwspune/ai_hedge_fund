@@ -353,3 +353,16 @@ alter table company_kpis add constraint company_kpis_kpi_check check (kpi in (
 alter table company_kpis add constraint company_kpis_ratio_range check (
   kpi not in ('gnpa','nnpa','nim','credit_cost','pcr','crar','casa','roa')
   or (unit = '%' and value > 0 and value <= 100));
+
+-- ============================================================================
+-- Freshness monitoring (scripts/check_freshness.py, DATA_INFRA_SPEC WP2): database size for
+-- the free-tier guard (PostgREST can't call pg_database_size directly). Service role only.
+-- ============================================================================
+create or replace function public.db_size_bytes()
+returns bigint
+language sql
+security definer
+set search_path = public
+as $$ select pg_database_size(current_database()) $$;
+revoke execute on function public.db_size_bytes() from public, anon, authenticated;
+grant execute on function public.db_size_bytes() to service_role;

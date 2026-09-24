@@ -44,12 +44,11 @@ def _save_buyback(rows, stats=None) -> None:
                           "cur_price": r["cur_price"], "record_date": db._iso(r["record_date"]),
                           "close_date": db._iso(r["close_date"])}}
              for r in rows]
-    try:
+    # raises on failure: a swallowed save is a silent gap the scheduled run must surface
+    if rows:
         db.upsert_buybacks(rows)
-        rid = db.log_scan(meta.name, meta.verdict, cands, params=stats)
-        print(f"\n[saved] run #{rid} | {len(rows)} buybacks upserted, {len(cands)} candidates")
-    except Exception as e:
-        print(f"\n[save skipped] {e}")
+    rid = db.log_scan(meta.name, meta.verdict, cands, params=stats)
+    print(f"\n[saved] run #{rid} | {len(rows)} buybacks upserted, {len(cands)} candidates")
 
 
 def _save_rights(rows) -> None:
