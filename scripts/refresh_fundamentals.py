@@ -1,5 +1,6 @@
 """Refresh fundamentals (infra I4): screener.in company pages -> full statement history in
-cache/fundamentals/<SYM>.parquet (+ Storage bucket `fundamentals`) + one `company_snapshot` row per company in Supabase.
+cache/fundamentals/<SYM>.parquet (+ Storage bucket `fundamentals`) + one `company_snapshot` row per company in Supabase
++ a weekly `company_snapshot_history` row (as_of = run date: the point-in-time record).
 
     python scripts/refresh_fundamentals.py --limit 50            # smoke test
     python scripts/refresh_fundamentals.py                       # all listed, skip fresh (<7d)
@@ -12,14 +13,14 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner import db  # noqa: E402
-from scanner.fundamentals import fetch_company_page, save_statements, snapshot_row  # noqa: E402
+from scanner.fundamentals import fetch_company_page, history_row, save_statements, snapshot_row  # noqa: E402
 
 BATCH = 25
 
@@ -61,9 +62,12 @@ def main():
         else:
             miss.append(sym)
         if len(batch) >= BATCH or (i == len(symbols) and batch):
-            _, rejected = db.upsert_resilient("company_snapshot", batch, "symbol")
+            stored, rejected = db.upsert_resilient("company_snapshot", batch, "symbol")
             for r, err in rejected:
                 print(f"  rejected {r['symbol']}: {err[-160:]}")
+            # point-in-time copy (WP5): re-runs the same day overwrite, never duplicate
+            db.upsert_resilient("company_snapshot_history", [history_row(r, date.today()) for r in stored],
+                                "symbol,as_of")
             print(f"  {i}/{len(symbols)} saved (ok={ok}, miss={len(miss)})", flush=True)
             batch = []
         time.sleep(a.sleep)

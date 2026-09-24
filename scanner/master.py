@@ -215,9 +215,10 @@ def _get(url: str) -> str:
 
 
 def fetch_all(screener_sectors: dict | None = None, previous_listed: list[dict] | None = None,
-              today: date | None = None) -> tuple[list[dict], list[dict]]:
-    """Fetch every source; returns (companies rows, symbol_changes rows). Raises TruncatedList
-    / TooManyDelistings rather than write a market-wide delisting from a bad download."""
+              today: date | None = None) -> tuple[list[dict], list[dict], dict]:
+    """Fetch every source; returns (companies rows, symbol_changes rows, {index_key: symbols}).
+    Raises TruncatedList / TooManyDelistings rather than write a market-wide delisting from a
+    bad download."""
     today = today or date.today()
     main, sme = parse_equity_list(_get(EQUITY_URL)), parse_equity_list(_get(SME_EQUITY_URL))
     check_list_sizes(len(main), len(sme))
@@ -226,4 +227,38 @@ def fetch_all(screener_sectors: dict | None = None, previous_listed: list[dict] 
     companies = build_companies(main + sme, indices, parse_delisted(_get(DELISTED_URL)),
                                 screener_sectors, previous_listed, changes, today)
     check_delistings(companies, today)
-    return companies, [{**c, "changed_on": _iso(c["changed_on"])} for c in changes]
+    members = {k: {r["symbol"] for r in rows} for k, rows in indices.items() if rows}
+    return companies, [{**c, "changed_on": _iso(c["changed_on"])} for c in changes], members
+
+
+# --- WP5: point-in-time index membership (index_membership intervals) -----------------------
+
+def membership_diff(current_open: list[dict], todays: dict, today: date) -> tuple[list[dict], list[dict]]:
+    """(intervals to close, intervals to open). current_open: open rows {symbol, index_key,
+    from_date}; todays: {index_key: set(symbols)} from today's niftyindices lists. An index
+    absent from `todays` (its download failed) is left untouched rather than emptied."""
+    have = {(r["symbol"], r["index_key"]) for r in current_open}
+    close = [{**r, "to_date": today.isoformat()} for r in current_open
+             if r["index_key"] in todays and r["symbol"] not in todays[r["index_key"]]]
+    open_ = [{"symbol": s, "index_key": k, "from_date": today.isoformat(), "to_date": None,
+              "source": "niftyindices_list"}
+             for k, syms in todays.items() for s in sorted(syms) if (s, k) not in have]
+    return close, open_
+
+
+def curated_intervals(rows: list[dict], index_key: str, record_start: str) -> list[dict]:
+    """Membership intervals from a curated add/drop event list (e.g. the Next-50 file built from
+    niftyindices press releases). A drop with no earlier add = member since before the record
+    starts, so its interval opens at `record_start`."""
+    out, open_from = [], {}
+    for r in sorted(rows, key=lambda r: (r["effective"], r["leg"] != "drop")):
+        sym = r["symbol"]
+        if r["leg"] == "add":
+            open_from.setdefault(sym, r["effective"])
+        elif r["leg"] == "drop":
+            out.append({"symbol": sym, "index_key": index_key,
+                        "from_date": open_from.pop(sym, record_start), "to_date": r["effective"],
+                        "source": "curated"})
+    out += [{"symbol": s, "index_key": index_key, "from_date": f, "to_date": None, "source": "curated"}
+            for s, f in open_from.items()]
+    return sorted(out, key=lambda r: (r["symbol"], r["from_date"]))

@@ -503,3 +503,38 @@ as $$
 $$;
 revoke execute on function public.orphan_symbols() from public, anon, authenticated;
 grant execute on function public.orphan_symbols() to service_role;
+
+-- ============================================================================
+-- WP5 point-in-time (scanner/pointintime.py): weekly snapshot history + index membership
+-- intervals, so segmentation and the acceptance prior use values as of the event date.
+-- ============================================================================
+create table if not exists company_snapshot_history (
+  symbol         text not null references companies(symbol) on update cascade,
+  as_of          date not null,                       -- weekly refresh_fundamentals run date
+  market_cap_cr  numeric check (market_cap_cr is null or market_cap_cr >= 0),
+  price          numeric check (price is null or price > 0),
+  pe             numeric,
+  promoter_pct   numeric check (promoter_pct between 0 and 100),
+  fii_pct        numeric check (fii_pct between 0 and 100),
+  dii_pct        numeric check (dii_pct between 0 and 100),
+  public_pct     numeric check (public_pct between 0 and 100),
+  n_shareholders bigint check (n_shareholders is null or n_shareholders >= 0),
+  shp_period     date,
+  primary key (symbol, as_of)
+);
+create index if not exists idx_snapshot_history_asof on company_snapshot_history(as_of);
+alter table company_snapshot_history enable row level security;
+create policy "anon read company_snapshot_history" on company_snapshot_history for select to anon using (true);
+
+create table if not exists index_membership (
+  symbol     text not null,
+  index_key  text not null,                           -- nifty50, niftynext50, midcap150, ...
+  from_date  date not null,
+  to_date    date,                                    -- null = current member
+  source     text not null check (source in ('niftyindices_list','niftyindices_pdf','curated')),
+  primary key (symbol, index_key, from_date),
+  check (to_date is null or to_date >= from_date)
+);
+create index if not exists idx_membership_open on index_membership(index_key) where to_date is null;
+alter table index_membership enable row level security;
+create policy "anon read index_membership" on index_membership for select to anon using (true);

@@ -3,7 +3,8 @@
     python -m scanner.calibrate
 
 Empty until you log tenders + outcomes (the P2 feedback loop). It reads
-outcomes → tenders → buybacks(symbol), fetches each name's market cap, pairs it
+outcomes → tenders → buybacks(symbol, record date), looks up each name's market cap AS OF
+the record date (scanner.pointintime — no lookahead), pairs it
 with the realized acceptance, and prints per-bucket means vs the current hardcoded
 prior. It does NOT mutate the constants — once n is large enough, copy the
 suggested values into `_MCAP_ACCEPTANCE_PRIOR` in buyback.py.
@@ -19,21 +20,23 @@ _LABELS = ["small", "small_mid", "mid", "large"]
 def main():
     try:
         outcomes = db.select("outcomes", {
-            "select": "realized_acceptance,tenders(buybacks(symbol))",
+            "select": "realized_acceptance,tenders(buybacks(symbol,record_date))",
         })
     except Exception as e:
         print(f"[error] {e}")
         return
 
-    from scanner.fundamentals import fetch_fundamentals
+    from datetime import date
+    from scanner.pointintime import mcap_at_symbol
     recs = []
     for o in outcomes:
         ra = o.get("realized_acceptance")
-        sym = (((o.get("tenders") or {}).get("buybacks")) or {}).get("symbol")
-        if ra is None or not sym:
+        bb = ((o.get("tenders") or {}).get("buybacks")) or {}
+        sym, rd = bb.get("symbol"), bb.get("record_date")
+        if ra is None or not sym or not rd:
             continue
-        try:
-            mc = fetch_fundamentals(sym).get("market_cap_cr")
+        try:  # market cap AS OF the record date — today's cap would be lookahead (WP5)
+            mc = mcap_at_symbol(sym, date.fromisoformat(rd))
         except Exception:
             mc = None
         recs.append({"market_cap_cr": mc, "realized_acceptance": ra})

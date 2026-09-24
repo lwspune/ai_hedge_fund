@@ -10,7 +10,6 @@ residual ~1 month after close. Reports gross, full-acceptance, and after-tax
 from __future__ import annotations
 
 import sys
-import time
 from pathlib import Path
 
 import pandas as pd
@@ -18,44 +17,35 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner.validation import exclude_results, parse_args  # noqa: E402
 from scanner.pricestore import get_closes  # noqa: E402
-from scanner.buyback import fetch_buyback, arb_return, after_tax_return  # noqa: E402
+from scanner.buyback import arb_return, after_tax_return  # noqa: E402
+from scanner.pointintime import mcap_bucket_at  # noqa: E402
 
-ROOT = Path(__file__).resolve().parent.parent
-CACHE = ROOT / "cache"
-CACHE.mkdir(exist_ok=True)
-
-ID_RANGE = range(90, 226)
 RESIDUAL_LAG = 21          # trading days after close to sell the residual
 TAX_CUTOVER = pd.Timestamp("2024-10-01")
 SLAB = 0.30
 PREMIUM_BOUNDS = (-0.5, 1.5)   # outside = stale/mis-matched price, not a real offer (as edge fn)
+DB_FROM = pd.Timestamp("2020-02-01")   # first month safely inside the cloud price store
 
 
 def scrape() -> pd.DataFrame:
-    import requests
-    fp = CACHE / "buybacks.csv"
-    if fp.exists():
-        return pd.read_csv(fp, parse_dates=["record_date", "close_date"])
-    s = requests.Session()
-    rows = []
-    for bid in ID_RANGE:
-        try:
-            bb = fetch_buyback(bid, s)
-            if bb:
-                rows.append(bb)
-                print(f"  {bid}: {bb['symbol']} {bb['company'][:28]}")
-        except Exception as e:
-            print(f"  {bid}: err {repr(e)[:60]}")
-        time.sleep(0.8)
+    """Tender buybacks from the Supabase `buybacks` table (kept current by the daily scan's
+    chittorgarh discovery) — no laptop cache, so the study reruns identically on Actions."""
+    from scanner import db
+    rows = db.select_all("buybacks", {"select": "chittorgarh_id,symbol,buyback_price,record_date,close_date,"
+                                                "entitlement_small,issue_size_cr", "order": "chittorgarh_id"})
     df = pd.DataFrame(rows)
-    df.to_csv(fp, index=False)
+    for c in ("record_date", "close_date"):
+        df[c] = pd.to_datetime(df[c])
     return df
 
 
-def get_prices(symbol: str) -> pd.Series | None:
-    # UNADJUSTED NSE closes: the buyback price is a nominal rupee price, so entry/residual must
-    # be too. yfinance back-adjusts for later splits/bonuses (SPORTKING 1:10 -> "+1282%" premium).
-    return get_closes(symbol, source="nse")
+def get_prices(symbol: str, record_date) -> pd.Series | None:
+    # UNADJUSTED closes: the buyback price is a nominal rupee price, so entry/residual must be
+    # too (yfinance back-adjusts for later splits/bonuses: SPORTKING 1:10 -> "+1282%" premium).
+    # The cloud store covers 2020->; earlier events use nselib.
+    t = pd.Timestamp(record_date)
+    return get_closes(symbol, t - pd.Timedelta(days=30), t + pd.Timedelta(days=120),
+                      source="db" if t >= DB_FROM else "nse")
 
 
 def price_on_or_before(s, d):
@@ -77,7 +67,7 @@ def main():
 
     recs, dropped = [], []
     for _, r in bb.iterrows():
-        s = get_prices(r["symbol"])
+        s = get_prices(r["symbol"], r["record_date"])
         if s is None:
             continue
         entry = price_on_or_before(s, r["record_date"])
@@ -94,6 +84,8 @@ def main():
             "symbol": r["symbol"],
             "record_date": r["record_date"],
             "regime": regime,
+            # market cap AS OF the record date (WP5) — today's cap would be lookahead
+            "mcap_bucket": mcap_bucket_at(r["symbol"], r["record_date"].date()),
             "premium": bp / entry - 1,
             "gross_floor": arb_return(entry, bp, post, ent),
             "gross_full": arb_return(entry, bp, post, min(ent * 3, 1.0)),
@@ -126,6 +118,9 @@ def main():
     print("\n  -- by tax regime (gross floor) --")
     show("pre-Oct-2024 events", "gross_floor", d[d.regime == "pre_oct2024"])
     show("post-Oct-2024 events", "gross_floor", d[d.regime == "post_oct2024"])
+    print("\n  -- gross floor, by market cap AS OF the record date (the acceptance prior's buckets) --")
+    for b in ("small", "small_mid", "mid", "large", "unknown"):
+        show(b, "gross_floor", d[d.mcap_bucket == b])
     print("\n  -- after-tax floor, by regime --")
     show("pre-Oct-2024 (tax-free buyback)", "aftertax_floor", d[d.regime == "pre_oct2024"])
     show("post-Oct-2024 (dividend-taxed)", "aftertax_floor", d[d.regime == "post_oct2024"])

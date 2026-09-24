@@ -336,3 +336,60 @@ def load_statements(symbol: str, directory: Path = STATEMENTS_DIR):
         directory.mkdir(parents=True, exist_ok=True)
         fp.write_bytes(data)
     return pd.read_parquet(fp)
+
+
+# --- WP5: point-in-time market cap -----------------------------------------------------
+
+def _bonus_multiplier(ratio: str | None) -> float:
+    """'1:2' (1 new share for every 2 held) -> 1.5; junk -> 1.0."""
+    try:
+        new, held = (float(x) for x in (ratio or "").split(":"))
+        return (new + held) / held if held > 0 and new >= 0 else 1.0
+    except ValueError:
+        return 1.0
+
+
+def historical_market_cap(statements, closes, face_value_now: float, actions: list[dict]):
+    """Market cap (Rs crore) per date of `closes` (UNADJUSTED), using only what was known then.
+
+    shares(t) = Equity Capital at the latest balance sheet on/before t / face value at t, times
+    the multiplier of any bonus with ex-date in (that balance sheet, t] — Equity Capital only
+    reflects a bonus at the next balance sheet. Face value at t = today's, walked back through
+    later split / consolidation events (from_fv -> to_fv). mcap_cr = shares x close / 1e7 =
+    Equity Capital (cr) x close / face value. NaN before the first balance sheet."""
+    import pandas as pd
+    ec = statements[(statements["section"] == "balance-sheet") & (statements["line_item"] == "Equity Capital")]
+    ec = (pd.Series(ec["value"].astype(float).values, index=pd.to_datetime(ec["period_end"]))
+            .dropna().sort_index())
+    ec = ec[ec > 0]
+    fv_changes = sorted((pd.Timestamp(a["event_date"]), float(a["details"]["from_fv"]))
+                        for a in actions if a["event_type"] in ("split", "consolidation")
+                        and a.get("details", {}).get("from_fv"))
+    bonuses = [(pd.Timestamp(a["event_date"]), _bonus_multiplier(a.get("details", {}).get("ratio")))
+               for a in actions if a["event_type"] == "bonus"]
+    out = {}
+    for t, px in closes.items():
+        t = pd.Timestamp(t)
+        known = ec[ec.index <= t]
+        if known.empty or not px or px <= 0:
+            out[t] = float("nan")
+            continue
+        bs_date, capital = known.index[-1], known.iloc[-1]
+        later = [fv for d, fv in fv_changes if d > t]
+        fv = later[0] if later else face_value_now       # the face value before the next change
+        mult = 1.0
+        for d, m in bonuses:
+            if bs_date < d <= t:
+                mult *= m
+        out[t] = capital * mult * px / fv
+    return pd.Series(out, dtype="float64")
+
+
+HISTORY_FIELDS = ("market_cap_cr", "price", "pe", "promoter_pct", "fii_pct", "dii_pct", "public_pct",
+                  "n_shareholders", "shp_period")
+
+
+def history_row(snapshot: dict, as_of) -> dict:
+    """The point-in-time slice of a company_snapshot row, for company_snapshot_history."""
+    return {"symbol": snapshot["symbol"], "as_of": as_of.isoformat(),
+            **{k: snapshot.get(k) for k in HISTORY_FIELDS}}

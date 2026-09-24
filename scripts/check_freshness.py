@@ -43,6 +43,7 @@ def queries(today: date) -> dict:
         "scans_buyback_arb": ("scan_runs", "run_at", {"signal_name": "eq.buyback_arb"}, 3),
         "scans_rights_re": ("scan_runs", "run_at", {"signal_name": "eq.rights_re"}, 3),
         "board_meetings": ("corporate_events", "created_at", {"source": "eq.nse_bm"}, 10),
+        "snapshot_history": ("company_snapshot_history", "as_of", {}, 8),   # weekly, with fundamentals
         # evaluated by frontier_stuck(), not stale(): a new buyback row = the frontier advanced
         "buyback_frontier": ("buybacks", "created_at", {}, FRONTIER_MAX_DAYS),
     }
@@ -76,6 +77,9 @@ FLOORS = {
                        "filters": {"trade_date": f"gte.{date.today()}"}, "days": None, "min": 20},
     # ~3,400 equity rows per bhavcopy day; two days so a not-yet-published today can't fail it
     "prices": {"table": "daily_prices", "col": "trade_date", "filters": {}, "days": 2, "min": 2500},
+    # the weekly membership diff keeps exactly 50 open NIFTY 50 intervals
+    "nifty50_members": {"table": "index_membership", "col": None,
+                        "filters": {"index_key": "eq.nifty50", "to_date": "is.null"}, "days": None, "min": 50},
 }
 
 
