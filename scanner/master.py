@@ -1,7 +1,8 @@
 """Company master (infra I1): every NSE-listed equity, from NSE/niftyindices static CSVs.
 
 Sources (all static files — reachable from residential and datacenter IPs):
-  EQUITY_L.csv      — every listed equity: symbol, name, series, listing date, ISIN, face value
+  EQUITY_L.csv      — every mainboard equity: symbol, name, series, listing date, ISIN, face value
+  SME_EQUITY_L.csv  — NSE Emerge (SME board), same fields; underscored headers, 2-digit years
   symbolchange.csv  — headerless (company, old, new, date); renames break joins without it
   delisted.csv      — NSE's delisting list (stale: stops ~2020, still useful for history)
   ind_*list.csv     — niftyindices constituents: industry + index membership
@@ -25,6 +26,7 @@ _ISIN = re.compile(r"^IN[A-Z0-9]{10}$")
 NSE = "https://nsearchives.nseindia.com/content/equities"
 EQUITY_URL = f"{NSE}/EQUITY_L.csv"
 SYMBOL_CHANGE_URL = f"{NSE}/symbolchange.csv"
+SME_EQUITY_URL = "https://nsearchives.nseindia.com/emerge/corporates/content/SME_EQUITY_L.csv"
 DELISTED_URL = f"{NSE}/delisted.csv"
 # index key -> niftyindices constituent file. Order matters: first industry seen wins.
 INDEX_URLS = {
@@ -56,9 +58,10 @@ def _float(s: str | None) -> float | None:
 
 
 def _rows(text: str) -> list[dict]:
-    """DictReader with whitespace-stripped headers and values (NSE pads both)."""
+    """DictReader with normalised headers (NSE pads them; the SME file uses underscores) and
+    whitespace-stripped values."""
     reader = csv.reader(io.StringIO(text))
-    header = [h.strip() for h in next(reader, [])]
+    header = [h.strip().replace("_", " ") for h in next(reader, [])]
     return [{h: (v or "").strip() for h, v in zip(header, rec)} for rec in reader]
 
 
@@ -133,10 +136,14 @@ def build_companies(equities: list[dict], indices: dict[str, list[dict]],
             if r["industry"] and r["symbol"] not in industry:
                 industry[r["symbol"]] = r["industry"]
 
-    out, listed = [], set()
+    out, listed, isins = [], set(), set()
     for e in equities:
+        # mainboard list comes first: a migrated SME (same symbol or same ISIN) keeps that row
+        if e["symbol"] in listed or e["isin"] in isins:
+            continue
         ind = industry.get(e["symbol"])
         listed.add(e["symbol"])
+        isins.add(e["isin"])
         out.append({**e, "listing_date": _iso(e["listing_date"]), "industry": ind,
                     "indices": sorted(member.get(e["symbol"], [])),
                     "is_financial": None if ind is None else ind == FINANCIAL_INDUSTRY,
@@ -160,7 +167,7 @@ def _get(url: str) -> str:
 
 def fetch_all() -> tuple[list[dict], list[dict]]:
     """Fetch every source; returns (companies rows, symbol_changes rows)."""
-    equities = parse_equity_list(_get(EQUITY_URL))
+    equities = parse_equity_list(_get(EQUITY_URL)) + parse_equity_list(_get(SME_EQUITY_URL))
     indices = {k: parse_index_list(_get(u)) for k, u in INDEX_URLS.items()}
     companies = build_companies(equities, indices, parse_delisted(_get(DELISTED_URL)))
     changes = [{**c, "changed_on": _iso(c["changed_on"])}

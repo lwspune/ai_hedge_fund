@@ -102,3 +102,33 @@ def test_build_companies_merges_indices_industry_and_delisted():
     hex_ = by["HEXAWARE"]
     assert hex_["status"] == "delisted" and hex_["delisted_on"] == "2020-11-09"
     assert hex_["isin"] is None and hex_["indices"] == []
+
+
+SME_L = (
+    "SYMBOL,NAME_OF_COMPANY,SERIES,DATE_OF_LISTING,PAID_UP_VALUE,ISIN_NUMBER,FACE_VALUE,\n"
+    "VIGOR,Vigor Plast India Limited,ST,12-Sep-25,10,INE0XYZ01011,10,\n"
+    "20MICRONS,Migrated Duplicate,SM,01-Jan-08,10,INE144J01027,5,\n"
+)
+
+
+def test_parse_equity_list_handles_sme_file_format():
+    rows = parse_equity_list(SME_L)
+    assert rows[0] == {"symbol": "VIGOR", "name": "Vigor Plast India Limited", "series": "ST",
+                       "listing_date": date(2025, 9, 12), "face_value": 10.0, "isin": "INE0XYZ01011"}
+
+
+def test_build_companies_includes_sme_and_mainboard_wins_duplicates():
+    eq = parse_equity_list(EQUITY_L) + parse_equity_list(SME_L)
+    rows = build_companies(eq, {}, [])
+    by = {r["symbol"]: r for r in rows}
+    assert by["VIGOR"]["series"] == "ST"
+    assert by["20MICRONS"]["name"] == "20 Microns Limited"      # mainboard row kept
+    assert sum(r["symbol"] == "20MICRONS" for r in rows) == 1
+
+
+def test_build_companies_dedupes_isin_across_lists():
+    """A stock that migrated SME -> mainboard under a new symbol shares its ISIN (unique in DB)."""
+    sme = ("SYMBOL,NAME_OF_COMPANY,SERIES,DATE_OF_LISTING,PAID_UP_VALUE,ISIN_NUMBER,FACE_VALUE,\n"
+           "OLDSME,Old Sme Name,SM,01-Jan-18,10,INE144J01027,5,\n")
+    rows = build_companies(parse_equity_list(EQUITY_L) + parse_equity_list(sme), {}, [])
+    assert [r["symbol"] for r in rows if r["isin"] == "INE144J01027"] == ["20MICRONS"]
