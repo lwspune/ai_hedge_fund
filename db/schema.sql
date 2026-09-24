@@ -249,3 +249,9 @@ begin
 end $$;
 revoke execute on function public.reload_market_deals(date, jsonb) from public, anon, authenticated;
 grant execute on function public.reload_market_deals(date, jsonb) to service_role;
+
+-- Private Storage bucket for full screener statement history (<SYM>.parquet), written by
+-- scripts/refresh_fundamentals.py (service role). No policies -> anon cannot read it.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('fundamentals', 'fundamentals', false, 5242880)
+on conflict (id) do nothing;

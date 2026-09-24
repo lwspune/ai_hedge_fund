@@ -138,3 +138,18 @@ def test_pick_view_prefers_the_fresher_statements():
     assert pick_view(None, fresh) == (fresh, False)
     assert pick_view(fresh, None) == (fresh, True)
     assert pick_view(None, None) is None
+
+
+def test_statements_roundtrip_via_bucket_when_local_cache_missing(tmp_path, monkeypatch):
+    """CI runners have no local cache: statements live in the Supabase Storage bucket."""
+    from scanner import db, fundamentals as f
+    store = {}
+    monkeypatch.setattr(db, "storage_put", lambda bucket, path, data, **kw: store.__setitem__((bucket, path), data))
+    monkeypatch.setattr(db, "storage_get", lambda bucket, path: store.get((bucket, path)))
+    page = parse_company_page(PAGE)
+    f.save_statements("M&M", page, directory=tmp_path / "a", upload=True)
+    assert ("fundamentals", "M_and_M.parquet") in store
+    df = f.load_statements("M&M", directory=tmp_path / "b")          # empty local dir
+    assert len(df) == len(page["statements"])
+    assert (tmp_path / "b" / "M_and_M.parquet").exists()              # cached after download
+    assert f.load_statements("NOPE", directory=tmp_path / "b") is None

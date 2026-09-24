@@ -302,19 +302,37 @@ def fetch_company_page(symbol: str, session=None, retries: int = 3):
 
 
 STATEMENTS_DIR = Path(__file__).resolve().parent.parent / "cache" / "fundamentals"
+BUCKET = "fundamentals"  # private Supabase Storage bucket: the durable copy (CI has no disk)
 
 
-def save_statements(symbol: str, page: dict, directory: Path = STATEMENTS_DIR) -> Path:
+def _statements_name(symbol: str) -> str:
+    return f"{symbol.replace('&', '_and_')}.parquet"
+
+
+def save_statements(symbol: str, page: dict, directory: Path = STATEMENTS_DIR,
+                    upload: bool = False) -> Path:
+    """Write the full statement history locally; with upload=True also to the bucket."""
     import pandas as pd
     directory.mkdir(parents=True, exist_ok=True)
-    fp = directory / f"{symbol.replace('&', '_and_')}.parquet"
+    fp = directory / _statements_name(symbol)
     pd.DataFrame(page["statements"], columns=["section", "line_item", "period", "period_end",
                                              "value"]).to_parquet(fp, index=False)
+    if upload:
+        from scanner import db
+        db.storage_put(BUCKET, fp.name, fp.read_bytes())
     return fp
 
 
 def load_statements(symbol: str, directory: Path = STATEMENTS_DIR):
-    """Full statement history (long format) from the local cache; None if never fetched."""
+    """Full statement history (long format): local cache first, else the Storage bucket
+    (cached locally after download). None if never fetched."""
     import pandas as pd
-    fp = directory / f"{symbol.replace('&', '_and_')}.parquet"
-    return pd.read_parquet(fp) if fp.exists() else None
+    fp = directory / _statements_name(symbol)
+    if not fp.exists():
+        from scanner import db
+        data = db.storage_get(BUCKET, fp.name)
+        if data is None:
+            return None
+        directory.mkdir(parents=True, exist_ok=True)
+        fp.write_bytes(data)
+    return pd.read_parquet(fp)

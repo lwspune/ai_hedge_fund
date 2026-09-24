@@ -143,6 +143,28 @@ def rpc(fn: str, args: dict):
     return r.json()
 
 
+def storage_put(bucket: str, path: str, data: bytes,
+                content_type: str = "application/octet-stream") -> None:
+    """Upload (upsert) an object to Supabase Storage with the service role."""
+    url, key = config()
+    r = requests.post(f"{url}/storage/v1/object/{bucket}/{path}",
+                      headers={"apikey": key, "Authorization": f"Bearer {key}",
+                               "Content-Type": content_type, "x-upsert": "true"},
+                      data=data, timeout=60)
+    _check(r)
+
+
+def storage_get(bucket: str, path: str) -> bytes | None:
+    """Download an object from Supabase Storage; None if it doesn't exist."""
+    url, key = config()
+    r = requests.get(f"{url}/storage/v1/object/{bucket}/{path}",
+                     headers={"apikey": key, "Authorization": f"Bearer {key}"}, timeout=60)
+    if r.status_code in (400, 404):  # Storage answers 400 "not_found" for missing objects
+        return None
+    _check(r)
+    return r.content
+
+
 # --- high-level helpers ------------------------------------------------------
 
 def log_scan(signal_name: str, verdict: str, candidates: list[dict] | None = None,

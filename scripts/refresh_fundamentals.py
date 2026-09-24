@@ -1,5 +1,5 @@
 """Refresh fundamentals (infra I4): screener.in company pages -> full statement history in
-cache/fundamentals/<SYM>.parquet + one `company_snapshot` row per company in Supabase.
+cache/fundamentals/<SYM>.parquet (+ Storage bucket `fundamentals`) + one `company_snapshot` row per company in Supabase.
 
     python scripts/refresh_fundamentals.py --limit 50            # smoke test
     python scripts/refresh_fundamentals.py                       # all listed, skip fresh (<7d)
@@ -54,7 +54,7 @@ def main():
             got = None
         if got:
             page, consol = got
-            save_statements(sym, page)
+            save_statements(sym, page, upload=True)  # bucket = durable copy (CI has no disk)
             batch.append({**snapshot_row(sym, page, consol),
                           "fetched_at": datetime.now(timezone.utc).isoformat()})
             ok += 1
