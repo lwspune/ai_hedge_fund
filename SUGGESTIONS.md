@@ -77,7 +77,7 @@ branch may still point at it.
 **How to apply:** GitHub → set default branch to `main`; Vercel → Settings → Git →
 Production Branch = `main`, redeploy; then delete `master` once production is confirmed.
 
-### Rotate the credentials pasted in chat
+### ~~Rotate the credentials pasted in chat~~ — **DECLINED 2026-09-24** (user: ignore; don't raise again)
 
 Five secrets were pasted into the assistant chat on 2026-06-23/24: GitHub PAT, Supabase
 access token, anon key, service-role key.
