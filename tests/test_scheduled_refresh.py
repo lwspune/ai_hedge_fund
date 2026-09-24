@@ -14,11 +14,12 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     assert ["refresh_events.py", "rights"] in s
     assert ["refill_deals.py", "--from", "2026-09-14"] in s  # 10-day lookback heals pauses
     assert ["-m", "scanner.run", "buyback_arb", "--save"] in s  # primary signal refreshed daily
+    assert s[-1] == ["check_freshness.py"]  # silent staleness fails the run
 
 
 def test_weekly_steps_refresh_master_before_fundamentals():
     s = steps("weekly", date(2026, 9, 27))
-    assert s == [["refresh_companies.py"], ["refresh_fundamentals.py"]]
+    assert s == [["refresh_companies.py"], ["refresh_fundamentals.py"], ["check_freshness.py"]]
 
 
 def test_unknown_mode_rejected():
