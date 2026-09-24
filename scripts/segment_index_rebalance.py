@@ -25,8 +25,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scanner.eventstudy import summarize
-from scanner.rebalance import abnormal_return_between, load_next50_events
-from validate_index_rebalance import load_bench, _signed  # reuse benchmark + leg-sign helper
+from scanner.rebalance import abnormal_return_between, drop_blocked, load_next50_events
+from validate_index_rebalance import POST_DAYS, _signed, load_bench, load_blocking_actions  # reuse helpers
 
 
 def fetch(symbol, start, end):
@@ -72,7 +72,10 @@ def tercile_report(title, rows):
 
 
 def main():
-    events = load_next50_events()
+    events, blocked = drop_blocked(load_next50_events(), load_blocking_actions(), post_days=POST_DAYS)
+    if blocked:
+        print(f"dropped {len(blocked)} events with a split/bonus/rights/demerger inside the window: "
+              f"{', '.join(f'{e.symbol}({e.review})' for e in blocked)}")
     lo = min(pd.Timestamp(e.announce) for e in events) - pd.Timedelta(days=40)
     hi = max(pd.Timestamp(e.effective) for e in events) + pd.Timedelta(days=15)
     bench = load_bench(f"{lo:%Y-%m-%d}", f"{hi:%Y-%m-%d}")

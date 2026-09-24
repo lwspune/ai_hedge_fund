@@ -19,6 +19,22 @@ def _series(values, start="2025-01-01"):
     return pd.Series(values, index=idx, dtype="float64")
 
 
+def test_drop_blocked_removes_events_with_a_corporate_action_inside_the_window():
+    # BEL's 2:1 bonus (2022-09-15) sat inside its Sep-2022 Next-50 add window and read as a
+    # -66% "return" on unadjusted closes. Any split/bonus/rights/demerger between the
+    # announcement and effective+post window disqualifies the event.
+    from scanner.rebalance import drop_blocked
+    evs = [RebalanceEvent("BEL", "add", "2022-09", "2022-09-01", "2022-09-30", True, "x"),
+           RebalanceEvent("ABC", "add", "2022-09", "2022-09-01", "2022-09-30", True, "x"),
+           RebalanceEvent("BEL", "drop", "2021-03", "2021-02-23", "2021-03-31", True, "x")]
+    acts = [{"symbol": "BEL", "event_type": "bonus", "event_date": "2022-09-15"},
+            {"symbol": "ABC", "event_type": "dividend", "event_date": "2022-09-15"},   # not blocking
+            {"symbol": "BEL", "event_type": "split", "event_date": "2021-04-05"}]       # inside post +8d
+    kept, dropped = drop_blocked(evs, acts, post_days=8)
+    assert [e.symbol + e.review for e in kept] == ["ABC2022-09"]
+    assert {(e.symbol, e.review) for e in dropped} == {("BEL", "2022-09"), ("BEL", "2021-03")}
+
+
 def test_abnormal_between_two_dates():
     # bdate idx: 0=Jan1(Wed) 1=Jan2 2=Jan3 3=Jan6 4=Jan7 ...
     # entry = announce(Jan1)+1 = Jan2 (100); exit on/after Jan6 = Jan6 (110) -> +10%

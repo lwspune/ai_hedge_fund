@@ -88,6 +88,19 @@ def abnormal_return_between(stock: pd.Series, bench: pd.Series, t0, exit_date,
     return float(s_ret - b_ret)
 
 
+def drop_blocked(events, actions: list[dict], post_days: int = 8):
+    """Split events into (kept, dropped): dropped = a share-count-changing corporate action
+    (split/bonus/rights/consolidation/demerger) with ex-date inside [announce, effective +
+    post_days]. The study reads UNADJUSTED closes, so such an event's window return is the
+    corporate action, not the rebalance (BEL's 2:1 bonus of 2022-09-15 read as -66%)."""
+    from scanner.lockin import blocking_action
+    kept, dropped = [], []
+    for e in events:
+        hi = pd.Timestamp(e.effective) + pd.Timedelta(days=post_days)
+        (dropped if blocking_action(actions, e.symbol, e.announce, hi) else kept).append(e)
+    return kept, dropped
+
+
 def signed_leg_return(event: RebalanceEvent, stock: pd.Series, bench: pd.Series,
                       entry_lag: int = 1):
     """Return accruing to the front-run trade: long adds, short (negated) drops."""

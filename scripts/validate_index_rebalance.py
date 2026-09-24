@@ -29,9 +29,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner.validation import exclude_results, run  # noqa: E402
 
 from scanner.eventstudy import summarize
-from scanner.rebalance import EVENTS, abnormal_return_between, load_next50_events
+from scanner.lockin import BLOCKING
+from scanner.rebalance import EVENTS, abnormal_return_between, drop_blocked, load_next50_events
 
 BENCH = "^NSEI"  # NIFTY 50 as the broad-market benchmark
+POST_DAYS = 8    # calendar days after the effective date covered by the POST window
+
+
+def load_blocking_actions() -> list[dict]:
+    """Split/bonus/rights/consolidation/demerger ex-dates (corporate_events, nse_ca, 2010->):
+    the closes are UNADJUSTED, so an event with one inside its window is dropped."""
+    from scanner import db
+    return db.select_all("corporate_events", {"select": "symbol,event_type,event_date",
+                                              "event_type": f"in.({','.join(sorted(BLOCKING))})"})
 
 
 def nse_close_series(symbol: str, start: str, end: str):
@@ -75,13 +85,17 @@ def windows(ev, stock, bench):
 
 
 def report(label, rows):
-    s = summarize([r for r in rows if r is not None])
+    """rows = [(signed return | None, review)]. t = iid; t_cl = clustered by review (every
+    event of one review shares the same dates, so they are not independent draws)."""
+    vals = [r for r, _ in rows]
+    s = summarize(vals, clusters=[c for _, c in rows])
     if not s["n"]:
         print(f"  {label:<14} n=0")
         return
     t = f"  t={s['t_stat']:.2f}" if s["t_stat"] is not None else ""
+    tc = f"  t_cl={s['t_cluster']:.2f} ({s['n_clusters']} reviews)" if s["t_cluster"] is not None else ""
     print(f"  {label:<14} n={s['n']:>3}  mean {s['mean']*100:+.2f}%  "
-          f"median {s['median']*100:+.2f}%  win {s['pct_positive']*100:.0f}%{t}")
+          f"median {s['median']*100:+.2f}%  win {s['pct_positive']*100:.0f}%{t}{tc}")
 
 
 def main(args) -> dict:
@@ -94,7 +108,11 @@ def main(args) -> dict:
                                "effective", args.exclude_results_window)
         events = [events[i] for i in keep["i"]]
     name = "NIFTY 50" if use_nifty50 else "NIFTY Next 50 (clean entries/exits)"
+    events, blocked = drop_blocked(events, load_blocking_actions(), post_days=POST_DAYS)
     print(f"=== {name} — {len(events)} events ===")
+    if blocked:
+        print(f"dropped {len(blocked)} for a split/bonus/rights/demerger inside the window "
+              f"(unadjusted closes): {', '.join(f'{e.symbol}({e.review})' for e in blocked)}")
 
     span_lo = min(pd.Timestamp(e.announce) for e in events) - pd.Timedelta(days=12)
     span_hi = max(pd.Timestamp(e.effective) for e in events) + pd.Timedelta(days=15)
@@ -111,9 +129,9 @@ def main(args) -> dict:
             missing.append(f"{ev.symbol}({ev.review})")
             continue
         w, t, p = windows(ev, stock, bench)
-        res[ev.leg]["wide"].append(w)
-        res[ev.leg]["tight"].append(t)
-        res[ev.leg]["post"].append(p)
+        res[ev.leg]["wide"].append((w, ev.review))
+        res[ev.leg]["tight"].append((t, ev.review))
+        res[ev.leg]["post"].append((p, ev.review))
 
     for win in ("wide", "tight", "post"):
         title = {"wide": "WIDE  announce+1->effective", "tight": "TIGHT effective-5->effective",
