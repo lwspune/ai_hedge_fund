@@ -18,6 +18,9 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     assert s.index(["refresh_events.py", "fo-ban"]) < px < s.index(["-m", "scanner.run", "buyback_arb", "--save"])
     assert px < s.index(["-m", "scanner.run", "rights_re", "--save"])   # scans read today's closes
     assert ["refresh_filings.py"] in s
+    assert ["refresh_surveillance.py"] in s              # daily ASM/GSM snapshot (history only exists if captured)
+    assert ["refresh_insider.py"] in s                   # PIT disclosures (forward feed)
+    assert ["refresh_prefissues.py"] in s                # preferential allotments + lock-in expiries
     assert s.index(["extract_kpis.py", "--limit", "1500"]) > s.index(["refresh_filings.py"])
     assert ["refill_deals.py", "--from", "2026-09-14"] in s  # 10-day lookback heals pauses
     assert ["-m", "scanner.run", "buyback_arb", "--save"] in s  # primary signal refreshed daily
@@ -31,6 +34,7 @@ def test_weekly_steps_refresh_master_before_fundamentals():
     assert ["refresh_events.py", "holidays"] in s          # trading calendar (WP6)
     assert ["refresh_prices.py", "--prune"] in s           # daily_prices retention (WP3)
     assert ["archive_filings.py"] in s                     # filings retention (WP8)
+    assert s.index(["refresh_companies.py"]) < s.index(["refresh_shareholding.py"])   # needs the listed set
     assert s[-1] == ["check_freshness.py"]
 
 

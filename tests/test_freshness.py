@@ -25,7 +25,8 @@ def test_stale_flags_old_and_missing_tables_only():
 def test_rules_cover_the_scheduled_tables():
     assert set(RULES) >= {"deals", "corporate_actions", "ipo_listings", "companies", "fundamentals",
                           "filings", "fo_ban", "rights_issues", "kpis", "scans_buyback_arb",
-                          "scans_rights_re", "buyback_frontier", "board_meetings"}
+                          "scans_rights_re", "buyback_frontier", "board_meetings",
+                          "shareholding", "insider_trades", "pref_issues", "pref_lockin"}
     assert "calendar_ahead" in FLOORS          # trading_calendar must extend past today
 
 
@@ -103,7 +104,7 @@ def test_stale_trading_counts_trading_days_not_calendar_days():
     assert stale_trading({"prices": date(2026, 9, 30)}, {"prices": 1}, date(2026, 10, 5), hol) == \
         [("prices", date(2026, 9, 30), 2, 1)]
     assert stale_trading({"prices": None}, {"prices": 1}, date(2026, 10, 5), hol) == [("prices", None, None, 1)]
-    assert {"prices", "index_prices"} <= set(TRADING_RULES)
+    assert {"prices", "index_prices", "surveillance"} <= set(TRADING_RULES)
 
 
 def test_ratio_rules():

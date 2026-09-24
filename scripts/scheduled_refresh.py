@@ -1,7 +1,7 @@
 """Scheduled infra refresh — run by GitHub Actions (.github/workflows/refresh-*.yml).
 
-    python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, rights issues, deals refill, buybacks
-    python scripts/scheduled_refresh.py weekly   # Sunday: trading calendar, company master, fundamentals
+    python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, surveillance, insider, pref issues, deals refill, buybacks
+    python scripts/scheduled_refresh.py weekly   # Sunday: trading calendar, company master, fundamentals, shareholding
 
 Runs each step as a subprocess so one failure doesn't stop the rest, streams output to the
 console (the Actions log; add --log to also append to logs/refresh-<mode>-<date>.log) and exits
@@ -24,13 +24,15 @@ def steps(mode: str, today: date) -> list[list[str]]:
                 ["refresh_prices.py"],  # before the scans: they read today's close from daily_prices
                 ["refresh_events.py", "ipos"], ["refresh_events.py", "rights"],
                 ["refresh_events.py", "board-meetings"], ["refresh_events.py", "bands"],
+                ["refresh_surveillance.py"], ["refresh_insider.py"], ["refresh_prefissues.py"],
                 ["refresh_filings.py"], ["extract_kpis.py", "--limit", "1500"],
                 ["refill_deals.py", "--from", (today - timedelta(days=DEALS_LOOKBACK_DAYS)).isoformat()],
                 ["-m", "scanner.run", "buyback_arb", "--save"],
                 ["-m", "scanner.run", "rights_re", "--save"], ["check_freshness.py"]]
     if mode == "weekly":  # fundamentals rows carry `history`, so no separate rebuild step
         return [["refresh_events.py", "holidays"], ["refresh_prices.py", "--prune"],
-                ["refresh_companies.py"], ["refresh_fundamentals.py"], ["archive_filings.py"],
+                ["refresh_companies.py"], ["refresh_fundamentals.py"], ["refresh_shareholding.py"],
+                ["archive_filings.py"],
                 ["check_freshness.py"]]
     raise ValueError(f"unknown mode {mode!r}")
 

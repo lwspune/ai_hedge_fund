@@ -46,6 +46,20 @@ def main():
         date.today() - timedelta(days=30), date.today())))
     probe("nse archive band changes", lambda: len(events.fetch_band_changes()) >= 0)
     probe("nse archive bhavcopy", lambda: _bhav_rows())
+    # 2026-09-24 GitHub review unlocks (docs/GITHUB_PROJECT_REVIEW.md section 3)
+    from scanner import shareholding, surveillance, prefissues, insider
+    probe("NSE PIT pit-gg JSON", lambda: len(insider.fetch_pit_filings(
+        date.today() - timedelta(days=7), date.today())))
+    probe("NSE ASM JSON", lambda: len(surveillance.parse_asm(surveillance.fetch_asm(), date.today())))
+    probe("NSE GSM JSON", lambda: len(surveillance.parse_gsm(surveillance.fetch_gsm(), date.today())))
+    probe("NSE shareholding master", lambda: shareholding.fetch_shp_master("INDUSINDBK")[0]["quarter_end"])
+    probe("NSE SHP XBRL small-holder %", lambda: shareholding.parse_shp_xbrl(shareholding.fetch_xbrl(
+        shareholding.fetch_shp_master("INDUSINDBK")[0]["xbrl_url"]))["small_holder_pct"])
+    probe("NSE pref issues listing", lambda: len(prefissues.fetch_pref(
+        "listing", date.today() - timedelta(days=60), date.today())))
+    probe("NSE pref listing XBRL lock-in", lambda: prefissues.parse_pref_ls_xbrl(prefissues.fetch_xbrl(
+        prefissues.fetch_pref("listing", date.today() - timedelta(days=60), date.today())[0]["xml_url"]))["lockins"])
+    probe("BSE announcements JSON", lambda: _bse_announcements())
 
 
 def _bhav_rows():
@@ -58,6 +72,20 @@ def _bhav_rows():
         if r.status_code == 200:
             return f"{d}: {len(r.text.splitlines())} lines"
     raise RuntimeError("no bhavcopy in the last 7 days")
+
+
+def _bse_announcements():
+    """BSE announcements need Referer + Origin (no cookie handshake); AnnGetData/w is dead, this
+    endpoint answers one day per call. Not ingested yet — probed for the delisting-RBB backlog."""
+    import requests
+    d = date.today() - timedelta(days=1)
+    r = requests.get("https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w",
+                     params={"pageno": 1, "strCat": -1, "strPrevDate": d.strftime("%Y%m%d"), "strScrip": "",
+                             "strSearch": "P", "strToDate": d.strftime("%Y%m%d"), "strType": "C", "subcategory": -1},
+                     headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.bseindia.com/",
+                              "Origin": "https://www.bseindia.com"}, timeout=30)
+    r.raise_for_status()
+    return f"{len(r.json().get('Table', []))} rows on {d}"
 
 
 if __name__ == "__main__":

@@ -606,3 +606,104 @@ begin
 end $$;
 revoke execute on function public.upsert_buybacks(jsonb) from public, anon, authenticated;
 grant execute on function public.upsert_buybacks(jsonb) to service_role;
+
+-- ============================================================================
+-- 2026-09-24 GitHub review unlocks (docs/GITHUB_PROJECT_REVIEW.md §3): quarterly shareholding +
+-- promoter pledge (scanner/shareholding.py), SEBI PIT insider disclosures (scanner/insider.py),
+-- daily ASM/GSM snapshot (scanner/surveillance.py), preferential allotments + lock-in expiries
+-- (scanner/prefissues.py). Percentages are 0-100.
+-- ============================================================================
+create table if not exists shareholding (
+  symbol                 text not null,
+  quarter_end            date not null,
+  broadcast_at           timestamptz,
+  revised                boolean not null default false,
+  promoter_pct           numeric check (promoter_pct between 0 and 100),
+  public_pct             numeric check (public_pct between 0 and 100),
+  small_holder_pct       numeric check (small_holder_pct between 0 and 100),   -- resident individuals <= Rs 2 lakh nominal
+  mf_pct                 numeric check (mf_pct between 0 and 100),
+  dii_pct                numeric check (dii_pct between 0 and 100),
+  fpi_pct                numeric check (fpi_pct between 0 and 100),
+  pledge_pct_of_promoter numeric check (pledge_pct_of_promoter between 0 and 100),
+  pledge_pct_of_total    numeric check (pledge_pct_of_total between 0 and 100),
+  n_shareholders         bigint check (n_shareholders is null or n_shareholders >= 0),
+  n_small_holders        bigint check (n_small_holders is null or n_small_holders >= 0),
+  xbrl_url               text,
+  source                 text not null default 'nse_shp',
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
+  primary key (symbol, quarter_end)
+);
+create index if not exists idx_shareholding_quarter on shareholding(quarter_end);
+alter table shareholding enable row level security;
+create policy "anon read shareholding" on shareholding for select to anon using (true);
+
+create table if not exists insider_trades (
+  app_id        bigint not null,                   -- NSE filing id
+  seq           smallint not null,                 -- disclosure index within the filing
+  symbol        text not null,
+  broadcast_at  timestamptz not null,
+  regulation    text,
+  person        text,
+  category      text,                              -- Promoter / Promoter Group / KMP / Director / ...
+  instrument    text,
+  txn_type      text,                              -- Buy / Sell / Pledge / Pledge Revoke / ...
+  mode          text,                              -- Market Purchase / Market Sale / ESOP / Pledge Release / ...
+  n_securities  bigint,
+  value         numeric,
+  pre_pct       numeric,
+  post_pct      numeric,
+  txn_from      date,
+  txn_to        date,
+  exchange      text,
+  xml_url       text not null,
+  created_at    timestamptz not null default now(),
+  primary key (app_id, seq)
+);
+create index if not exists idx_insider_symbol_time on insider_trades(symbol, broadcast_at desc);
+create index if not exists idx_insider_time on insider_trades(broadcast_at desc);
+alter table insider_trades enable row level security;
+create policy "anon read insider_trades" on insider_trades for select to anon using (true);
+
+create table if not exists surveillance_daily (
+  as_of      date not null,
+  symbol     text not null,
+  list_name  text not null check (list_name in ('asm_lt','asm_st','gsm')),
+  stage      text,
+  surv_code  text,
+  primary key (as_of, symbol, list_name)
+);
+create index if not exists idx_surveillance_symbol on surveillance_daily(symbol, as_of desc);
+alter table surveillance_daily enable row level security;
+create policy "anon read surveillance_daily" on surveillance_daily for select to anon using (true);
+
+create table if not exists pref_issues (
+  app_id             bigint primary key,
+  symbol             text not null,
+  isin               text,
+  stage              text not null check (stage in ('in_principle','listing')),
+  board_res_date     date,
+  submission_date    date,
+  allotment_date     date,
+  offer_price        numeric check (offer_price is null or offer_price > 0),
+  shares_allotted    bigint,
+  shares_listed      bigint,
+  amount             numeric,
+  allottee_category  text,
+  lockins            jsonb,                         -- [{period, months, shares}] from the listing XBRL; null = not read yet
+  xml_url            text,
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+create index if not exists idx_pref_symbol on pref_issues(symbol, allotment_date desc);
+create index if not exists idx_pref_submission on pref_issues(submission_date desc);
+alter table pref_issues enable row level security;
+create policy "anon read pref_issues" on pref_issues for select to anon using (true);
+
+alter table corporate_events drop constraint if exists corporate_events_event_type_check;
+alter table corporate_events add constraint corporate_events_event_type_check check (event_type in (
+  'bonus','split','consolidation','rights','dividend','buyback','demerger','fo_ban','ipo_listing',
+  'anchor_lockin_30','anchor_lockin_90','board_meeting','results','band_change','pref_lockin_expiry'));
+alter table corporate_events drop constraint if exists corporate_events_source_check;
+alter table corporate_events add constraint corporate_events_source_check check (source in (
+  'nse_ca','nse_fo','chittorgarh','nse_bm','nse_band','nse_pref'));

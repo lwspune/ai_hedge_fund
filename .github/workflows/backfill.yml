@@ -4,6 +4,9 @@ name: backfill
 #   prices          NSE bhavcopy -> daily_prices + bucket  (from = date; to defaults to the end of
 #                   LAST month, so it never races the daily run's read-modify-write of this month)
 #   orphans         companies rows for symbols seen in filings/deals/events but not the master
+#   shareholding    quarterly SHP XBRL history, 30 quarters/symbol, 20k XBRL per run (from = floor, default 2020-01-01)
+#   insider         PIT disclosures: the whole undated list (~5 months) when no from; else the from..to window
+#   pref-issues     preferential allotments + lock-in expiries (from default 2023-01-01, the list's start)
 # One concurrency group per kind: backfills of different kinds run side by side and alongside the
 # scheduled refresh (they write different rows); two of the same kind queue.
 on:
@@ -11,7 +14,7 @@ on:
     inputs:
       what:
         type: choice
-        options: [board-meetings, prices, orphans]
+        options: [board-meetings, prices, orphans, shareholding, insider, pref-issues]
         required: true
       from:
         description: "start date YYYY-MM-DD (board-meetings / prices)"
@@ -49,4 +52,8 @@ jobs:
             prices)         LAST_MONTH_END="$(date -d "$(date +%Y-%m-01) -1 day" +%F)"
                             python -u scripts/refresh_prices.py --from "${FROM:?from is required}" --to "${TO:-$LAST_MONTH_END}" ;;
             orphans)        python -u scripts/backfill_orphans.py ;;
+            shareholding)   python -u scripts/refresh_shareholding.py --per-symbol 30 --xbrl-limit 20000 --floor "${FROM:-2020-01-01}" ;;
+            insider)        if [ -n "$FROM" ]; then python -u scripts/refresh_insider.py --from "$FROM" --to "${TO:-$(date +%F)}";
+                            else python -u scripts/refresh_insider.py --all; fi ;;
+            pref-issues)    python -u scripts/refresh_prefissues.py --from "${FROM:-2023-01-01}" --to "${TO:-$(date +%F)}" ;;
           esac

@@ -44,6 +44,11 @@ def queries(today: date) -> dict:
         "scans_rights_re": ("scan_runs", "run_at", {"signal_name": "eq.rights_re"}, 3),
         "board_meetings": ("corporate_events", "created_at", {"source": "eq.nse_bm"}, 10),
         "snapshot_history": ("company_snapshot_history", "as_of", {}, 8),   # weekly, with fundamentals
+        # 2026-09-24 review unlocks (docs/GITHUB_PROJECT_REVIEW.md)
+        "shareholding": ("shareholding", "updated_at", {}, 8),             # weekly: every symbol's latest quarter re-touched
+        "insider_trades": ("insider_trades", "broadcast_at", {}, 5),       # ~35 PIT filings / trading day
+        "pref_issues": ("pref_issues", "updated_at", {}, 5),               # daily 45-day window re-upserted
+        "pref_lockin": ("corporate_events", "created_at", {"source": "eq.nse_pref"}, 21),  # ~2 listings / day
         # evaluated by frontier_stuck(), not stale(): a new buyback row = the frontier advanced
         "buyback_frontier": ("buybacks", "created_at", {}, FRONTIER_MAX_DAYS),
     }
@@ -57,6 +62,7 @@ RULES = {name: q[3] for name, q in QUERIES.items()}
 TRADING_QUERIES = {
     "prices": ("daily_prices", "trade_date", {}, 1),
     "index_prices": ("index_prices", "trade_date", {}, 1),
+    "surveillance": ("surveillance_daily", "as_of", {}, 1),   # a snapshot every trading day
 }
 TRADING_RULES = {name: q[3] for name, q in TRADING_QUERIES.items()}
 
@@ -80,6 +86,12 @@ FLOORS = {
     # the weekly membership diff keeps exactly 50 open NIFTY 50 intervals
     "nifty50_members": {"table": "index_membership", "col": None,
                         "filters": {"index_key": "eq.nifty50", "to_date": "is.null"}, "days": None, "min": 50},
+    # the weekly shareholding run re-touches every listed symbol's latest quarter
+    "shareholding": {"table": "shareholding", "col": "updated_at", "filters": {}, "days": 6, "min": 2000},
+    "insider_trades": {"table": "insider_trades", "col": "broadcast_at", "filters": {}, "days": 3, "min": 30},
+    # ~135 long-term + ~75 short-term ASM + ~75 GSM rows per snapshot
+    "surveillance": {"table": "surveillance_daily", "col": "as_of", "filters": {}, "days": 2, "min": 100},
+    "pref_issues": {"table": "pref_issues", "col": "submission_date", "filters": {}, "days": 21, "min": 15},
 }
 
 
