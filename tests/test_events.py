@@ -153,3 +153,17 @@ def test_fetch_ipo_treats_redirect_as_missing_page():
     assert fetch_ipo(99999, s) == (False, None)
     assert s.kwargs.get("allow_redirects") is False
     assert fetch_ipo(2400, _Session(_Resp(200, _page(**FULL))))[0] is True
+
+
+def test_recheck_ids_recent_listings_and_missing_lockins():
+    """Lock-in dates appear on chittorgarh after the page is first seen, so recent IPOs are
+    re-read daily until they age out (or already have both dates)."""
+    from datetime import date
+    from scanner.events import recheck_ids
+    rows = [
+        {"chittorgarh_id": 1, "listing_date": "2026-09-01", "anchor_lockin_30": None, "anchor_lockin_90": None},
+        {"chittorgarh_id": 2, "listing_date": "2026-09-01", "anchor_lockin_30": "2026-10-01", "anchor_lockin_90": "2026-11-30"},
+        {"chittorgarh_id": 3, "listing_date": "2026-01-01", "anchor_lockin_30": None, "anchor_lockin_90": None},
+        {"chittorgarh_id": 4, "listing_date": "2026-10-10", "anchor_lockin_30": None, "anchor_lockin_90": None},
+    ]
+    assert recheck_ids(rows, date(2026, 9, 24), days=120) == [1, 4]

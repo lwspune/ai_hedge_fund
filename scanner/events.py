@@ -12,7 +12,7 @@ Pure parsers (tested) + thin fetchers.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import requests
 
@@ -192,6 +192,15 @@ def ipo_events(ipo: dict) -> list[dict]:
             out.append({"symbol": ipo["symbol"], "event_type": et, "event_date": ipo[key],
                         "record_date": None, "details": det, "source": "chittorgarh"})
     return out
+
+
+def recheck_ids(ipos: list[dict], today: date, days: int = 120) -> list[int]:
+    """chittorgarh ids to re-read: listed within `days` (or not yet listed) and still missing
+    a lock-in date — those fields get filled in after the page is first seen."""
+    cutoff = (today - timedelta(days=days)).isoformat()
+    return sorted(r["chittorgarh_id"] for r in ipos
+                  if r["listing_date"] >= cutoff
+                  and not (r.get("anchor_lockin_30") and r.get("anchor_lockin_90")))
 
 
 def fetch_ipo(ipo_id: int, session=None) -> tuple[bool, dict | None]:

@@ -3,8 +3,10 @@
     python scripts/refresh_events.py actions [--from 2025-01-01] [--to 2025-12-31]  # default: last 45d
     python scripts/refresh_events.py fo-ban  [--from 2024-01-01] [--to ...]         # default: last 10d
     python scripts/refresh_events.py ipos    [--from-id 1] [--to-id 3000]           # default: frontier probe
+                                                                                   #  + recheck last 120d
 
-nselib (actions) needs a residential IP; F&O ban + chittorgarh are static and polite-rate-limited.
+All sources also work from GitHub Actions runners (scripts/probe_sources.py); chittorgarh and
+the F&O ban archive are fetched politely (rate-limited).
 """
 from __future__ import annotations
 
@@ -19,7 +21,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner import db  # noqa: E402
 from scanner.events import (  # noqa: E402
-    dedupe_events, fetch_corp_actions, fetch_fo_ban, fetch_ipo, ipo_events)
+    dedupe_events, fetch_corp_actions, fetch_fo_ban, fetch_ipo, ipo_events, recheck_ids)
 
 CHUNK = 500
 GAP_STOP = 30      # consecutive missing IPO pages that end a frontier probe
@@ -57,6 +59,23 @@ def run_fo_ban(frm: date, to: date) -> None:
 def _ipo_frontier() -> int:
     rows = db.select("ipos", {"select": "chittorgarh_id", "order": "chittorgarh_id.desc", "limit": "1"})
     return max((rows[0]["chittorgarh_id"] if rows else 1) - 10, 1)
+
+
+def run_recheck(days: int = 120) -> None:
+    """Re-read recent IPO pages whose lock-in dates weren't published when first seen."""
+    rows = db.select_all("ipos", {"select": "chittorgarh_id,listing_date,anchor_lockin_30,anchor_lockin_90"})
+    ids, s, got = recheck_ids(rows, date.today(), days), requests.Session(), []
+    for i in ids:
+        try:
+            _, row = fetch_ipo(i, s)
+        except requests.RequestException as e:
+            print(f"  recheck {i}: {e!r}"[:120])
+            continue
+        if row:
+            got.append(row)
+        time.sleep(0.4)
+    _flush_ipos(got)
+    print(f"rechecked {len(ids)} recent IPOs")
 
 
 def run_ipos(from_id: int | None, to_id: int | None) -> None:
@@ -113,6 +132,8 @@ def main():
         run_fo_ban(a.frm or today - timedelta(days=10), a.to or today)
     else:
         run_ipos(a.from_id, a.to_id)
+        if a.from_id is None:  # daily mode: also refresh recent pages (lock-in dates fill in late)
+            run_recheck()
 
 
 if __name__ == "__main__":
