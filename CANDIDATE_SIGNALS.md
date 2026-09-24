@@ -35,7 +35,7 @@ Prior = honest expectation before testing.
 | # | Signal | Bucket | Data | Prior | How to test |
 |---|---|---|---|---|---|
 | 7 | ~~**Promoter open-market buying (SAST/insider)**~~ **TESTED → NULL (decayed, 2026-09-24).** Worked 2020-23 (+60d median ~+5%) but 2024-26 big-stake/cluster buys −1.0%/−1.6% median; pooled mean is a small-cap fat tail. Data: NSE `corporate-sast-reg29` (reachable from cloud). **New idea to pre-register:** promoter *sells* 2024-26 −5.8% median (flips sign vs 2022-23). See `CONCLUSIONS.md` §10. | 🟡 | ✅ done | ~~conviction~~ → **null** | — |
-| 22 | **Promoter open-market SELLS** (pre-registered in `CONCLUSIONS.md` §10 on 2026-09-24, before the run) — a holder's exit / avoid signal: after a promoter open-market sale cluster the stock lags NIFTY 500 over +20/+60d, incl. 2024-26. Contrast legs: non-promoter sells, promoter buys; same-stock placebo windows. | 🟡 | ✅ Reg 29 (2020→) | thin/null (§10 contrast flipped sign across eras) | `scripts/validate_promoter_sells.py` — **running on Actions**. |
+| 22 | ~~**Promoter open-market SELLS**~~ **TESTED → NULL (2026-09-24, pre-registered).** n=1,131 clusters 2020-26: +60d +0.0% pooled (t=0.0); −4.0% in 2024-26 (t=−4.6) but +4.7% in 2022-23 (t=+3.1) — sign flips every era; same-stock placebo medians match. `CONCLUSIONS.md` §13. | 🟡 | ✅ done | ~~thin/null~~ → **null** | — |
 | 8 | **Pledge-release signal** — sharp drop in promoter pledged % (deleveraging) as a positive structural de-risking event. **Data unlocked 2026-09-24:** quarterly `pledge_pct_of_promoter` from SHP XBRL in `shareholding` (backfilling 2020→); PIT feed carries Pledge / Pledge Revoke / Invocation transactions going forward. | 🟡 | ✅ `shareholding` (quarterly), `insider_trades` (forward) | thin; low-frequency | Event study around pledge-% reduction disclosures. |
 | 9 | **Bonus / stock-split announcement drift** — retail over-reacts to "cheaper" shares; pre-record-date run-up, post-drift. | 🟡 | ✅ NSE corp-actions + prices | likely null (well-known); cheap control | Abnormal return announcement→record and record→T+20. |
 | 10 | **Demerger / scheme-of-arrangement value unlock** — when-issued & post-listing re-rating of demerged entity. | 🟡 | ⚠️ corp-action + manual deal list | event-driven, low-frequency, possible unlock | Study parent + child returns around record/listing. |
@@ -66,7 +66,7 @@ Prior = honest expectation before testing.
 1. **#1 Index rebalance front-run** — cleanest forced-flow, fully reachable, strong prior. Start here.
 2. ~~**#2 Lock-in expiry overhang**~~ — done: real dip, not shortable (lens).
 3. **#5 ASM/GSM** (unblocked 2026-09-24: daily snapshot accruing; test in 2027) + ~~**#6 F&O ban**~~ (done: null).
-   **#20 pref lock-in expiry** and **#22 promoter sells** are running on Actions (2026-09-24).
+   **#20 pref lock-in expiry** is running on Actions (2026-09-24); ~~#22 promoter sells~~ done: null.
 4. ~~**#3 Delisting RBB**~~ — parked: data not reachable (manual curation only).
 5. ~~**#4 Rights-entitlement**~~ — done: conditional, actionable (RE discount ~3%).
 6. Everything in Tier 3/4 as **cheap controls** (run to document efficiency, not to find edge).

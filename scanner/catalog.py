@@ -114,6 +114,14 @@ def _run_promoter_buying(**kw) -> str:
             "scripts/validate_promoter_buys.py.")
 
 
+def _run_promoter_sells(**kw) -> str:
+    return ("promoter_sells is NULL (era-unstable): after a promoter open-market sale cluster "
+            "(NSE Reg 29, n=1,131, 2020-26) the +60d abnormal return is +0.0% pooled (t=0.0); "
+            "2024-26 reads -4.0% (t=-4.6, 37% up) but 2022-23 read +4.7% (t=+3.1) -- the sign has "
+            "flipped in every era, and same-stock placebo windows carry the same negative medians. "
+            "No barrier, public disclosure. Run scripts/validate_promoter_sells.py.")
+
+
 def _run_turn_of_month(**kw) -> str:
     return ("turn_of_month is NULL (control): the last-1 + first-3 trading-day window earned "
             "+0.34%/day on NIFTY 500 in 2022-23 (t=3.9) and +0.00%/day in 2024-26 (t=0.0); pooled "
@@ -200,6 +208,12 @@ SIGNALS: dict[str, Signal] = {
                    "abnormal ~0 to slightly negative, below same-stock controls (n=1,638, 2024-26). "
                    "Informational lens only."),
         _run_order_wins),
+    "promoter_sells": Signal(
+        SignalMeta("promoter_sells", "drift", "null", "lens",
+                   "Exit/avoid after promoter open-market sales (Reg 29). Pre-registered, n=1,131: "
+                   "+60d +0.0% pooled; -4.0% in 2024-26 (t=-4.6) but +4.7% in 2022-23 (t=+3.1) -- "
+                   "sign flips every era, placebo medians match. Null; informational lens only."),
+        _run_promoter_sells),
     "turn_of_month": Signal(
         SignalMeta("turn_of_month", "drift", "null", "documented",
                    "Turn-of-month seasonality (last 1 + first 3 trading days) on NIFTY 50 / 500. "

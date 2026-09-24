@@ -251,6 +251,26 @@ external "marginal pass" (NIFTYBEES 2021-26, +0.9%/yr gross) is this flicker. Do
 (`scanner/seasonality.py`, `scripts/validate_turn_of_month.py`.) *Evidence:*
 `evidence/turn_of_month/2026-09-24T083330Z` (Actions).
 
+### 13. Promoter open-market selling (Reg 29, pre-registered leg of §10) — NULL (era-unstable)
+Hypothesis registered 2026-09-24 before the run: a promoter open-market sale cluster predicts
+underperformance vs NIFTY 500 over +20/+60d, pooled and in 2024-26. n=1,131 clusters (2020-26),
+entry the day after disclosure; contrast legs non-promoter sells (1,400) and promoter buys (1,744);
+same-stock 20-day placebo windows. Run on Actions.
+
+| promoter sells | +20d | +60d | placebo pre / post (20d) |
+|---|---|---|---|
+| pooled | +0.2% (median −1.8%, t=0.4) | **+0.0%** (median −3.5%, t=0.0) | +1.2% (t=2.5) / +0.5% |
+| 2020-21 | +1.7% | +3.0% | |
+| 2022-23 | −0.1% | **+4.7% (t=+3.1)** | |
+| 2024-26 | −0.5% | **−4.0% (t=−4.6, 37% up)** | |
+
+Cluster / stake-size cuts are all within ±1%. The 2024-26 leg looks like the §10 contrast
+(−5.8% median) but the sign has now flipped in every era (+, +, −), and the negative medians
+also appear in the placebo windows of the same stocks (small-cap drift, not the event). A public
+disclosure with no barrier — null, like promoter buying. Not a trade; at most an "avoid adding"
+lens. (`scripts/validate_promoter_sells.py`.) *Evidence:*
+`evidence/promoter_sells/2026-09-24T090701Z` (Actions).
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
