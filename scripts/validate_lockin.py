@@ -51,7 +51,7 @@ def build() -> pd.DataFrame:
                                               "event_type": f"in.({','.join(sorted(BLOCKING))})"})
     cutoff = (date.today() - timedelta(days=21)).isoformat()   # need T+10 trading days of data
     events = [e for e in lockin_events(ipos) if e["expiry"] <= cutoff]
-    bench = get_closes(BENCH, "2005-01-01")
+    bench = get_closes(BENCH, "2005-01-01", source="yf")
     print(f"blocking corporate actions loaded: {len(acts)}")
     print(f"{len(events)} lock-in expiries from {len(ipos)} IPOs; pricing "
           f"{len({e['symbol'] for e in events})} symbols (unadjusted NSE)...", flush=True)

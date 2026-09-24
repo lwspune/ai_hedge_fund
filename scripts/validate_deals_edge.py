@@ -106,7 +106,7 @@ def build_events(norm: pd.DataFrame, categories) -> pd.DataFrame:
 # --- prices (yfinance, cached per symbol) -----------------------------------
 
 def get_prices(symbol: str) -> pd.Series | None:
-    return get_closes(symbol)  # infra I2: cached + guarded (scanner/pricestore.py)
+    return get_closes(symbol, source="yf")  # infra I2: cached + guarded (scanner/pricestore.py)
 
 
 def run_study(events: pd.DataFrame, bench: pd.Series, label: str) -> dict:

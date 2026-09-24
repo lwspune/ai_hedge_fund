@@ -91,7 +91,8 @@ def outcome_row(tender_id, accepted_shares=None, realized_acceptance=None,
 # --- REST primitives ---------------------------------------------------------
 
 def insert(table: str, rows, on_conflict: str | None = None,
-           return_rows: bool = True) -> list[dict]:
+           return_rows: bool = True, ignore_duplicates: bool = False) -> list[dict]:
+    """POST rows; with on_conflict, upsert (merge) — or keep existing rows if ignore_duplicates."""
     url, key = config()
     if isinstance(rows, dict):
         rows = [rows]
@@ -99,7 +100,8 @@ def insert(table: str, rows, on_conflict: str | None = None,
     prefer = f"return={ret}"
     params = {}
     if on_conflict:
-        prefer = f"resolution=merge-duplicates,return={ret}"
+        resolution = "ignore-duplicates" if ignore_duplicates else "merge-duplicates"
+        prefer = f"resolution={resolution},return={ret}"
         params = {"on_conflict": on_conflict}
     r = requests.post(f"{url}/rest/v1/{table}", headers=_headers(key, prefer),
                       params=params, json=rows, timeout=30)

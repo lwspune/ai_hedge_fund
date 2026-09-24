@@ -50,9 +50,9 @@ def test_get_closes_fetches_once_then_serves_cache_and_slices(tmp_path, monkeypa
         return full
 
     monkeypatch.setitem(ps.FETCHERS, "yf", fake)
-    a = ps.get_closes("ABC", "2024-01-03", "2024-01-05", cache_dir=tmp_path,
+    a = ps.get_closes("ABC", "2024-01-03", "2024-01-05", source="yf", cache_dir=tmp_path,
                       today=pd.Timestamp("2024-01-10"))
-    b = ps.get_closes("ABC", "2024-01-03", "2024-01-05", cache_dir=tmp_path,
+    b = ps.get_closes("ABC", "2024-01-03", "2024-01-05", source="yf", cache_dir=tmp_path,
                       today=pd.Timestamp("2024-01-10"))
     assert calls == ["ABC"]
     assert list(a.values) == [102.0, 103.0, 104.0]
@@ -70,14 +70,14 @@ def test_get_closes_refetches_when_cache_is_behind_requested_end(tmp_path, monke
         return next(seq)
 
     monkeypatch.setitem(ps.FETCHERS, "yf", fake)
-    ps.get_closes("ABC", cache_dir=tmp_path, today=pd.Timestamp("2024-01-05"))
-    s = ps.get_closes("ABC", cache_dir=tmp_path, today=pd.Timestamp("2024-01-20"))
+    ps.get_closes("ABC", source="yf", cache_dir=tmp_path, today=pd.Timestamp("2024-01-05"))
+    s = ps.get_closes("ABC", source="yf", cache_dir=tmp_path, today=pd.Timestamp("2024-01-20"))
     assert len(calls) == 2 and len(s) == 20
 
 
 def test_get_closes_returns_none_when_source_has_nothing(tmp_path, monkeypatch):
     monkeypatch.setitem(ps.FETCHERS, "yf", lambda symbol: pd.Series(dtype="float64"))
-    assert ps.get_closes("NOPE", cache_dir=tmp_path, today=pd.Timestamp("2024-01-10")) is None
+    assert ps.get_closes("NOPE", source="yf", cache_dir=tmp_path, today=pd.Timestamp("2024-01-10")) is None
 
 
 def test_nse_frame_keeps_equity_series_and_prefers_eq():
@@ -126,3 +126,86 @@ def test_get_closes_nse_fetch_is_bounded_by_requested_end(tmp_path, monkeypatch)
     assert len(calls) == 1                     # inside cached window
     s = ps.get_closes("OLD", "2010-06-01", source="nse", cache_dir=tmp_path, today=today)
     assert len(calls) == 2 and s.index.max() == pd.Timestamp("2024-01-10")  # extended to today
+
+
+# --- source="db": Supabase daily_prices (recent) + prices bucket months (older) — WP3 ---------
+
+def _raw_month(rows):
+    """A bhav/YYYY-MM.parquet frame: raw columns, every series."""
+    return pd.DataFrame([{"SYMBOL": s, "SERIES": ser, "DATE1": pd.Timestamp(d), "CLOSE_PRICE": c,
+                          "TTL_TRD_QNTY": 100, "TURNOVER_LACS": 1.0, "DELIV_PER": 50.0}
+                         for s, ser, d, c in rows])
+
+
+@pytest.fixture
+def db_source(monkeypatch):
+    months = {
+        "2024-05": _raw_month([("X", "EQ", "2024-05-30", 10.0), ("X", "BE", "2024-05-30", 99.0),
+                               ("X", "EQ", "2024-05-31", 11.0), ("Y", "EQ", "2024-05-31", 5.0),
+                               ("X", "GB", "2024-05-31", 77.0)]),
+        "2024-06": _raw_month([("X", "EQ", "2024-06-03", 12.0)]),
+    }
+    table = [{"trade_date": "2024-06-04", "close": 13.0, "volume": 7, "turnover_lakh": 2.0, "delivery_pct": 40.0},
+             {"trade_date": "2024-06-05", "close": 14.0, "volume": 8, "turnover_lakh": 2.5, "delivery_pct": None}]
+    calls = {"months": [], "table": []}
+
+    def month(ym):
+        calls["months"].append(ym)
+        return months.get(ym)
+
+    def rows(symbol, lo, hi):
+        calls["table"].append((symbol, lo, hi))
+        return [r for r in table if lo <= r["trade_date"] <= hi] if symbol == "X" else []
+
+    monkeypatch.setattr(ps, "_bhav_month", month)
+    monkeypatch.setattr(ps, "_db_rows", rows)
+    monkeypatch.setattr(ps, "_table_floor", lambda: pd.Timestamp("2024-06-04"))
+    return calls
+
+
+def test_db_source_splits_table_and_bucket(db_source):
+    s = ps.get_closes("X", "2024-05-30", "2024-06-05", source="db")
+    assert list(s.index) == list(pd.to_datetime(["2024-05-30", "2024-05-31", "2024-06-03",
+                                                 "2024-06-04", "2024-06-05"]))
+    assert list(s.values) == [10.0, 11.0, 12.0, 13.0, 14.0]   # EQ beats BE; GB ignored
+    assert db_source["months"] == ["2024-05", "2024-06"]        # only months before the table floor
+    assert db_source["table"] == [("X", "2024-06-04", "2024-06-05")]
+
+
+def test_db_source_recent_window_never_touches_bucket(db_source):
+    s = ps.get_closes("X", "2024-06-05", "2024-06-05", source="db")
+    assert list(s.values) == [14.0] and db_source["months"] == []
+
+
+def test_db_source_old_window_never_touches_table(db_source):
+    s = ps.get_closes("X", "2024-05-31", "2024-05-31", source="db")
+    assert list(s.values) == [11.0] and db_source["table"] == []
+
+
+def test_db_source_none_when_empty(db_source):
+    assert ps.get_closes("NOPE", "2024-05-01", "2024-06-05", source="db") is None
+
+
+def test_get_bars_has_volume_turnover_delivery(db_source):
+    b = ps.get_bars("X", "2024-05-31", "2024-06-05")
+    assert list(b.columns) == ["close", "volume", "turnover_lakh", "delivery_pct"]
+    assert b.loc["2024-06-04", "volume"] == 7 and b.loc["2024-05-31", "delivery_pct"] == 50.0
+
+
+def test_db_source_benchmark_reads_index_prices(monkeypatch):
+    seen = []
+
+    def rows(symbol, lo, hi):
+        seen.append(symbol)
+        return [{"trade_date": "2024-06-04", "close": 22000.0}]
+
+    monkeypatch.setattr(ps, "_db_rows", rows)
+    monkeypatch.setattr(ps, "_bhav_month", lambda ym: pytest.fail("benchmarks never read bhav months"))
+    s = ps.get_closes("^NSEI", "2020-01-01", "2024-06-05", source="db")
+    assert seen == ["^NSEI"] and list(s.values) == [22000.0]
+
+
+def test_get_closes_requires_explicit_source():
+    """Adjusted Yahoo closes silently used for a nominal-price premium was a real bug class."""
+    with pytest.raises(TypeError):
+        ps.get_closes("X", "2024-01-01", "2024-02-01")

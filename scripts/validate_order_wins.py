@@ -62,7 +62,7 @@ def build() -> pd.DataFrame:
     acts = db.select_all("corporate_events", {"select": "symbol,event_type,event_date",
                                               "event_type": f"in.({','.join(sorted(BLOCKING))})",
                                               "event_date": "gte.2020-10-01"})
-    bench = get_closes(BENCH, "2020-06-01")
+    bench = get_closes(BENCH, "2020-06-01", source="yf")
     cal = bench.index
     order_days: dict[str, list[pd.Timestamp]] = {}
     for f in filings:

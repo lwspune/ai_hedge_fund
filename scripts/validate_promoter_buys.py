@@ -75,7 +75,7 @@ def build() -> pd.DataFrame:
                                               "event_type": f"in.({','.join(sorted(BLOCKING))})",
                                               "event_date": "gte.2019-11-01"})
     series = {c["symbol"]: c["series"] for c in db.select_all("companies", {"select": "symbol,series"})}
-    bench = get_closes(BENCH, "2019-01-01")
+    bench = get_closes(BENCH, "2019-01-01", source="yf")
 
     span: dict[str, list[str]] = {}
     for evs in legs.values():

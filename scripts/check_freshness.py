@@ -51,6 +51,14 @@ def queries(today: date) -> dict:
 QUERIES = queries(date.today())
 RULES = {name: q[3] for name, q in QUERIES.items()}
 
+# name -> (table, date column, filters, max age in TRADING days). The bhavcopy lands ~19:00 IST,
+# before the 20:30 daily run, so a healthy store is 0 trading days old.
+TRADING_QUERIES = {
+    "prices": ("daily_prices", "trade_date", {}, 1),
+    "index_prices": ("index_prices", "trade_date", {}, 1),
+}
+TRADING_RULES = {name: q[3] for name, q in TRADING_QUERIES.items()}
+
 # name -> window volume floor. `days` = trading days back from today (None = whole table).
 # Floors sit well under the live 2nd-percentile volume (measured 2026-09-24) so they only
 # fire on a real loader failure, not a quiet week.
@@ -66,6 +74,8 @@ FLOORS = {
     # the weekly holidays load writes this + next year; < 20 weekdays ahead = it stopped running
     "calendar_ahead": {"table": "trading_calendar", "col": None,
                        "filters": {"trade_date": f"gte.{date.today()}"}, "days": None, "min": 20},
+    # ~3,400 equity rows per bhavcopy day; two days so a not-yet-published today can't fail it
+    "prices": {"table": "daily_prices", "col": "trade_date", "filters": {}, "days": 2, "min": 2500},
 }
 
 
@@ -80,6 +90,17 @@ def stale(latest: dict, rules: dict, today: date) -> list[tuple]:
             out.append((name, None, None, max_age))
         elif (today - d).days > max_age:
             out.append((name, d, (today - d).days, max_age))
+    return out
+
+
+def stale_trading(latest: dict, rules: dict, today: date, hol) -> list[tuple]:
+    """Like stale(), with ages in trading days (weekends + NSE holidays don't count)."""
+    from scanner.trading_calendar import age_in_trading_days
+    out = []
+    for name, max_age in rules.items():
+        age = age_in_trading_days(latest.get(name), today, hol)
+        if age is None or age > max_age:
+            out.append((name, latest.get(name), age, max_age))
     return out
 
 
@@ -152,7 +173,9 @@ def _last_scan_params() -> dict:
 def main():
     from scanner import db
     today = date.today()
+    from scanner.trading_calendar import holidays
     latest = {name: _newest(t, c, f) for name, (t, c, f, _) in QUERIES.items()}
+    latest_td = {name: _newest(t, c, f) for name, (t, c, f, _) in TRADING_QUERIES.items()}
     age_rules = {k: v for k, v in RULES.items() if k != "buyback_frontier"}
     counts = {name: _window_count(spec, today) for name, spec in FLOORS.items()}
     try:
@@ -165,6 +188,8 @@ def main():
     print(f"  {'rule':<20}{'newest':<12}{'max age':>8}")
     for name, d in latest.items():
         print(f"  {name:<20}{str(d):<12}{RULES[name]:>7}d")
+    for name, d in latest_td.items():
+        print(f"  {name:<20}{str(d):<12}{TRADING_RULES[name]:>7}td")
     print(f"  {'floor':<20}{'rows':>8}{'min':>8}")
     for name, spec in FLOORS.items():
         print(f"  {name:<20}{str(counts[name]):>8}{spec['min']:>8}")
@@ -172,6 +197,8 @@ def main():
     print(f"  db_size             {(size or 0) / MB:>7.0f} MB  ({size_state})")
 
     failures = [f"STALE: {n} newest={d} age={a}d > {m}d" for n, d, a, m in stale(latest, age_rules, today)]
+    failures += [f"STALE: {n} newest={d} age={a} trading days > {m}" for n, d, a, m in
+                 stale_trading(latest_td, TRADING_RULES, today, holidays())]
     failures += [f"THIN: {n} rows={c} < {f}" for n, c, f in
                  too_thin(counts, {n: s["min"] for n, s in FLOORS.items()})]
     if frontier:

@@ -99,3 +99,25 @@ def test_total_from_content_range():
     assert _total("0-0/3155") == 3155
     assert _total("*/0") == 0
     assert _total(None) is None
+
+
+def test_insert_ignore_duplicates_sets_prefer(monkeypatch):
+    from scanner import db
+    seen = {}
+
+    class R:
+        status_code, ok = 201, True
+
+        def json(self):
+            return []
+
+    def fake_post(url, headers=None, params=None, json=None, timeout=None):
+        seen.update(headers=headers, params=params)
+        return R()
+
+    monkeypatch.setattr(db, "config", lambda: ("https://x.supabase.co", "k"))
+    monkeypatch.setattr(db, "_check", lambda r: None)
+    monkeypatch.setattr(db.requests, "post", fake_post)
+    db.insert("t", [{"a": 1}], on_conflict="a", return_rows=False, ignore_duplicates=True)
+    assert "resolution=ignore-duplicates" in seen["headers"]["Prefer"]
+    assert seen["params"] == {"on_conflict": "a"}

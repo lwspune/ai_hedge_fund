@@ -389,3 +389,79 @@ alter table corporate_events drop constraint if exists corporate_events_source_c
 alter table corporate_events add constraint corporate_events_source_check check (source in (
   'nse_ca','nse_fo','chittorgarh','nse_bm','nse_band'));
 create index if not exists idx_events_symbol_type_date on corporate_events(symbol, event_type, event_date);
+
+-- ============================================================================
+-- WP3 price store (scanner/bhavcopy.py, scripts/refresh_prices.py, pricestore source="db").
+-- daily_prices = rolling ~2 years of NSE bhavcopy (equity series, UNADJUSTED closes);
+-- the full history (all series/columns, 2020->) lives in the private `prices` bucket as
+-- bhav/YYYY-MM.parquet. index_prices = benchmark closes (full history, tiny).
+-- ============================================================================
+create table if not exists daily_prices (
+  symbol        text not null,
+  trade_date    date not null,
+  series        text not null check (series in ('EQ','BE','BZ','SM','ST','SZ')),
+  close         real not null check (close > 0),
+  prev_close    real check (prev_close is null or prev_close > 0),
+  volume        bigint check (volume is null or volume >= 0),
+  turnover_lakh real check (turnover_lakh is null or turnover_lakh >= 0),
+  delivery_pct  real check (delivery_pct is null or (delivery_pct >= 0 and delivery_pct <= 100)),
+  primary key (symbol, trade_date)
+);
+-- rows arrive in date order, so a BRIN index serves per-date deletes/counts at a few KB
+-- (a btree would cost ~20 MB/yr of the 500 MB free tier)
+create index if not exists idx_daily_prices_date_brin on daily_prices using brin (trade_date);
+alter table daily_prices enable row level security;
+create policy "anon read daily_prices" on daily_prices for select to anon using (true);
+
+create table if not exists index_prices (
+  index_symbol text not null,                 -- Yahoo ticker: ^NSEI, ^CRSLDX, ...
+  trade_date   date not null,
+  close        real not null check (close > 0),
+  primary key (index_symbol, trade_date)
+);
+alter table index_prices enable row level security;
+create policy "anon read index_prices" on index_prices for select to anon using (true);
+
+-- Atomic per-date reload (delete + insert in one transaction), like reload_market_deals.
+create or replace function public.reload_daily_prices(p_date date, p_rows jsonb)
+returns integer
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare n integer;
+begin
+  delete from daily_prices where trade_date = p_date;
+  insert into daily_prices (symbol, trade_date, series, close, prev_close, volume, turnover_lakh, delivery_pct)
+  select symbol, trade_date, series, close, prev_close, volume, turnover_lakh, delivery_pct
+  from jsonb_populate_recordset(null::daily_prices, p_rows)
+  where trade_date = p_date;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke execute on function public.reload_daily_prices(date, jsonb) from public, anon, authenticated;
+grant execute on function public.reload_daily_prices(date, jsonb) to service_role;
+
+-- Retention: drop table rows older than p_keep_days (the bucket keeps them). Weekly.
+create or replace function public.prune_daily_prices(p_keep_days integer)
+returns integer
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare n integer;
+begin
+  if p_keep_days < 365 then
+    raise exception 'refusing to keep fewer than 365 days (got %)', p_keep_days;
+  end if;
+  delete from daily_prices where trade_date < current_date - p_keep_days;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke execute on function public.prune_daily_prices(integer) from public, anon, authenticated;
+grant execute on function public.prune_daily_prices(integer) to service_role;
+
+-- Private bucket: bhav/YYYY-MM.parquet, the durable full bhavcopy history. No policies.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('prices', 'prices', false, 20971520)
+on conflict (id) do nothing;

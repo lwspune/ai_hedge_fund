@@ -14,6 +14,9 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     assert ["refresh_events.py", "rights"] in s
     assert ["refresh_events.py", "board-meetings"] in s   # results dates (WP6)
     assert ["refresh_events.py", "bands"] in s
+    px = s.index(["refresh_prices.py"])                     # cloud price store (WP3)
+    assert s.index(["refresh_events.py", "fo-ban"]) < px < s.index(["-m", "scanner.run", "buyback_arb", "--save"])
+    assert px < s.index(["-m", "scanner.run", "rights_re", "--save"])   # scans read today's closes
     assert ["refresh_filings.py"] in s
     assert s.index(["extract_kpis.py", "--limit", "1500"]) > s.index(["refresh_filings.py"])
     assert ["refill_deals.py", "--from", "2026-09-14"] in s  # 10-day lookback heals pauses
@@ -26,6 +29,7 @@ def test_weekly_steps_refresh_master_before_fundamentals():
     s = steps("weekly", date(2026, 9, 27))
     assert s.index(["refresh_companies.py"]) < s.index(["refresh_fundamentals.py"])
     assert ["refresh_events.py", "holidays"] in s          # trading calendar (WP6)
+    assert ["refresh_prices.py", "--prune"] in s           # daily_prices retention (WP3)
     assert s[-1] == ["check_freshness.py"]
 
 

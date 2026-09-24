@@ -101,7 +101,7 @@ def open_res(today=None) -> list[dict]:
         re_df = fetch_re_frame(e["symbol"], pd.Timestamp(e["re_from"]) - pd.Timedelta(days=3), today, e["re_symbol"])
         if re_df is None:
             continue
-        stock = get_closes(e["symbol"], today - pd.Timedelta(days=15), today, source="nse")
+        stock = get_closes(e["symbol"], today - pd.Timedelta(days=15), today, source="db")
         g = gap_series(stock, re_df["close"], e["issue_price"]) if stock is not None else pd.Series(dtype=float)
         if not len(g):
             continue

@@ -62,7 +62,7 @@ def build() -> pd.DataFrame:
     acts = db.select_all("corporate_events", {"select": "symbol,event_type,event_date",
                                               "event_type": f"in.({','.join(sorted(BLOCKING))})",
                                               "event_date": "gte.2019-06-01"})
-    bench = get_closes(BENCH, "2019-01-01")
+    bench = get_closes(BENCH, "2019-01-01", source="yf")
     cal = bench.index
     eps = [e for e in ban_episodes([(b["symbol"], b["event_date"]) for b in bans], cal) if e["exit"]]
     ban_days = {}
@@ -75,7 +75,7 @@ def build() -> pd.DataFrame:
     for e in eps:
         sym = e["symbol"]
         if sym not in prices:
-            prices[sym] = get_closes(sym, "2019-01-01")
+            prices[sym] = get_closes(sym, "2019-01-01", source="yf")
         s = prices[sym]
         first, exit_ = pd.Timestamp(e["first"]), pd.Timestamp(e["exit"])
         blocked = blocking_action(acts, sym, first - pd.Timedelta(days=15), exit_ + pd.Timedelta(days=25))

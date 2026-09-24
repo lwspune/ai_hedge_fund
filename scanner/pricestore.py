@@ -1,9 +1,16 @@
 """Unified EOD price store (infra I2): one cached, guarded `get_closes` for every signal
 and validation script.
 
-Sources (FETCHERS):
-  "yf"  — yfinance `.NS`, split/bonus-adjusted, full history. Default; also serves
-          benchmarks (pass the raw Yahoo ticker, e.g. "^NSEI", with raw=True).
+`source` is REQUIRED on every call (no default: adjusted Yahoo closes silently used for a
+nominal-price premium is a bug class this store exists to prevent).
+
+  "db"  — the cloud store (DATA_INFRA_SPEC WP3): Supabase `daily_prices` (~2 years) + the
+          `prices` bucket month files (2020->), from NSE bhavcopies. UNADJUSTED. Benchmarks
+          ("^NSEI", "^CRSLDX") from `index_prices`. `get_bars` adds volume/turnover/delivery.
+          Works on any runner — use it for scans and anything compared to a nominal price.
+Local-cache sources (FETCHERS):
+  "yf"  — yfinance `.NS`, split/bonus-adjusted, full history — return studies only. Also
+          serves benchmarks (pass the raw Yahoo ticker, e.g. "^NSEI", with raw=True).
   "nse" — nselib closes, equity series only (EQ preferred; BE/BZ/SME SM/ST/SZ kept), UNADJUSTED,
           fetched from the requested `start` (coverage tracked in `_fetched.json`). For delisted /
           historical symbols Yahoo lacks, and for ANY comparison against a nominal rupee
@@ -114,6 +121,111 @@ def _fetch_nse(symbol: str, start: str = NSE_FROM, end=None) -> pd.Series:
 FETCHERS = {"yf": _fetch_yf, "nse": _fetch_nse}
 
 
+# --- source="db": the cloud store (DATA_INFRA_SPEC WP3) ------------------------------------
+# Recent ~2 years from the Supabase `daily_prices` table; older dates from the `prices` bucket
+# month files (bhav/YYYY-MM.parquet, raw bhavcopy, 2020->), cached in cache/px/bhav/.
+# Benchmarks ("^NSEI", "^CRSLDX") come from `index_prices`. UNADJUSTED closes.
+
+BAR_COLS = ["close", "volume", "turnover_lakh", "delivery_pct"]
+_BHAV_COLS = {"CLOSE_PRICE": "close", "TTL_TRD_QNTY": "volume", "TURNOVER_LACS": "turnover_lakh",
+              "DELIV_PER": "delivery_pct"}
+_month_mem: dict = {}
+
+
+def _db_rows(symbol: str, lo: str, hi: str) -> list[dict]:
+    from scanner import db
+    if symbol.startswith("^"):
+        return db.select_all("index_prices", {"select": "trade_date,close", "index_symbol": f"eq.{symbol}",
+                                              "and": f"(trade_date.gte.{lo},trade_date.lte.{hi})",
+                                              "order": "trade_date"})
+    return db.select_all("daily_prices", {"select": "trade_date," + ",".join(BAR_COLS),
+                                          "symbol": f"eq.{symbol}",
+                                          "and": f"(trade_date.gte.{lo},trade_date.lte.{hi})",
+                                          "order": "trade_date"})
+
+
+_floor_mem: list = []
+
+
+def _table_floor() -> pd.Timestamp:
+    """Earliest date held in daily_prices (older dates are read from the bucket)."""
+    if not _floor_mem:
+        from scanner import db
+        rows = db.select("daily_prices", {"select": "trade_date", "order": "trade_date", "limit": "1"})
+        _floor_mem.append(pd.Timestamp(rows[0]["trade_date"]) if rows else pd.Timestamp.max)
+    return _floor_mem[0]
+
+
+def _bhav_month(ym: str) -> pd.DataFrame | None:
+    """Raw bhavcopy frame for one month from the bucket; closed months are cached on disk."""
+    if ym in _month_mem:
+        return _month_mem[ym]
+    fp = CACHE_DIR / "bhav" / f"{ym}.parquet"
+    closed = ym < pd.Timestamp.today().strftime("%Y-%m")
+    df = None
+    if closed and fp.exists():
+        df = pd.read_parquet(fp)
+    else:
+        import io
+        from scanner import db
+        blob = db.storage_get("prices", f"bhav/{ym}.parquet")
+        if blob:
+            df = pd.read_parquet(io.BytesIO(blob))
+            if closed:
+                fp.parent.mkdir(parents=True, exist_ok=True)
+                fp.write_bytes(blob)
+    _month_mem[ym] = df
+    return df
+
+
+def _month_bars(symbol: str, lo: pd.Timestamp, hi: pd.Timestamp) -> pd.DataFrame:
+    frames = []
+    for m in pd.period_range(lo, hi, freq="M"):
+        raw = _bhav_month(str(m))
+        if raw is None or raw.empty:
+            continue
+        f = raw[(raw["SYMBOL"] == symbol) & raw["SERIES"].isin(NSE_SERIES)
+                & (raw["DATE1"] >= lo) & (raw["DATE1"] <= hi)]
+        if len(f):
+            f = (f.assign(_r=f["SERIES"].map({s: i for i, s in enumerate(NSE_SERIES)}))
+                  .sort_values(["DATE1", "_r"]).drop_duplicates("DATE1"))
+            frames.append(f.set_index("DATE1").rename(columns=_BHAV_COLS)[BAR_COLS])
+    return pd.concat(frames) if frames else pd.DataFrame(columns=BAR_COLS)
+
+
+def get_bars(symbol: str, start, end) -> pd.DataFrame | None:
+    """Daily close / volume / turnover (lakh) / delivery % from the cloud store, [start, end]."""
+    lo = pd.Timestamp(start).normalize()
+    hi = pd.Timestamp(end if end is not None else pd.Timestamp.today()).normalize()
+    if symbol.startswith("^"):  # benchmarks: index_prices only, close only
+        rows = _db_rows(symbol, lo.date().isoformat(), hi.date().isoformat())
+        df = pd.DataFrame(rows, columns=["trade_date", "close"])
+        df = df.set_index(pd.to_datetime(df["trade_date"]))[["close"]].reindex(columns=BAR_COLS)
+    else:
+        floor = _table_floor()
+        parts = []
+        if lo < floor:
+            parts.append(_month_bars(symbol, lo, min(hi, floor - pd.Timedelta(days=1))))
+        if hi >= floor:
+            rows = _db_rows(symbol, max(lo, floor).date().isoformat(), hi.date().isoformat())
+            t = pd.DataFrame(rows, columns=["trade_date", *BAR_COLS])
+            parts.append(t.set_index(pd.to_datetime(t["trade_date"]))[BAR_COLS])
+        parts = [p for p in parts if len(p)]
+        df = pd.concat(parts) if parts else pd.DataFrame(columns=BAR_COLS)
+    if df.empty:
+        return None
+    df.index = pd.DatetimeIndex(df.index, name="date")
+    return df.sort_index()
+
+
+def _db_closes(symbol: str, start, end) -> pd.Series | None:
+    bars = get_bars(symbol, start if start is not None else "2020-01-01", end)
+    if bars is None:
+        return None
+    s = clean_series(bars["close"])
+    return s if len(s) else None
+
+
 # --- public API --------------------------------------------------------------
 
 def _fetched_log(d: Path) -> dict:
@@ -124,10 +236,14 @@ def _fetched_log(d: Path) -> dict:
         return {}
 
 
-def get_closes(symbol: str, start=None, end=None, source: str = "yf",
+def get_closes(symbol: str, start=None, end=None, *, source: str,
                cache_dir: Path | None = None, today=None) -> pd.Series | None:
     """Daily closes for `symbol` in [start, end] (inclusive), cleaned; None if the source has
-    nothing. Benchmarks: get_closes("^NSEI") (a leading ^ is passed to Yahoo verbatim)."""
+    nothing. `source` is required — "db" (cloud store, unadjusted, 2020->), "nse" (nselib,
+    unadjusted, any date) or "yf" (Yahoo, split/bonus-ADJUSTED: only for return studies, never
+    a premium against a nominal price). Benchmarks: get_closes("^NSEI", source="db"|"yf")."""
+    if source == "db":
+        return _db_closes(symbol, start, end)
     d = Path(cache_dir or CACHE_DIR) / source
     today = pd.Timestamp(today or pd.Timestamp.today()).normalize()
     target = min(pd.Timestamp(end), today) if end is not None else today

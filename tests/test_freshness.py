@@ -86,8 +86,20 @@ def _schema_tables_with_dates():
 
 
 def test_every_dated_table_has_a_rule():
-    from scripts.check_freshness import QUERIES
-    covered = {q[0] for q in QUERIES.values()} | {f["table"] for f in FLOORS.values()}
+    from scripts.check_freshness import QUERIES, TRADING_QUERIES
+    covered = ({q[0] for q in QUERIES.values()} | {q[0] for q in TRADING_QUERIES.values()}
+               | {f["table"] for f in FLOORS.values()})
     allow = {"tenders", "outcomes", "symbol_changes", "candidates"}  # manual / written with scan_runs
     missing = _schema_tables_with_dates() - covered - allow
     assert not missing, f"tables with no freshness rule: {missing}"
+
+
+def test_stale_trading_counts_trading_days_not_calendar_days():
+    from scripts.check_freshness import TRADING_RULES, stale_trading
+    hol = {date(2026, 10, 2)}
+    # prices newest Thu 1st; checked Mon 5th -> 1 trading day old (Fri holiday, weekend) -> ok
+    assert stale_trading({"prices": date(2026, 10, 1)}, {"prices": 1}, date(2026, 10, 5), hol) == []
+    assert stale_trading({"prices": date(2026, 9, 30)}, {"prices": 1}, date(2026, 10, 5), hol) == \
+        [("prices", date(2026, 9, 30), 2, 1)]
+    assert stale_trading({"prices": None}, {"prices": 1}, date(2026, 10, 5), hol) == [("prices", None, None, 1)]
+    assert {"prices", "index_prices"} <= set(TRADING_RULES)

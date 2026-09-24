@@ -322,8 +322,8 @@ def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
     offer with price + market cap + estimated acceptance + after-tax expected return,
     ranked (open tender windows first). Auto-finds new buybacks — no hardcoded range."""
     from datetime import date
-    import yfinance as yf
     from scanner.fundamentals import fetch_fundamentals
+    from scanner.pricestore import get_closes
 
     if start_id is None:
         start_id = _default_start_id()
@@ -332,8 +332,9 @@ def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
     out = []
     for bb in discover_buybacks(start_id, max_gap, hard_cap, session, stats):
         try:
-            px = yf.Ticker(f"{bb['symbol']}.NS").history(period="5d")["Close"].dropna()
-            cur = float(px.iloc[-1]) if len(px) else None
+            # unadjusted last close from the cloud store: the premium is vs a nominal rupee price
+            px = get_closes(bb["symbol"], today - pd.Timedelta(days=15), today, source="db")
+            cur = float(px.iloc[-1]) if px is not None else None
         except Exception:
             cur = None
         if not cur:

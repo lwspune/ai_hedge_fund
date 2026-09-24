@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 
-from scanner.prices import fetch_closes
+import pandas as pd
+
+from scanner.pricestore import get_closes
 from scanner.fundamentals import fetch_fundamentals
 from scanner.signals import evaluate
 from scanner.universe import load_symbols, select_universe
@@ -40,7 +42,11 @@ def scan(symbols, cfg) -> list[dict]:
     rows = []
     for sym in symbols:
         try:
-            closes, psrc = fetch_closes(sym)
+            # adjusted closes are right for RSI / 200-DMA (a split must not look like a crash)
+            s = get_closes(sym, pd.Timestamp.today() - pd.Timedelta(days=730), None, source="yf")
+            if s is None or len(s) < 200:
+                raise RuntimeError(f"{0 if s is None else len(s)} closes for {sym}")
+            closes, psrc = [float(c) for c in s.values], "yfinance"
             fund = fetch_fundamentals(sym)
             res = evaluate(closes, fund["market_cap_cr"], fund["debt_to_equity"], cfg)
             res.update(symbol=sym, price=round(closes[-1], 2), price_src=psrc)
