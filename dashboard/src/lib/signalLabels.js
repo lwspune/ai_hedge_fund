@@ -14,6 +14,7 @@ const SIGNALS = {
   fno_ban: ['F&O ban reversal', 'n=920 episodes, no reversal at any window'],
   promoter_buying: ['Promoter open-market buying', 'Worked 2020–23, gone 2024–26'],
   order_wins: ['Order wins', 'Priced on announcement day (+0.9%); follower +20d ≈ control'],
+  pref_lockin: ['Preferential lock-in expiry', '6m tranche = placebo; 18m −0.6% (t=−2.1), no rebound — allottees aren\'t forced sellers'],
   promoter_sells: ['Promoter open-market selling', '+60d ≈ 0 pooled; −4% in 2024–26 but +5% in 2022–23 (flips every era)'],
   turn_of_month: ['Turn-of-month seasonality', '2022–23 flicker (t=3.9), ~0 in 2024–26; calendar control'],
 }

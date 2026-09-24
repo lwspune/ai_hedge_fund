@@ -116,9 +116,10 @@ quality, reversal, factor combos, or LLM-scored stock picks.
 Probe run on Actions: every NSE endpoint in §3 (D1–D6) answers from a runner; BSE (D7) does not.
 Built and scheduled: `shareholding` (weekly + backfill 2020→), `insider_trades` (daily, forward
 feed), `surveillance_daily` (daily snapshot), `pref_issues` + `pref_lockin_expiry` events (daily +
-backfill 2023→), each with freshness rules. Studies: turn-of-month **null** (era cut kills the
-2022-23 flicker); `validate_promoter_sells.py` and `validate_pref_lockin.py` dispatched on
-`validate.yml`; the ASM/GSM study waits for entries/exits to accrue. `buyback.estimate_entitlement`
+backfill 2023→), each with freshness rules. Studies (all on Actions, evidence published): turn-of-month **null** (era cut kills the
+2022-23 flicker); promoter sells **null** (n=1,131; +60d +0.0% pooled, sign flips every era); pref
+lock-in expiry **null** (n=1,394; 6m = placebo, 18m −0.6% inside costs, no recovery — strategic
+allottees aren't forced sellers, unlike anchors). The ASM/GSM study waits for entries/exits to accrue. `buyback.estimate_entitlement`
 derives the acceptance floor from `small_holder_pct`. PIT history is a forward feed only (dated
 windows return nothing before ~May 2026), so the pledge-invocation candidate accrues data first.
 

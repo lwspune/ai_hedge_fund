@@ -114,6 +114,15 @@ def _run_promoter_buying(**kw) -> str:
             "scripts/validate_promoter_buys.py.")
 
 
+def _run_pref_lockin(**kw) -> str:
+    return ("pref_lockin is NULL: preferential-allotment lock-in expiries (NSE listing XBRL, "
+            "n=1,394 tranches 2023-26) do not dent the price. 6-month tranches: event T-1->T+2 "
+            "-0.24% (t=-1.2) vs same-stock placebo -0.1/-0.2%; 18-month promoter tranches -0.63% "
+            "(t=-2.1, inside costs) with no rebound (recovery T+2->T+20 ~0 or negative everywhere). "
+            "Unlike anchor investors, pref allottees are strategic holders who are not forced to "
+            "sell when the lock ends -- no forced flow, no effect. Run scripts/validate_pref_lockin.py.")
+
+
 def _run_promoter_sells(**kw) -> str:
     return ("promoter_sells is NULL (era-unstable): after a promoter open-market sale cluster "
             "(NSE Reg 29, n=1,131, 2020-26) the +60d abnormal return is +0.0% pooled (t=0.0); "
@@ -208,6 +217,13 @@ SIGNALS: dict[str, Signal] = {
                    "abnormal ~0 to slightly negative, below same-stock controls (n=1,638, 2024-26). "
                    "Informational lens only."),
         _run_order_wins),
+    "pref_lockin": Signal(
+        SignalMeta("pref_lockin", "structural", "null", "documented",
+                   "Preferential-allotment lock-in expiry (6m non-promoter / 18m promoter). "
+                   "n=1,394: 6m event -0.24% (t=-1.2) = placebo; 18m -0.63% (t=-2.1, inside costs), "
+                   "no recovery leg. Strategic allottees aren't forced sellers -- the anchor-unlock "
+                   "mechanism needs a holder who must exit. Control for lockin_expiry."),
+        _run_pref_lockin),
     "promoter_sells": Signal(
         SignalMeta("promoter_sells", "drift", "null", "lens",
                    "Exit/avoid after promoter open-market sales (Reg 29). Pre-registered, n=1,131: "

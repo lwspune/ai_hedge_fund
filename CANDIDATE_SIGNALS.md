@@ -27,7 +27,7 @@ Prior = honest expectation before testing.
 | 5 | **ASM / GSM surveillance entry-exit** — entering Additional/Graded Surveillance forces 100% margin & trade-to-trade → liquidity shock; exit → relief bounce. **Data unlocked 2026-09-24:** `api/reportASM|GSM` JSON works from runners; snapshot only (no entry dates), captured daily into `surveillance_daily` since 2026-09-24 → testable once ~6-12 months of entries/exits exist. | 🟢 | ✅ daily snapshot accruing | forced-margin shock → mean-revert on exit; test both legs | Event study on entry date (drift down?) and exit date (bounce?). |
 | 6 | ~~**F&O ban-period reversal**~~ **TESTED → NULL (2026-09-24).** n=920 episodes 2020-26: the pre-ban move doesn't reverse at entry/during/exit/post (|t|<1, no better than same-stock controls); flickers are fat-tail means or single-era. Ban blocks derivatives, not the cash market → no barrier. See `CONCLUSIONS.md` §7. | 🟢 | ✅ done | ~~over-reaction → revert~~ → **null** | — |
 
-| 20 | **Preferential-allotment lock-in expiry** — ICDR locks pref allottees 6 months (non-promoter) / 18 months (promoter); expiry = forced supply in small caps, the same mechanism as the validated anchor unlock (#2). Not shortable → lens, but the post-dip **recovery leg** (T+2→T+20) is a long a retail buyer could act on. Added from the 2026-09-24 GitHub review. | 🟢 | ✅ `pref_issues` + `pref_lockin_expiry` events (NSE further-issues listing XBRL, 2023→) | real dip likely; recovery unknown | `scripts/validate_pref_lockin.py` — event T-1→T+2, recovery T+2→T+20, same-stock placebo, era, tranche share, mcap as of event. **Running on Actions after the 2023→ backfill.** |
+| 20 | ~~**Preferential-allotment lock-in expiry**~~ **TESTED → NULL (2026-09-24).** n=1,394 tranches 2023-26: 6-month event T-1→T+2 −0.24% (t=−1.2) = same-stock placebo; 18-month promoter tranches −0.63% (t=−2.1, inside costs); no recovery leg. Pref allottees are strategic holders, not forced sellers — the anchor-unlock mechanism needs a holder who must exit. `CONCLUSIONS.md` §14. | 🟢 | ✅ done | ~~real dip likely~~ → **null** | — |
 | 21 | **Pledge invocation → forced sale** — a lender invoking pledged promoter shares sells into the market; no pre-announcement, nobody can front-run, retail can buy the dip. | 🟢 | ⚠️ PIT forward feed only (`insider_trades` txn_type Pledge/Invocation, from May-2026) | dip real, rebound unknown | Event study at disclosure once ≥ ~50 invocations accrue; contrast with pledge release (#8). |
 
 ## Tier 2 — Corporate-action over-reaction (retail behavioural, mixed priors)
@@ -66,7 +66,7 @@ Prior = honest expectation before testing.
 1. **#1 Index rebalance front-run** — cleanest forced-flow, fully reachable, strong prior. Start here.
 2. ~~**#2 Lock-in expiry overhang**~~ — done: real dip, not shortable (lens).
 3. **#5 ASM/GSM** (unblocked 2026-09-24: daily snapshot accruing; test in 2027) + ~~**#6 F&O ban**~~ (done: null).
-   **#20 pref lock-in expiry** is running on Actions (2026-09-24); ~~#22 promoter sells~~ done: null.
+   ~~#20 pref lock-in expiry~~ done: null (strategic allottees aren't forced sellers); ~~#22 promoter sells~~ done: null.
 4. ~~**#3 Delisting RBB**~~ — parked: data not reachable (manual curation only).
 5. ~~**#4 Rights-entitlement**~~ — done: conditional, actionable (RE discount ~3%).
 6. Everything in Tier 3/4 as **cheap controls** (run to document efficiency, not to find edge).

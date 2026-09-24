@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Eleven signals validated this way; two actionable edges
+falsified signal is never read as edge. Fourteen signals validated this way; two actionable edges
 (buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -30,6 +30,9 @@ of untested ideas, ordered by the thesis.
 | `rights_re` | spread | **conditional** | watch (buy RE instead of stock — ~3% discount) |
 | `promoter_buying` | drift | **null** | lens (decayed after 2023) |
 | `order_wins` | drift | **null** | lens (priced on announcement day) |
+| `turn_of_month` | drift | **null** | documented control (2022-23 flicker, ~0 since) |
+| `promoter_sells` | drift | **null** | lens (sign flips every era) |
+| `pref_lockin` | structural | **null** | documented control (allottees aren't forced sellers) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -314,6 +317,9 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   from runners → ingested (shareholding, insider_trades, surveillance_daily, pref_issues). *Reason:*
   they unblock backlog #5/#8, a new structural candidate (pref lock-in expiry) and the buyback
   acceptance model's missing small-shareholder feature; no agent framework, no factor re-tests.
+  Same-day verdicts: turn_of_month null, promoter_sells null (era-unstable), **pref_lockin null** —
+  lock-in expiry is a forced flow only when the locked holder must exit (anchors), not for strategic
+  allottees. Thesis refined, not broken.
 - **2026-09-24** — BSE JSON stays out: 403 from GitHub runners (works only residential). *Reason:*
   the laptop must never be a dependency; delisting RBB remains parked.
 

@@ -271,6 +271,30 @@ disclosure with no barrier — null, like promoter buying. Not a trade; at most 
 lens. (`scripts/validate_promoter_sells.py`.) *Evidence:*
 `evidence/promoter_sells/2026-09-24T090701Z` (Actions).
 
+### 14. Preferential-allotment lock-in expiry (#20) — NULL (the anchor mechanism doesn't transfer)
+Every lock-in tranche from NSE further-issues listing XBRLs (`pref_issues`, Mar-2023 →): 1,455
+expiries, 1,394 usable (0 ICDR-default rows), unadjusted cloud closes vs NIFTY 500, split/bonus
+windows dropped, mcap as of the event. Run on Actions.
+
+| window | 6-month (n=1,027) | 18-month promoter (n=302) |
+|---|---|---|
+| pre T-10→T-1 | +0.08% | −0.56% |
+| **event T-1→T+2** | **−0.24% (t=−1.2)**, median −0.75% | **−0.63% (t=−2.1)**, median −0.66% |
+| post T+2→T+10 | −0.04% | −0.37% |
+| recovery T+2→T+20 | −0.37% (t=−0.8) | −0.12% |
+| placebo 3-day, same stocks | −0.08% / −0.24% | +0.54% / +0.13% |
+
+- 6-month tranches (the bulk) are indistinguishable from their own placebo windows: null.
+- 18-month promoter tranches show a −0.6% dip that clears its placebo but sits inside round-trip
+  costs, and every era / segment reads −0.5 to −1.5% with |t| ≤ 3 (small_mid caps −1.5%, t=−3.0,
+  n=60). No recovery leg anywhere — nothing a long buyer could harvest.
+- Contrast the anchor unlock (§6: −1.25%, t=−4.6): anchors are funds allotted at the IPO who exit
+  when allowed; preferential allottees are promoters / strategic investors / HNIs who chose the
+  stock and are under no pressure to sell when the lock ends. **Lock-in expiry is a forced flow
+  only when the locked holder wants out** — the thesis holds, with that refinement.
+(`scanner/prefissues.py`, `scripts/validate_pref_lockin.py`.) *Evidence:*
+`evidence/pref_lockin/2026-09-24T092623Z` (Actions).
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -278,6 +302,12 @@ lens. (`scripts/validate_promoter_sells.py`.) *Evidence:*
   archive CSVs** (bulk/block deals) are the free path.
 - screener.in (fundamentals) and chittorgarh (buybacks) are scrapable from a residential IP.
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
+
+## The tally (2026-09-24)
+Fourteen signals validated: 2 actionable (`buyback_arb` conditional edge, `rights_re` conditional
+watch), 1 real-but-unshortable lens (`lockin_expiry`), 1 thin (`merger_arb`), 10 null
+(mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
+order_wins, turn_of_month, promoter_sells, pref_lockin).
 
 ## What's kept
 The platform (`scanner/`, 53 tests), the event-study harness, the smart-money classifier,

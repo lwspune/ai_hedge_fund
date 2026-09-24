@@ -153,7 +153,7 @@ are manual. nselib + screener need the residential IP, so cloud cron can't run t
 **How to apply:** Windows Task Scheduler — events (actions + fo-ban + ipos) daily after 8pm IST;
 companies + fundamentals weekly (fundamentals takes hours: default `--stale-days 7`).
 
-### ASM/GSM surveillance lists (backlog signal #5)
+### ~~ASM/GSM surveillance lists (backlog signal #5)~~ — **DONE 2026-09-24** (JSON `api/reportASM|GSM` works from runners — the static CSVs were the dead path; `surveillance_daily` snapshot captured every trading day since 2026-09-24; the study needs ~6-12 months of entries/exits)
 
 Not ingested: NSE serves them only via JS-gated JSON. ~~**How to apply:** probe BSE's equivalents
 or a headless-browser fetch before testing signal #5.~~ **Re-probed 2026-09-24** (DATA_INFRA_SPEC):
@@ -175,7 +175,9 @@ therefore shows buybacks when it is already too late to enter.
 the most actionable row, not a reject.
 
 **How to apply:** keep a `pending_ratio` row (price, record date, issue size, % of equity) with
-an acceptance estimate from the size/mcap prior and a floor of the typical 15%-reservation ratio;
+an acceptance estimate from the size/mcap prior and a floor of the typical 15%-reservation ratio
+(**2026-09-24:** `buyback.estimate_entitlement` now derives that floor from the `shareholding`
+small-shareholder float — the pending-ratio row can carry a real estimate, not a typical value);
 list it on the Desk as "upcoming — ratio not yet published". Needs a spec (it changes what the
 primary signal surfaces).
 
@@ -191,6 +193,45 @@ of nselib, so `rights_re` has no per-symbol network fetch.
 WP7 stored the 2026-09-24 laptop results as baselines; `validate.yml` can now re-run each study on
 a runner with provenance. **How to apply:** dispatch `validate.yml` per script once the price
 backfill is complete; update each CONCLUSIONS evidence line to the new path.
+
+### Shrink the database (327 MB of the 500 MB free tier; warn line is 300 MB)
+
+**Finding (2026-09-24, live `pg_total_relation_size`):** `daily_prices` 162 MB (98 heap + 65 pkey,
+1.41 M rows, already at the full 730-day window so flat), `filings` 93 MB (67 + 26, 186 k rows,
++~19 k rows / ~27 MB a year), `corporate_events` 30 MB (15 heap + 15 index across five btrees),
+`market_deals` 15 MB, everything else ~11 MB. Buckets are a separate quota (prices 148 MB).
+Untouched, the 400 MB fail line arrives in ~2.5 years; filings is the only fast grower.
+
+Where the bytes go: the price pkey on `(symbol text, trade_date)` is ~44 MB at 90% fill but 65 MB
+live (daily inserts scatter across the key space, leaves ~65% full); SME series SM/ST/SZ are 203 k
+rows (14%). In `filings`, `attachment_url` is 17 MB with a constant 43-byte
+`https://nsearchives.nseindia.com/corporate/` prefix on 99% of rows (~8 MB), `company` + `isin`
+duplicate `companies` (~7 MB), `category` text repeats 39 values (6.5 MB), the
+`(category, disclosed_at)` index is 12 MB and has been scanned 8 times, and two categories nothing
+reads ("Outcome of Board Meeting" 35 k rows, "Disclosure under SEBI Takeover Regulations" 12 k) are
+a quarter of the table. `idx_events_symbol_type_date` (4.8 MB) duplicates the prefix of the
+unique key on `corporate_events`.
+
+**Options, by MB per unit of effort:**
+1. **Index cleanup, ~30 MB, no policy change** — drop `idx_events_symbol_type_date`; replace
+   `idx_filings_category_time` with a partial index on the four KPI categories (`extract_kpis`
+   `KPI_FILTER` + `validate_order_wins`); `REINDEX INDEX CONCURRENTLY daily_prices_pkey` once
+   (regrows slowly — add it to the weekly `--prune` step). Gets under the warn line on its own.
+2. **Shrink the price table window, ~70 MB, one constant** — `pricestore.get_bars` already reads
+   dates before `_table_floor()` from the bucket, so the table is a hot cache. `KEEP_DAYS` 730 →
+   400 drops ~45% of the table; cost is a few more ~1.8 MB month parquets per validation on Actions.
+   Alternative or addition: drop SME series from the table (~23 MB; the bucket keeps them).
+   *Supersedes the 2026-09-24 "2-year table" decision — needs a go-ahead.*
+3. **Normalise `filings`, ~30 MB, medium effort** — store only the URL suffix, drop `company` /
+   `isin` (join `companies`), `category` → small lookup; compatibility view; edits in
+   `CompanyPage.jsx`, `extract_kpis.py`, `validate_order_wins.py`, `archive_filings.py`. Only
+   when filings becomes the constraint.
+4. **Stop ingesting the two unread categories, ~25 MB now + ~7 MB/yr** — policy call; the
+   company page's filings tab would list fewer rows.
+
+**Recommendation:** 1 + 2 (400-day window). Small, reversible, data model unchanged; keeps the DB
+flat near ~230 MB on current sources. Bump `check_freshness` thresholds only if the window changes
+the `prices` row floor (it doesn't — the floor is per-day).
 
 ---
 
