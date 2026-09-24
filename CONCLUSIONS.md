@@ -36,6 +36,7 @@ Event study, 2yr, 451 institutional buy-events, T+1 entry vs NIFTY:
 Post-disclosure return is ~0 — the edge is **front-run away pre-event**, where a public
 follower can't act. The classifier works (placebo prop-buys are toxic, −6% over 60d), but
 the institutional signal itself carries no follower edge.
+*Evidence:* `evidence/smart_money_deals/2026-09-24` (the raw 2024-25 deals the study used) · sha 4f552e3 (laptop baseline).
 
 ### 3. Buyback small-shareholder tender arb — CONDITIONAL EDGE (the keeper)
 81 tender buybacks (Dec-2022 → Dec-2025), ₹2L, **unadjusted NSE closes** (corrected
@@ -65,6 +66,7 @@ carries forward. **Still the one signal worth building selection around — for 
 while the buyback price is nominal (SPORTKING's 1:10 split showed as a "+1282%" premium),
 and a cache that had silently dropped 29 events. Medians barely moved; the inflated means
 did. Verdict unchanged; the tax-slab condition is new.
+*Evidence:* `evidence/buyback_arb/2026-09-24` (event list only — the laptop run kept no results file) · sha 4f552e3. A re-run with the 2026 events and as-of market caps is queued (SUGGESTIONS backfill ledger).
 
 ### 4. Stock-swap merger arb — THIN
 3 verified completed deals (HDFC, LTIMindtree, Shriram): announcement spreads +2.7/2.4/6.7%
@@ -124,7 +126,7 @@ on/after expiry; windows fixed in advance.
 
 Fits the thesis from the other side: the effect persists *because* a barrier (short-sale
 constraints on fresh IPOs) keeps arbitrageurs out — but the same barrier keeps retail out.
-(`scanner/lockin.py`, `scripts/validate_lockin.py`, results `cache/lockin_results.csv`.)
+(`scanner/lockin.py`, `scripts/validate_lockin.py`.) *Evidence:* `evidence/lockin_expiry/2026-09-24` · sha 4f552e3 (laptop baseline).
 
 ### 7. F&O ban reversal — NULL
 Stocks whose open interest crosses 95% of MWPL enter the F&O ban (no fresh derivative positions).
@@ -147,7 +149,7 @@ The one clean effect — stocks *sold* into the ban keep falling during it (−0
 39% up) — is continuation, not reversal, and sits in the ban window where no fresh short can be
 opened. Thesis check: the ban blocks new derivatives but the cash market stays open to all — no
 competitor is excluded, so nothing is left for retail. (`scanner/fnoban.py`,
-`scripts/validate_fno_ban.py`, results `cache/fnoban_results.csv`.)
+`scripts/validate_fno_ban.py`.) *Evidence:* `evidence/fno_ban/2026-09-24` · sha 4f552e3 (laptop baseline).
 
 ### 8. Rights-entitlement (RE) discount — CONDITIONAL (actionable, small)
 Since Jan-2020 NSE lists rights entitlements (REs) while the issue is open. One RE + the issue
@@ -179,6 +181,7 @@ lock on the application money). Partly-paid issues are excluded (their RE values
 Fits the thesis: REs are a procedural, illiquid, short-lived instrument that institutions
 ignore and many retail holders don't understand (they dump or let entitlements lapse) — a
 friction barrier, with retail able to sit on the right side of it.
+*Evidence:* `evidence/rights_re/2026-09-24` (results + RE closes zip) · sha 4f552e3 (laptop baseline).
 
 ### 9. Delisting reverse book-building (#3) — PARKED (data not reachable)
 No free, automatable source of delisting offers with floor/discovered prices and outcomes:
@@ -204,7 +207,7 @@ and the effect fails the era cut: it lived in the 2020-23 small-cap run and is g
 Same decay as `index_rebalance` / `smart_money_deals`: a public drift signal. Recent promoter
 *sells* look negative, but that leg flips sign across eras and was a contrast, not a hypothesis —
 logged in the backlog to pre-register, not claimed. (`scanner/insider.py`,
-`scripts/validate_promoter_buys.py`, results `cache/promoter_buys_results.csv`.)
+`scripts/validate_promoter_buys.py`.) *Evidence:* `evidence/promoter_buying/2026-09-24` (results + the reg29 pulls) · sha 4f552e3 (laptop baseline).
 
 ### 11. Order wins (Reg 30 disclosures) — NULL
 1,638 order-win events (NSE "Bagging/Receiving of orders/contracts", clustered per stock, 5-day
@@ -223,7 +226,7 @@ after disclosure; vs NIFTY 500; same-stock control 60 trading days away.
 
 Priced on the day — even the biggest surprises — and a follower does slightly worse than the
 control. Public news with no barrier, like `index_rebalance`. (`scanner/orderwins.py`,
-`scripts/validate_order_wins.py`, results `cache/order_wins_results.csv`.)
+`scripts/validate_order_wins.py`.) *Evidence:* `evidence/order_wins/2026-09-24` · sha 4f552e3 (laptop baseline).
 
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter

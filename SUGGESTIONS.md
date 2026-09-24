@@ -155,8 +155,42 @@ companies + fundamentals weekly (fundamentals takes hours: default `--stale-days
 
 ### ASM/GSM surveillance lists (backlog signal #5)
 
-Not ingested: NSE serves them only via JS-gated JSON. **How to apply:** probe BSE's equivalents
-or a headless-browser fetch before testing signal #5.
+Not ingested: NSE serves them only via JS-gated JSON. ~~**How to apply:** probe BSE's equivalents
+or a headless-browser fetch before testing signal #5.~~ **Re-probed 2026-09-24** (DATA_INFRA_SPEC):
+the static `asm_list.csv` / `gsm_list.csv` still 404 — parked; only a headless browser remains.
+
+---
+
+## 2026-09-24 (data-infra gap closure, DATA_INFRA_SPEC WP1-WP8)
+
+### Surface upcoming tender buybacks before the record date
+
+**Finding:** the scanner only accepts a buyback once chittorgarh publishes the entitlement ratio,
+which typically appears with the letter of offer — *after* the record date, i.e. after the last
+day to buy. On 2026-09-24, Global Pet Industries (id 248, record date 2026-09-25) and VRL
+Logistics (id 241) were live tender offers the scan rejected for "no ratio". The Desk "Act" panel
+therefore shows buybacks when it is already too late to enter.
+
+**Why:** the edge is captured by buying before the record date; a ratio-less upcoming tender is
+the most actionable row, not a reject.
+
+**How to apply:** keep a `pending_ratio` row (price, record date, issue size, % of equity) with
+an acceptance estimate from the size/mcap prior and a floor of the typical 15%-reservation ratio;
+list it on the Desk as "upcoming — ratio not yet published". Needs a spec (it changes what the
+primary signal surfaces).
+
+### Store RE series in the price store
+
+`daily_prices` keeps equity series only; rights entitlements trade as their own symbols/series in
+the same bhavcopy (`E1`, `RR`, `-RE` symbols). The raw month parquet in the `prices` bucket already
+has them. **How to apply:** point `scanner/rights.fetch_re_frame` at the bucket/raw frame instead
+of nselib, so `rights_re` has no per-symbol network fetch.
+
+### Re-run every verdict on Actions to replace the laptop baselines
+
+WP7 stored the 2026-09-24 laptop results as baselines; `validate.yml` can now re-run each study on
+a runner with provenance. **How to apply:** dispatch `validate.yml` per script once the price
+backfill is complete; update each CONCLUSIONS evidence line to the new path.
 
 ---
 
@@ -188,6 +222,30 @@ fetches (n=48 recorded vs 77 now).
 - *Recommendation:* **do** — the primary signal's evidence should be reproducible; expect the
   verdict ("conditional edge on high-acceptance small-caps, post-Oct-2024 tax kills the floor")
   to survive, with smaller gross numbers.
+
+### `buyback_arb` verdict: re-run on the cloud store with 2026 events and as-of market caps — **OPEN (360 below)**
+
+**Learning (WP1/WP3/WP5):** the study's event list was a laptop scrape of ids 90-225 under the old
+page format, and it had no market-cap cut. The `buybacks` table now holds 106 tenders incl. 23 from
+2026 (the format fix), prices come from the unadjusted cloud store, and `mcap_bucket_at` gives the
+cap as of the record date. `scripts/validate_buyback_arb.py` was switched to all three.
+
+**360:**
+- *Scope:* CONCLUSIONS §3 table (n=81) and the acceptance-prior discussion.
+- *Blast radius:* the primary signal's evidence; the live scanner is unaffected.
+- *Does it really apply:* yes — n grows by the 2026 events; the new as-of mcap cut is the first
+  direct test of the prior's buckets (was lookahead-free only by omission).
+- *Risk / reversibility:* read-only re-run; CONCLUSIONS text only. Reversible.
+- *Cost:* one `validate.yml` dispatch (script=validate_buyback_arb.py) after the price backfill.
+- *Recommendation:* **do**, then decide whether §3's numbers change; the verdict is expected to
+  hold (the thesis is structural, not sample-dependent).
+
+### Company renames broke the `companies` upsert (unique ISIN) — **FIXED in WP4**, check history
+
+A renamed symbol's new row carries the old row's ISIN; the weekly upsert would 409 on it. WP4 frees
+the ISIN on the old row. **Open question:** did any past weekly run fail or skip rows on this? The
+Actions history showed green runs, so likely no rename landed since the first load — no backfill
+needed unless a rename is found missing from `companies`.
 
 ### ~~Buyback id probe follows chittorgarh redirects~~ — **DONE 2026-09-24** (CLI + edge fn v4; scan now stops after 46 pages)
 

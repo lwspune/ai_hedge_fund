@@ -51,20 +51,21 @@ drift-signal chasing.
   `scanner/rebalance.py` = index-rebalance leg math + Next-50 event loader (events in
   `data/next50_rebalance_events.csv`, curated from primary niftyindices PDFs);
   `scripts/segment_index_rebalance.py` = the liquidity/era segmentation falsifier.
-- **Persistence (P2)** — `scanner/db.py` (raw PostgREST, no ORM) + `db/schema.sql`
-  (6 tables: scan_runs, candidates, buybacks, tenders, outcomes, **market_deals**). LIVE on
+- **Persistence (P2)** — `scanner/db.py` (raw PostgREST, no ORM; `count`, `rpc_all`) + `db/schema.sql`
+  (the P2 core: scan_runs, candidates, buybacks, tenders, outcomes, **market_deals**; infra tables
+  below). LIVE on
   Supabase `vgyujznnyuqbhswszzjv`. **RLS is ON**: anon key = read-only; **writes need the
   service-role key** in `.env` as `SUPABASE_SERVICE_KEY`. `scanner/track.py` = feedback CLI.
   Supabase MCP configured in `.mcp.json` for schema/admin.
 - **Data warehouse** — `market_deals` holds 45k+ bulk/block deals (2024→); backfilled via
   `scripts/backfill_deals.py`, refreshed by the **`refresh-deals` edge function**
   (`supabase/functions/`, deployed via MCP) which scrapes today's NSE CSV server-side. NSE
-  static CSVs + chittorgarh reach datacenter IPs, so edge functions can ingest. Prices stay
-  as local parquet cache (too big for the free tier), NOT in Supabase.
+  static CSVs + chittorgarh reach datacenter IPs, so edge functions can ingest. Prices live in
+  the cloud price store (I2 below): a 2-year table + the full raw history in a Storage bucket.
 - **Dashboard (P3)** — `dashboard/` (Vite + React + supabase-js, read-only, hash-routed, no
   router/UI kit). Views: **Desk** `#/` (freshness strip · Act: open buybacks from the latest scan's
   `payload.is_open` + rights entitlements · Avoid: anchor unlocks, 14 d), **Signals** `#/signals`
-  (verdict table, expandable evidence + recent runs), **Data** `#/data/deals|buybacks|positions|scans`
+  (verdict table, expandable summary + latest published evidence path + recent runs), **Data** `#/data/deals|buybacks|positions|scans`
   (filterable; Refresh buttons call the edge functions), **Company** `#/company/:symbol/:tab`
   (sticky header; overview/financials/events/filings/deals tabs, each fetches only its data).
   Design tokens in `src/styles/tokens.css`, shared components in `src/components/ui/`, all
@@ -75,10 +76,35 @@ drift-signal chasing.
 - **Infra layer (I1–I5)** — the shared data spine every signal/backtest reads from:
   - **I1 company master** — `scanner/master.py` → `companies` (every NSE equity + historical
     delistings, industry, index membership, `is_financial`) + `symbol_changes`.
-    `scripts/refresh_companies.py`.
-  - **I2 price store** — `scanner/pricestore.get_closes(sym, start, end, source="yf"|"nse")`:
-    one guarded parquet cache (`cache/px/`). **yf is split/bonus-adjusted — use `source="nse"`
-    (unadjusted) for any premium vs a nominal rupee price.** Replaces per-script caches.
+    `scripts/refresh_companies.py`. Industry falls back to the screener sector
+    (`industry_source`; 99.7% known). **Delisting by diff**: last week's listed symbols absent
+    from EQUITY_L+SME become `delisted` (`delist_source='equity_l_diff'`), never deleted; a renamed
+    symbol's old row gives up its (unique) ISIN first. Guards: truncated lists / > 50 delistings
+    fail the run. `scripts/backfill_orphans.py` (RPC `orphan_symbols()`) gives symbols seen in
+    filings/deals/events a delisted `manual` row.
+  - **I2 price store** — `scanner/pricestore.get_closes(sym, start, end, *, source=...)`:
+    **`source` is required.** `"db"` = the cloud store, UNADJUSTED: `daily_prices` (rolling 730 days
+    of NSE bhavcopy, equity series, BRIN on date) + bucket `prices` `bhav/YYYY-MM.parquet` (every
+    series/column, 2020→) + `index_prices` (^NSEI, ^CRSLDX); `get_bars` adds volume/turnover/
+    delivery %. Loader `scanner/bhavcopy.py` + `scripts/refresh_prices.py` (daily, `--prune` weekly,
+    backfill via `backfill.yml`). `"nse"` (nselib, unadjusted, pre-2020) and `"yf"` (adjusted — return
+    studies only) keep the local cache `cache/px/`. **Never a premium vs a nominal price on "yf".**
+    NSE quirks the loader handles: a holiday serves the previous session's file under the holiday's
+    name (skipped via DATE1 check); some days are an .xlsx under the .csv name (2022-08-08).
+  - **Calendar (WP6)** — `trading_calendar` (NSE holiday master for this + next year, weekly; past
+    years derived from bhavcopy presence) + `scanner/trading_calendar.py` (trading-day math; not
+    `calendar.py`, which would shadow the stdlib). `corporate_events` gains `results` /
+    `board_meeting` (`nse_bm`, NSE `api/corporate-board-meetings`, 2020→) and `band_change`
+    (`nse_band`). Every `validate_*.py` takes `--exclude-results-window N`.
+  - **Point-in-time (WP5)** — `company_snapshot_history` (weekly copy of the snapshot's
+    point-in-time fields) + `index_membership` intervals (weekly niftyindices diff + the curated
+    Next-50 record); `scanner/pointintime.mcap_bucket_at(sym, date)` (history, else
+    `fundamentals.historical_market_cap` from Equity Capital / face value × unadjusted close).
+    Use it for any market-cap cut — today's cap is lookahead.
+  - **Evidence (WP7)** — every `validate_*.py` runs through `scanner/validation.run`; `--publish`
+    stores results + the printed report in the private `evidence` bucket
+    (`<signal>/<UTC stamp>/`) + a `validation_runs` row (git SHA, args, summary). Run on Actions:
+    `validate.yml`. The 2026-09-24 laptop results are each signal's baseline.
   - **I3 events calendar** — `scanner/events.py` → `corporate_events` (bonus/split/rights/
     dividend/buyback/demerger via nselib; F&O ban days; IPO listing + 30/90-day anchor
     lock-in expiries) + `ipos` + **`rights_issues`** (chittorgarh offer data: exact issue price,
@@ -95,16 +121,23 @@ drift-signal chasing.
     (`docs/FILINGS_KPI_ANALYSIS.md`) chose what to extract; `scanner/kpis.py` rule_v1 extracts
     order book, order-win value, current capacity utilisation and guidance *quotes* from filing
     PDFs (PyMuPDF text; every value keeps its exact quote + source filing) → `company_kpis`
-    (`scripts/extract_kpis.py`, ≤1500 PDFs per daily run — the backlog clears itself). Sector
-    packs (financials, commodities) are the next extractors. Precision over recall: every false
-    positive found by hand review becomes a regression test in `tests/test_kpis.py`.
+    (`scripts/extract_kpis.py`, ≤1500 PDFs per daily run, floor 2024-01-01 — the backlog clears
+    itself). Sector packs (financials, commodities) are the next extractors. Precision over recall:
+    every false positive found by hand review becomes a regression test in `tests/test_kpis.py`.
+    **Retention (WP8):** `scripts/archive_filings.py` (weekly) copies months older than 24 to bucket
+    `filings` (YYYY-MM.parquet) then nulls `subject` — except rows extraction may still need.
 
 ## Data sources (free, proven)
 **Every source below works from datacenter IPs** — verified from a GitHub Actions runner
 (`scripts/probe_sources.py`, workflow `probe-sources`), incl. nselib and screener.in. Only NSE's
 JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
-- **Prices** — yfinance (`.NS`, split-adjusted) primary; **nselib** for historical /
-  delisted symbols and unadjusted closes (filter `Series=='EQ'`!); jugaad-data fallback.
+- **Prices** — **NSE bhavcopy** `nsearchives.../products/content/sec_bhavdata_full_DDMMYYYY.csv`
+  (all symbols, unadjusted, delivery %, archive back past 2019; the cloud store's source);
+  yfinance (`.NS`, split-adjusted) for return studies + benchmarks; **nselib** for pre-2020 /
+  per-symbol unadjusted closes (filter `Series=='EQ'`!).
+- **Calendar** — NSE `api/holiday-master?type=trading` (CM segment, current year only),
+  `api/corporate-board-meetings?index=equities&from_date=&to_date=` (results dates, 2020→),
+  static `content/equities/eq_band_changes.csv`. Same Referer-session family as filings.
 - **Fundamentals** — screener.in company pages (consolidated vs standalone: take the one with
   the later quarter — consolidated sometimes silently stops updating).
 - **Company master** — NSE static `EQUITY_L.csv` (mainboard) + Emerge `SME_EQUITY_L.csv`
@@ -126,23 +159,33 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (247 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (385 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
 `scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
 **Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):
-`refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, IPOs + 120-day re-check,
-10-day deals refill, buyback scan) and `refresh-weekly` (Sun 10:00 IST: company master +
-fundamentals; `smoke` input for a 5-company test). Both call `scripts/scheduled_refresh.py`;
+`refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, IPOs +
+120-day re-check, rights, board meetings/results, band changes, filings + KPIs, 10-day deals
+refill, buyback + rights scans) and `refresh-weekly` (Sun 10:00 IST: trading calendar, price
+prune, company master + index membership, fundamentals + snapshot history, filings archive;
+`smoke` input for a 5-company test). Both call `scripts/scheduled_refresh.py`;
 secrets `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` live in repo Actions secrets; a failed step
 fails the run → GitHub emails the owner; the last step `scripts/check_freshness.py` also fails
-the run if any table's newest row is older than its cadence (catches loaders that "succeed" while
-writing nothing). **CI** (`ci.yml`): pytest + dashboard lint/build on every push.
-Manual: `gh workflow run refresh-daily.yml`.
-Individual loaders: `scripts/refresh_companies.py` · `scripts/refresh_events.py actions|fo-ban|ipos` ·
-`scripts/refresh_fundamentals.py [--symbols A,B] [--stale-days 7]` · `scripts/refill_deals.py --from`
-· `scripts/validate_lockin.py` · `scripts/rebuild_snapshot_history.py` (no re-scrape).
+the run on any **age** rule (calendar or trading days), **row-volume floor**, **ratio**
+(industry known ≥ 95%), a stuck **buyback frontier** (no new id in 60 d, or a scan that saw ≥ 10
+pages and parsed 0 tenders — the 2026 format change), or **DB size** (warn 300 MB, fail 400 MB via
+RPC `db_size_bytes`). A test forces every dated table in `db/schema.sql` to carry a rule.
+**CI** (`ci.yml`): pytest + dashboard lint/build on every push.
+On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|orphans`,
+`from`/`to`) · `validate.yml` (`script=validate_*.py`, `args`; publishes evidence) ·
+`probe-sources.yml`. Manual: `gh workflow run refresh-daily.yml`.
+Individual loaders: `scripts/refresh_companies.py` · `scripts/refresh_events.py
+actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_prices.py [--date D |
+--from A --to B | --prune]` · `scripts/refresh_fundamentals.py [--symbols A,B] [--stale-days 7]` ·
+`scripts/refill_deals.py --from` · `scripts/archive_filings.py` · `scripts/backfill_orphans.py` ·
+`scripts/rebuild_snapshot_history.py` (no re-scrape). Validations: `scripts/validate_*.py
+[--exclude-results-window N] [--publish]`.
 
 ## Stack
 Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5lib · pytest ·
@@ -164,9 +207,9 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **2026-06-24** — Supabase persistence, RLS **on** (anon read-only, service-role writes), raw
   PostgREST (no ORM). *Reason:* lets the public Vercel dashboard read safely while CLIs/edge
   functions write.
-- **2026-06-24** — Prices stay as parquet cache; deals warehoused in Supabase. *Reason:* persist
-  what's hard to re-acquire (NSE serves only today's deal CSV); cache the regenerable (prices,
-  ~100MB+ would blow the 500MB free tier).
+- **2026-06-24** — ~~Prices stay as parquet cache~~ (superseded 2026-09-24, see below); deals
+  warehoused in Supabase. *Reason:* persist what's hard to re-acquire (NSE serves only today's
+  deal CSV); cache the regenerable (prices, ~100MB+ would blow the 500MB free tier).
 - **2026-06-24** — Refresh runs in Supabase **Edge Functions**. *Reason:* NSE static CSVs +
   chittorgarh serve datacenter IPs (probed), so cloud refresh works; only NSE's JSON APIs block.
 - **2026-06-24** — Repo under `lwspune` (the machine's GitHub auth), not `vilasvshinde`.
@@ -218,6 +261,23 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **2026-09-24** — `promoter_buying` (#7) validated **null (decayed)**: +60d median ~+5% in 2020-23,
   negative in 2024-26. *Reason:* public drift signal, same fate as deals/index rebalance.
 
+- **2026-09-24** — Data-infra gap closure (`docs/DATA_INFRA_SPEC.md` WP1-8). **Prices now live in
+  Supabase** (`daily_prices` 730 days + bucket `prices` full raw bhavcopy history 2020→), not a laptop
+  parquet. *Reason:* the laptop must never be a dependency — every scan and validation runs on
+  Actions; the 2-year table (~170 MB, BRIN not btree) fits the free tier next to the WP2 size guard.
+- **2026-09-24** — Bhavcopy backfill floor **2020-01-01** (archive goes deeper); pre-2020 stays on
+  nselib per symbol. *Reason:* bucket budget; every validated study starts 2020 or uses nselib.
+- **2026-09-24** — `get_closes(..., source=)` is **required**. *Reason:* adjusted Yahoo closes
+  silently used for a nominal-price premium already produced a "+1282%" buyback premium once.
+- **2026-09-24** — Freshness = age + volume floors + ratios + buyback frontier + DB size, and every
+  dated table must have a rule (test). *Reason:* the primary signal was silently blind for nine
+  months (chittorgarh 2026 wording) while "newest row" checks stayed green.
+- **2026-09-24** — Evidence dirs are per run (`<signal>/<UTC stamp>/`), not per date. *Reason:* a
+  same-day rerun must never overwrite evidence an earlier `validation_runs` row points at.
+- **2026-09-24** — Old filings keep their row; only `subject` moves to the bucket after 24 months, and
+  not while KPI extraction may still need it. *Reason:* `extract_kpis` selects call transcripts by
+  subject; KPI FKs and dashboard counts need the rows.
+
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
 - **No silent bad data**: every scrape/price path needs sanity guards (we hit warrant
@@ -226,5 +286,7 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - Schema + edge-function changes go through the Supabase MCP; keep `db/schema.sql` and
   `supabase/functions/` in sync with the live project. Anon key is read-only (RLS) — never
   put the service-role key in any `VITE_` var / client bundle.
-- Persist data that's hard to re-acquire (deals → Supabase); keep regenerable data as cache
-  (prices → parquet, not Supabase — free-tier size).
+- Persist data that's hard to re-acquire (deals → Supabase); bulk history goes to Storage buckets
+  (prices, statements, filings archive, evidence); local parquet is a read-through cache only.
+- Any market-cap cut in a study uses `pointintime.mcap_bucket_at` (as of the event date), and any
+  premium vs a nominal price uses unadjusted closes (`source="db"` / `"nse"`).
