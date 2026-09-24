@@ -13,7 +13,7 @@ export default function DataTable({
 }) {
   const [sort, setSort] = useState(initialSort || null)
   const scroller = useRef(null)
-  const [more, setMore] = useState({ left: false, right: false })
+  const [more, setMore] = useState({ left: false, right: false, down: false })
 
   const sorted = useMemo(() => {
     if (!sort) return rows
@@ -34,6 +34,7 @@ export default function DataTable({
     const update = () => setMore({
       left: el.scrollLeft > 1,
       right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
+      down: el.scrollHeight > el.clientHeight + 1,
     })
     update()
     el.addEventListener('scroll', update, { passive: true })
@@ -65,12 +66,14 @@ export default function DataTable({
   const wrapCls = ['dt', dense && 'dt-dense', more.right && 'more-right', more.left && 'more-left']
     .filter(Boolean).join(' ')
 
+  // A scrolling table must be reachable by keyboard: make the scroller a focusable region.
+  const scrolls = more.right || more.left || more.down
   return (
     <div className={wrapCls}>
       <div className="dt-scroll" ref={scroller} style={maxHeight ? { maxHeight } : undefined}
-           tabIndex={more.right || more.left ? 0 : undefined}
-           role={more.right || more.left ? 'region' : undefined}
-           aria-label={more.right || more.left ? `${caption || 'Table'} (scrolls sideways)` : undefined}>
+           tabIndex={scrolls ? 0 : undefined}
+           role={scrolls ? 'region' : undefined}
+           aria-label={scrolls ? `${caption || 'Table'} (scrollable)` : undefined}>
         <table>
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead>
