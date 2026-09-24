@@ -74,3 +74,22 @@ def test_to_month_frame_replaces_a_reloaded_date():
     other = day.assign(DATE1=pd.Timestamp("2026-09-24"))
     both = to_month_frame(again, other)
     assert len(both) == 2 * len(day) and both["DATE1"].is_monotonic_increasing
+
+
+def test_decode_handles_xlsx_served_as_csv():
+    """NSE served 2022-08-08 as an Excel workbook under the .csv name."""
+    import io
+    from scanner.bhavcopy import decode_bhavcopy
+    raw = parse_raw(_text())
+    xl = raw.assign(DATE1=raw["DATE1"].dt.strftime("%d-%b-%Y"))
+    xl.columns = [xl.columns[0]] + [f" {c}" for c in xl.columns[1:]]     # NSE pads headers here too
+    buf = io.BytesIO()
+    xl.to_excel(buf, index=False)
+    text = decode_bhavcopy(buf.getvalue())
+    rows = {r["symbol"]: r for r in parse_bhavcopy(text, min_eq=10)}
+    assert rows["21STCENMGM"]["close"] == 39.92 and rows["21STCENMGM"]["trade_date"] == "2026-09-23"
+
+
+def test_decode_passes_csv_through():
+    from scanner.bhavcopy import decode_bhavcopy
+    assert decode_bhavcopy(_text().encode("utf-8")) == _text()

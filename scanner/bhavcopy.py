@@ -81,6 +81,15 @@ def to_month_frame(month: pd.DataFrame | None, day: pd.DataFrame) -> pd.DataFram
     return out.sort_values(["DATE1", "SYMBOL", "SERIES"], kind="stable").reset_index(drop=True)
 
 
+def decode_bhavcopy(content: bytes) -> str:
+    """CSV text from the archive's bytes. Some days (2022-08-08) NSE serves an Excel workbook
+    under the .csv name; it carries the same columns, so it is re-emitted as CSV."""
+    if content[:2] == b"PK":                       # zip container = .xlsx
+        df = pd.read_excel(io.BytesIO(content), dtype=str)
+        return df.to_csv(index=False)
+    return content.decode("utf-8", errors="replace")
+
+
 def fetch_bhavcopy(d: date, session=None) -> str | None:
     """The day's CSV text; None on 404 (non-trading day / not yet published). Other errors raise."""
     import requests
@@ -88,4 +97,4 @@ def fetch_bhavcopy(d: date, session=None) -> str | None:
     if r.status_code == 404:
         return None
     r.raise_for_status()
-    return r.text
+    return decode_bhavcopy(r.content)

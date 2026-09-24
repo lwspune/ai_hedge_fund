@@ -9,5 +9,6 @@ yfinance          # EOD prices (adjusted) + benchmarks
 nselib            # NSE history: unadjusted prices, corporate actions, deals
 jugaad-data       # EOD prices fallback (official NSE bhavcopy)
 fastparquet       # parquet caches (price store, fundamentals)
+openpyxl          # NSE serves some bhavcopies as .xlsx under the .csv name (2022-08-08)
 pymupdf           # filing PDF text (F3 KPI extraction); same lib as Question_Bank ingestion
 pytest            # tests
