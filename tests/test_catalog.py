@@ -7,7 +7,7 @@ from scanner.catalog import (
 
 EXPECTED = {"buyback_arb", "mean_reversion", "smart_money_deals",
             "merger_arb", "open_offer_arb", "index_rebalance", "lockin_expiry",
-            "fno_ban", "rights_re"}
+            "fno_ban", "rights_re", "promoter_buying"}
 
 
 def test_all_validated_signals_registered():
@@ -64,3 +64,8 @@ def test_fno_ban_is_a_null_lens():
 def test_rights_re_is_a_conditional_spread_to_watch():
     m = get_signal("rights_re").meta
     assert (m.type, m.verdict, m.role) == ("spread", "conditional", "watch")
+
+
+def test_promoter_buying_is_a_null_lens():
+    m = get_signal("promoter_buying").meta
+    assert (m.type, m.verdict, m.role) == ("drift", "null", "lens")

@@ -105,6 +105,15 @@ def _run_rights_re(**kw) -> str:
             + format_open_res(open_res()))
 
 
+def _run_promoter_buying(**kw) -> str:
+    return ("promoter_buying is NULL (decayed): following promoter open-market buys from NSE SAST "
+            "Reg 29 disclosures earned ~+5% median over 60d in 2020-23, but in 2024-26 big-stake and "
+            "clustered buys return -1.0% / -1.6% median with fewer than half up. The pooled +8% mean "
+            "is a small-cap fat tail. Recent promoter SELLS look negative (-5.8% median) but flip sign "
+            "across eras -- a hypothesis to pre-register, not a finding. Run "
+            "scripts/validate_promoter_buys.py.")
+
+
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
         SignalMeta("buyback_arb", "structural", "conditional", "primary",
@@ -162,6 +171,13 @@ SIGNALS: dict[str, Signal] = {
                    "48/55 above cost). Capturable without shorting only if you want the stock (buy RE "
                    "+ subscribe instead) or hold it (switch shares -> REs). Small capacity."),
         _run_rights_re),
+    "promoter_buying": Signal(
+        SignalMeta("promoter_buying", "drift", "null", "lens",
+                   "Follow promoter open-market buys (SAST Reg 29). Worked 2020-23 (+60d median "
+                   "~+5%) but gone in 2024-26 (big stakes -1.0%, clusters -1.6%, <50% up); the "
+                   "pooled +8% mean is a small-cap fat tail (median +0.9%). Decayed drift signal "
+                   "-- informational lens only."),
+        _run_promoter_buying),
 }
 
 

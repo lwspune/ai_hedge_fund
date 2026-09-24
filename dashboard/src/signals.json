@@ -61,5 +61,12 @@
     "verdict": "conditional",
     "role": "watch",
     "summary": "Rights entitlements trade below fair value S - issue price: median +3.5% of the share price on liquid days (55 non-penny, fully-paid issues 2020-26, 291 days; 48/55 above cost). Capturable without shorting only if you want the stock (buy RE + subscribe instead) or hold it (switch shares -> REs). Small capacity."
+  },
+  {
+    "name": "promoter_buying",
+    "type": "drift",
+    "verdict": "null",
+    "role": "lens",
+    "summary": "Follow promoter open-market buys (SAST Reg 29). Worked 2020-23 (+60d median ~+5%) but gone in 2024-26 (big stakes -1.0%, clusters -1.6%, <50% up); the pooled +8% mean is a small-cap fat tail (median +0.9%). Decayed drift signal -- informational lens only."
   }
 ]

@@ -1,6 +1,6 @@
 # CONCLUSIONS — Indian Market Inefficiency Validations
 
-**Status: active platform. Nine signals validated. Two actionable edges (buyback tender, rights-entitlement discount); one real but unshortable effect.**
+**Status: active platform. Ten signals validated. Two actionable edges (buyback tender, rights-entitlement discount); one real but unshortable effect.**
 
 The question that started this: *are there real, past-tested inefficiencies in Indian
 markets exploitable for quick gains?* We tested four, with honest event studies and
@@ -187,6 +187,24 @@ doesn't file delisting offers as a category, and nselib's board-meeting calendar
 "voluntary delisting" items in 2024 (several single-exchange exits). Needs manual curation
 from exchange/news PDFs (~5-15 promoter offers/yr); the Sep-2024 fixed-price route (15% over
 floor) likely compresses the RBB premium. Revisit only as a curation project.
+
+### 10. Promoter open-market buying (SAST Reg 29) — NULL (decayed)
+NSE `corporate-sast-reg29` disclosures, 2020→2026: 1,854 promoter open-market buy events
+(clustered per stock, 10-day gap), entry the day after disclosure, vs NIFTY 500. Contrast legs:
+1,241 promoter sells, 1,183 non-promoter buys.
+
+| +60d (median) | 2020-21 | 2022-23 | 2024-26 |
+|---|---|---|---|
+| big-stake promoter buys | +6.6% | +5.9% | **−1.0%** (47% up) |
+| clustered promoter buys | +4.9% | +4.2% | **−1.6%** (44% up) |
+| promoter sells | −1.9% | +2.8% | −5.8% (36% up) |
+
+The pooled headline (+60d mean +8.1%, t=10.7) is a small-cap fat tail — median +0.9%, 52% up —
+and the effect fails the era cut: it lived in the 2020-23 small-cap run and is gone in 2024-26.
+Same decay as `index_rebalance` / `smart_money_deals`: a public drift signal. Recent promoter
+*sells* look negative, but that leg flips sign across eras and was a contrast, not a hypothesis —
+logged in the backlog to pre-register, not claimed. (`scanner/insider.py`,
+`scripts/validate_promoter_buys.py`, results `cache/promoter_buys_results.csv`.)
 
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
