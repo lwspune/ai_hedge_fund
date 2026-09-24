@@ -22,6 +22,7 @@ on:
           - validate_promoter_sells.py
           - validate_turn_of_month.py
           - validate_ofs_retail.py
+          - validate_demerger.py
       args:
         description: "extra args, e.g. --exclude-results-window 2"
         required: false
