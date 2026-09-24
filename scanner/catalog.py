@@ -114,6 +114,13 @@ def _run_promoter_buying(**kw) -> str:
             "scripts/validate_promoter_buys.py.")
 
 
+def _run_turn_of_month(**kw) -> str:
+    return ("turn_of_month is NULL (control): the last-1 + first-3 trading-day window earned "
+            "+0.34%/day on NIFTY 500 in 2022-23 (t=3.9) and +0.00%/day in 2024-26 (t=0.0); pooled "
+            "+0.46%/month (t=1.8) is inside the era cut and an ETF round trip. Calendar effect, no "
+            "barrier. Run scripts/validate_turn_of_month.py [--yf for 2007->].")
+
+
 def _run_order_wins(**kw) -> str:
     return ("order_wins is NULL: disclosed order wins (NSE 'Bagging/Receiving of orders/contracts', "
             "2024-26, n=1,638 events) are priced on announcement day (+0.9% abnormal; +2.0% when the "
@@ -193,6 +200,12 @@ SIGNALS: dict[str, Signal] = {
                    "abnormal ~0 to slightly negative, below same-stock controls (n=1,638, 2024-26). "
                    "Informational lens only."),
         _run_order_wins),
+    "turn_of_month": Signal(
+        SignalMeta("turn_of_month", "drift", "null", "documented",
+                   "Turn-of-month seasonality (last 1 + first 3 trading days) on NIFTY 50 / 500. "
+                   "A 2022-23 flicker (+0.34%/day, t=3.9) that is ~0 in 2024-26; pooled +0.46%/month "
+                   "(t=1.8). Calendar control, documented not traded."),
+        _run_turn_of_month),
 }
 
 

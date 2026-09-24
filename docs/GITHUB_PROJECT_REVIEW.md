@@ -70,7 +70,7 @@ Everything below is in the same `www.nseindia.com/api/*` + `Referer` family as
 | D4 | `api/corporate-further-issues-pref?index=FIPREFIP` / `FIPREFLS` | Pareshking (needed Selenium from Actions — probe plain session first) | Preferential allotments: in-principle + listing stage, price, allottees, dates | **New candidate: preferential-allotment lock-in expiry** (§4) | Not ingested. |
 | D5 | `api/corporate-further-issues-ri?index=FIRIIP` / `FIRILS` | Pareshking | NSE's own rights-issue list | Coverage cross-check for `rights_issues` (chittorgarh) | Nice-to-have. |
 | D6 | `api/corporates-financial-results?index=equities&from_date&to_date&period=Quarterly` (24 fields: `xbrl`, `audited`, `consolidated`, result PDF, broadcast time) | stockerrr, live | Point-in-time quarterly results with exact broadcast timestamp | **#15 PEAD** control with a surprise proxy (YoY growth vs prior quarters, or results-day gap); replaces `board_meeting` date-only rows for results timing | Not ingested. |
-| D7 | BSE `api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w` with `Referer: https://www.bseindia.com/` **and** `Origin: https://www.bseindia.com`, one day per call, 50/page; attachments at `xml-data/corpfiling/AttachHis/` | stockerrr, live 2026-09-08 | BSE announcements incl. `Corp. Action`, `Insider Trading / SAST`, subcategories | Re-opens **#3 delisting RBB** (our BSE 403 was almost certainly the missing headers / the dead `AnnGetData/w`) — still needs offer + discovered-price parsing | Parked on "BSE 403". Re-probe. |
+| D7 | BSE `api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w` with `Referer: https://www.bseindia.com/` **and** `Origin: https://www.bseindia.com`, one day per call, 50/page; attachments at `xml-data/corpfiling/AttachHis/` | stockerrr, live 2026-09-08 | BSE announcements incl. `Corp. Action`, `Insider Trading / SAST`, subcategories | Would re-open **#3 delisting RBB** | **Probed 2026-09-24: 200 from the laptop, 403 from the GitHub runner.** Residential-only → stays parked (the laptop is never a dependency). |
 | D8 | niftyindices `Press_Release/<date>.pdf` sweep (Abhinav7582 `circulars_fetch.py`) | Abhinav7582 | Every index reconstitution release 2015→ | Extends `index_membership` history to Nifty 100/Midcap/Smallcap before our weekly diffs began | Optional infra. |
 | D9 | Bhavcopy `prevclose` ratio adjustment (nsefactor) | nsefactor | Split/bonus factors from the store itself | Adjusted return series without yfinance; closes the `source="yf"` vs `"db"` split | Optional infra. |
 | D10 | AMC portfolio disclosures (fund-disclosures) | repo API | Monthly MF holdings per stock | MF-ownership % as an acceptance feature (general category) | Defer — heavy parsing, marginal. |
@@ -111,7 +111,18 @@ the market-cap heuristic prior for the primary signal.
 Explicitly not doing: adopting qlib/TradingAgents/ai-hedge-fund; re-testing momentum, value,
 quality, reversal, factor combos, or LLM-scored stock picks.
 
-## 6. Sources
+## 6. Status (2026-09-24, same day)
+
+Probe run on Actions: every NSE endpoint in §3 (D1–D6) answers from a runner; BSE (D7) does not.
+Built and scheduled: `shareholding` (weekly + backfill 2020→), `insider_trades` (daily, forward
+feed), `surveillance_daily` (daily snapshot), `pref_issues` + `pref_lockin_expiry` events (daily +
+backfill 2023→), each with freshness rules. Studies: turn-of-month **null** (era cut kills the
+2022-23 flicker); `validate_promoter_sells.py` and `validate_pref_lockin.py` dispatched on
+`validate.yml`; the ASM/GSM study waits for entries/exits to accrue. `buyback.estimate_entitlement`
+derives the acceptance floor from `small_holder_pct`. PIT history is a forward feed only (dated
+windows return nothing before ~May 2026), so the pledge-invocation candidate accrues data first.
+
+## 7. Sources
 
 - https://github.com/Pareshking/NSE-BSE-Insider-Tracker (`DATA_ACQUISITION.md`, `artifacts/acquisition_probe.json`)
 - https://github.com/hxrsh90/stockerrr (`research/01-nse-bse-filings-api.md`, `src/stockerrr/nse_client.py`)

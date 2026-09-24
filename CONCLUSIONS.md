@@ -235,6 +235,22 @@ Priced on the day — even the biggest surprises — and a follower does slightl
 control. Public news with no barrier, like `index_rebalance`. (`scanner/orderwins.py`,
 `scripts/validate_order_wins.py`.) *Evidence:* `evidence/order_wins/2026-09-24` · sha 4f552e3 (laptop baseline).
 
+### 12. Turn-of-month seasonality (backlog #17) — NULL (control)
+Last 1 + first 3 trading days of each month vs all other days, NIFTY 50 and NIFTY 500 unadjusted
+index closes from the cloud store (2022-08 → 2026-09; truncated edge months excluded). Run on Actions.
+
+| NIFTY 500 | TOM days (%/day) | other days (%/day) |
+|---|---|---|
+| pooled | +0.11% (n=199, t=1.5) | +0.03% (n=810) |
+| 2022-23 | **+0.34% (t=3.9)** | +0.02% |
+| 2024-26 | +0.00% (t=0.0) | +0.04% |
+
+The pooled TOM window is +0.46%/month (t=1.8), all of it from 2022-23; NIFTY 50 reads the same
+(+0.29% t=3.0 → −0.04% t=−0.4). A calendar effect with no barrier, gone in the current era — the
+external "marginal pass" (NIFTYBEES 2021-26, +0.9%/yr gross) is this flicker. Documented, not traded.
+(`scanner/seasonality.py`, `scripts/validate_turn_of_month.py`.) *Evidence:*
+`evidence/turn_of_month/2026-09-24T083330Z` (Actions).
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.

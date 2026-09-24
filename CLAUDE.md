@@ -116,6 +116,20 @@ drift-signal chasing.
     parquet is also kept in the private Storage bucket `fundamentals` (the durable copy).
     `scripts/refresh_fundamentals.py` (~polite, hours for the full market; run weekly).
   - **I5** — the dashboard company page above.
+  - **Review unlocks (2026-09-24, `docs/GITHUB_PROJECT_REVIEW.md`)** — four NSE feeds other repos
+    proved reachable from runners: **`shareholding`** (`scanner/shareholding.py`, weekly + `backfill.yml
+    what=shareholding`; quarterly SHP XBRL per symbol, 2020→: promoter/public/MF/DII/FPI %, promoter
+    **pledge** as % of promoter holding and of total, and **`small_holder_pct`** — the ≤₹2 lakh float that
+    is the buyback 15%-reservation denominator → `buyback.estimate_entitlement` fills the acceptance
+    floor before the letter of offer; the scan records `est_entitlement` + `entitlement_source`);
+    **`insider_trades`** (`scanner/insider.py` PIT parsers, daily; one row per disclosure with person
+    category, Buy/Sell/Pledge, mode Market/ESOP/Gift/…; a *forward* feed — dated windows reach back only
+    ~5 months, so backtests of sells use Reg 29); **`surveillance_daily`** (`scanner/surveillance.py`,
+    daily ASM long/short-term + GSM snapshot; `asmTime` is the list-run date, so entries/exits exist only
+    from 2026-09-24 on — backlog #5 becomes testable after ~6-12 months); **`pref_issues`** +
+    corporate_events `pref_lockin_expiry` (`scanner/prefissues.py`, daily 45-day window + backfill
+    2023→; the listing XBRL gives each lock-in tranche — 6 m non-promoter / 18 m promoter — and the
+    ICDR 6-m default is flagged; study `scripts/validate_pref_lockin.py`).
   - **Filings (F1-F3)** — `scanner/filings.py` → `filings` (NSE corporate announcements, material
     categories only, PDF link; `scripts/refresh_filings.py`, daily). F2 analysis
     (`docs/FILINGS_KPI_ANALYSIS.md`) chose what to extract; `scanner/kpis.py` rule_v1 extracts
@@ -148,8 +162,17 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   `/ipo/x/<id>/` (Next.js payload keys, e.g. `timetable_anchor_lockin_end_dt_1`).
   **ASM/GSM** — JSON-gated, not available.
 - **NSE JSON APIs that DO answer a plain session with a `Referer: https://www.nseindia.com/`**
-  (even from GitHub runners): `api/corporate-announcements` (filings) and
-  `api/corporate-sast-reg29` (promoter/insider acquisitions). `api/corporates-pit` returns empty.
+  (even from GitHub runners, probed 2026-09-24): `api/corporate-announcements` (filings),
+  `api/corporate-sast-reg29` (promoter/insider acquisitions), **`api/corporates-pit-gg`** (PIT insider
+  filings + per-filing XBRL; `api/corporates-pit` *without* `-gg` is dead and always empty),
+  `api/reportASM` / `api/reportGSM` (surveillance snapshots; send `Accept-Encoding: gzip, deflate` —
+  no `br`), `api/corporate-share-holdings-master?symbol=` (+ SHP XBRL: small-shareholder %, pledge),
+  `api/corporate-further-issues-pref|ri?index=FIPREFIP|FIPREFLS|FIRIIP` (preferential / rights
+  issues; date windows filter on submission date; the pref listing list starts Mar-2023).
+  `api/corporates-financial-results` returns only the latest quarter per window (no history).
+- **BSE `api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w`** answers with `Referer` +
+  `Origin: https://www.bseindia.com` from a residential IP only — **403 from GitHub runners**
+  (`AnnGetData/w` is dead everywhere). Delisting RBB stays parked.
 - **Bulk/block deals** — NSE **static archive CSVs** (`nsearchives.../bulk.csv`,
   `block.csv`). NSE's JSON APIs (PIT/insider/historical) are JS-gated → empty/503; the
   static CSVs are the way in.
@@ -159,16 +182,17 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (385 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (425 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
 `scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
 **Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):
 `refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, IPOs +
-120-day re-check, rights, board meetings/results, band changes, filings + KPIs, 10-day deals
-refill, buyback + rights scans) and `refresh-weekly` (Sun 10:00 IST: trading calendar, price
-prune, company master + index membership, fundamentals + snapshot history, filings archive;
+120-day re-check, rights, board meetings/results, band changes, ASM/GSM snapshot, PIT insider
+filings, preferential issues, filings + KPIs, 10-day deals refill, buyback + rights scans) and
+`refresh-weekly` (Sun 10:00 IST: trading calendar, price prune, company master + index membership,
+fundamentals + snapshot history, shareholding/pledge (2 new quarters per symbol), filings archive;
 `smoke` input for a 5-company test). Both call `scripts/scheduled_refresh.py`;
 secrets `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` live in repo Actions secrets; a failed step
 fails the run → GitHub emails the owner; the last step `scripts/check_freshness.py` also fails
@@ -177,13 +201,15 @@ the run on any **age** rule (calendar or trading days), **row-volume floor**, **
 pages and parsed 0 tenders — the 2026 format change), or **DB size** (warn 300 MB, fail 400 MB via
 RPC `db_size_bytes`). A test forces every dated table in `db/schema.sql` to carry a rule.
 **CI** (`ci.yml`): pytest + dashboard lint/build on every push.
-On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|orphans`,
+On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|orphans|shareholding|insider|pref-issues`,
 `from`/`to`) · `validate.yml` (`script=validate_*.py`, `args`; publishes evidence) ·
 `probe-sources.yml`. Manual: `gh workflow run refresh-daily.yml`.
 Individual loaders: `scripts/refresh_companies.py` · `scripts/refresh_events.py
 actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_prices.py [--date D |
 --from A --to B | --prune]` · `scripts/refresh_fundamentals.py [--symbols A,B] [--stale-days 7]` ·
 `scripts/refill_deals.py --from` · `scripts/archive_filings.py` · `scripts/backfill_orphans.py` ·
+`scripts/refresh_shareholding.py [--symbols] [--per-symbol N] [--xbrl-limit N]` · `scripts/refresh_insider.py
+[--from --to | --all]` · `scripts/refresh_surveillance.py` · `scripts/refresh_prefissues.py [--from --to]` ·
 `scripts/rebuild_snapshot_history.py` (no re-scrape). Validations: `scripts/validate_*.py
 [--exclude-results-window N] [--publish]`.
 
@@ -280,6 +306,16 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **2026-09-24** — Old filings keep their row; only `subject` moves to the bucket after 24 months, and
   not while KPI extraction may still need it. *Reason:* `extract_kpis` selects call transcripts by
   subject; KPI FKs and dashboard counts need the rows.
+
+- **2026-09-24** — GitHub project review (`docs/GITHUB_PROJECT_REVIEW.md`): adopted **data, not
+  strategies**. The star repos (TradingAgents, ai-hedge-fund, qlib, Vibe-Trading) are US LLM/ML drift
+  machines; every honest Indian factor backtest on GitHub reaches our null. Three India data repos
+  proved the NSE PIT `-gg`, ASM/GSM JSON, shareholding-master + SHP XBRL and further-issues endpoints
+  from runners → ingested (shareholding, insider_trades, surveillance_daily, pref_issues). *Reason:*
+  they unblock backlog #5/#8, a new structural candidate (pref lock-in expiry) and the buyback
+  acceptance model's missing small-shareholder feature; no agent framework, no factor re-tests.
+- **2026-09-24** — BSE JSON stays out: 403 from GitHub runners (works only residential). *Reason:*
+  the laptop must never be a dependency; delisting RBB remains parked.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
