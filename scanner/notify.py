@@ -9,7 +9,7 @@ from __future__ import annotations
 from html import escape
 from urllib.parse import quote
 
-DASHBOARD = "https://ai-hedge-fund-gamma.vercel.app/"
+DASHBOARD = "https://ai-hedge-fund-fawn.vercel.app/"
 BUY_RE = "BUY RE"  # prefix of scanner.rights.re_action's actionable verdict
 
 
