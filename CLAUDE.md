@@ -383,6 +383,12 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   mandate-bound institution; same lock-in pattern — the barrier that excludes arbitrageurs excludes
   retail. Event set is hand-curated (`data/demerger_listings.csv`, 27 of 90 records had no listed
   child); the child-listing mapping is the only part that needs upkeep.
+- **2026-09-24** — Options strategies **declined** as a review; one falsification test logged as
+  backlog #24 (results-day implied vol vs realised move, F&O bhavcopy needed). *Reason:* an option
+  strategy is a payoff shape, not a barrier — nobody is excluded from NSE options, the premium is a
+  competed tail-risk premium (beta, not alpha), SEBI 2024-25 raised the retail floor (~₹15 lakh lots),
+  a lot is ~7× the ₹2 lakh buyback slab so it can't hedge our edge, and fresh listings aren't in F&O so
+  puts can't short the unshortable lenses.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

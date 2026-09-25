@@ -47,6 +47,7 @@ Prior = honest expectation before testing.
 | # | Signal | Bucket | Data | Prior | How to test |
 |---|---|---|---|---|---|
 | 12 | **Cash-futures basis** — single-stock / index futures premium-discount vs fair carry; roll-period dislocations. | 🔵 | ⚠️ needs F&O EOD (NSE bhavcopy F&O) | thin, competed; carry ≈ risk-free | Compute basis vs cost-of-carry; flag |dislocation| > costs. |
+| 24 | **Results-day implied vol vs realised move** (logged 2026-09-24) — the only options idea consistent with the thesis, and only as a *falsification test*, not a strategy review. Is single-stock IV before a results date systematically above the realised move, and does the excess survive the bid-ask spread? A variance risk premium is compensation for tail risk, not a barrier: nobody is excluded from NSE options, prop desks sell the same premium cheaper, and SEBI 2024-25 (~₹15 lakh min contract, one weekly expiry per exchange, higher STT, upfront premium) raised the retail floor. Options also can't hedge the buyback slab (one lot ≈ 7× a ₹2 lakh position) nor short the unshortable lenses (fresh listings aren't in F&O — §6, §16). **Do not** review covered calls / condors / straddle-selling generally: payoff shapes, not edges. | 🔵 | ⚠️ needs F&O EOD (NSE F&O bhavcopy is a static archive → should reach runners like the cash bhavcopy; results dates already in `corporate_events` `board_meeting`/`results`) | competed risk premium; expect null after spreads outside the top ~30 names | Event set = results dates ∩ F&O list (point-in-time). Pre-specified cut: ATM straddle price at T-1 close vs |close-to-close move| T-1→T+1, net of the quoted spread; segment top-30 liquid names vs the rest, and 2022-23 vs 2024-26 (post-SEBI). Verdict is *null* unless the excess survives both cuts; even then it is a risk premium (lens), never an Act signal. |
 | 13 | **NSE–BSE dual-listing spread** | 🔵 | ✅ yfinance/nselib both venues | ~0 (arbitraged in ms) | Daily close spread; almost certainly null — documents efficiency. |
 | 14 | **ADR/GDR vs local** — INFY/WIT/HDB/IBN vs NSE close (FX-adjusted). | 🔵 | ✅ yfinance both | efficient; FX + time-zone noise | Overnight gap study; expect null. |
 
@@ -71,6 +72,8 @@ Prior = honest expectation before testing.
 4. ~~**#3 Delisting RBB**~~ — parked: data not reachable (manual curation only).
 5. ~~**#4 Rights-entitlement**~~ — done: conditional, actionable (RE discount ~3%).
 6. Everything in Tier 3/4 as **cheap controls** (run to document efficiency, not to find edge).
+   **#24 results-day IV** sits at the bottom, next to #12: it needs an F&O bhavcopy loader first and
+   a null is the expected outcome. Options strategies in general are **declined** (2026-09-24, see #24).
 
 ## Testing protocol (per signal — keep it honest)
 - Write the arb/abnormal-return math as a **pure, tested function first** (TDD — see `buyback.py`).
