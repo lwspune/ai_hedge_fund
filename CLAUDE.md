@@ -81,7 +81,7 @@ drift-signal chasing.
   formatting via `src/lib/format.js` (IST, en-IN). Spec: `docs/DASHBOARD_REDESIGN_SPEC.md`.
   `signals.json` generated from `catalog.py` via `scripts/emit_signals_json.py`; display copy in
   `src/lib/signalLabels.js` (a test fails if a signal lacks a label). Deployed on Vercel
-  (https://ai-hedge-fund-gamma.vercel.app/). `npm run dev|test|lint --prefix dashboard`.
+  (https://ai-hedge-fund-fawn.vercel.app/). `npm run dev|test|lint --prefix dashboard`.
 - **Infra layer (I1–I5)** — the shared data spine every signal/backtest reads from:
   - **I1 company master** — `scanner/master.py` → `companies` (every NSE equity + historical
     delistings, industry, index membership, `is_financial`) + `symbol_changes`.
@@ -242,7 +242,7 @@ actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_pr
 ## Stack
 Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5lib · pytest ·
 Supabase (raw PostgREST, no ORM/SDK) · React + Vite + supabase-js (dashboard). P0–P3 built +
-deployed (https://ai-hedge-fund-gamma.vercel.app/). `buyback_arb` now self-discovers current
+deployed (https://ai-hedge-fund-fawn.vercel.app/). `buyback_arb` now self-discovers current
 buybacks (upward id probe from `db.max_buyback_id`) + ranks by an acceptance-estimation model
 (`estimate_acceptance` heuristic prior → after-tax `exp_return`). Next: calibrate the acceptance
 prior from the `outcomes` feedback loop; add issue-size / retail-% features.
