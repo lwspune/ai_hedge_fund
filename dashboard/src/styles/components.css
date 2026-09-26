@@ -177,6 +177,7 @@
 .dt tr.is-open { background: var(--surface); }
 .cell-clip { display: block; max-width: 34ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-wrap { display: block; min-width: 22ch; max-width: 70ch; }
+.cell-wrap.wide { min-width: 44ch; }   /* long source quotes: fewer, longer lines */
 .cell-sub { display: block; font-size: var(--fs-caption); color: var(--text-3); }
 .cell-sub.mono { font-family: var(--font-mono); }
 .rel { margin-left: 6px; font-size: var(--fs-caption); color: var(--text-3); white-space: nowrap; }

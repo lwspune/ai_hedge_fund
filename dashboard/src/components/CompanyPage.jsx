@@ -6,7 +6,7 @@ import { todayIso } from '../lib/format'
 import { COMPANY_TABS, companyHref } from '../useHashRoute'
 import CompanyHeader from './company/CompanyHeader'
 import {
-  CompanyDeals, EventsTable, FilingKpis, FilingsTable, Financials, SignalActivity, Snapshot, UpcomingEvents,
+  CompanyDeals, CreditRatings, EventsTable, FilingKpis, FilingsTable, Financials, SignalActivity, Snapshot, UpcomingEvents,
 } from './company/CompanySections'
 import Section from './ui/Section'
 import Tabs from './ui/Tabs'
@@ -23,13 +23,17 @@ const all = async (queries) => {
 
 // Header: identity + snapshot (the Financials tab reads its history too) + tab counts.
 async function loadHeader(symbol) {
-  const [co, snap, fil, deals] = await all([
+  const [co, snap, fil, deals, ratings] = await all([
     supabase.from('companies').select('*').eq('symbol', symbol).maybeSingle(),
     supabase.from('company_snapshot').select('*').eq('symbol', symbol).maybeSingle(),
     supabase.from('filings').select('seq_id', { count: 'exact', head: true }).eq('symbol', symbol),
     supabase.from('market_deals').select('id', { count: 'exact', head: true }).eq('symbol', symbol),
+    supabase.from('current_credit_ratings').select('agency,scale,term,rating,outlook,watch,disclosed_at')
+      .eq('symbol', symbol),
   ])
-  return { company: co.data, snap: snap.data, filings: fil.count ?? 0, deals: deals.count ?? 0 }
+  return {
+    company: co.data, snap: snap.data, filings: fil.count ?? 0, deals: deals.count ?? 0, ratings: ratings.data || [],
+  }
 }
 
 function TabLoading({ label, cols = 4 }) {
@@ -68,16 +72,23 @@ function OverviewTab({ symbol, snap }) {
 
 function EventsTab({ symbol }) {
   const { loading, error, data } = useLoad(async () => {
-    const [ev, ipo] = await all([
+    const [ev, ipo, cr] = await all([
       supabase.from('corporate_events').select('*').eq('symbol', symbol)
         .order('event_date', { ascending: false }).limit(60),
       supabase.from('ipos').select('*').eq('symbol', symbol).order('listing_date', { ascending: false }).limit(1),
+      supabase.from('credit_ratings').select('id,agency,scale,term,rating,outlook,watch,action,prev_rating,quote,disclosed_at,filings(attachment_url)')
+        .eq('symbol', symbol).order('disclosed_at', { ascending: false }).limit(60),
     ])
-    return { events: ev.data || [], ipo: (ipo.data || [])[0] }
+    return { events: ev.data || [], ipo: (ipo.data || [])[0], ratings: cr.data || [] }
   }, [symbol])
   if (loading) return <TabLoading label="Loading events" />
   if (error) return <ErrorNote what="events" message={error} />
-  return <EventsTable events={data.events} ipo={data.ipo} />
+  return (
+    <>
+      <CreditRatings ratings={data.ratings} />
+      <EventsTable events={data.events} ipo={data.ipo} />
+    </>
+  )
 }
 
 function FilingsTab({ symbol }) {
@@ -126,7 +137,7 @@ export default function CompanyPage({ symbol, tab }) {
     )
   }
   if (head.error) return <div className="content"><ErrorNote what={symbol} message={head.error} /></div>
-  const { company: c, snap, filings, deals } = head.data
+  const { company: c, snap, filings, deals, ratings } = head.data
   if (!c) {
     return (
       <div className="content">
@@ -144,7 +155,7 @@ export default function CompanyPage({ symbol, tab }) {
     <>
       <div className="co-sticky">
         <div className="co-inner">
-          <CompanyHeader company={c} snap={snap}>
+          <CompanyHeader company={c} snap={snap} ratings={ratings}>
             <Tabs label={`${c.name || c.symbol} sections`} tabs={tabs} active={tab} />
           </CompanyHeader>
         </div>

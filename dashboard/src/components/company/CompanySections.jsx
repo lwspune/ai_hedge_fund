@@ -2,6 +2,7 @@ import {
   fmtCrValue, fmtDate, fmtInr, fmtNum, fmtPct, fmtPctPts, fmtQty, fmtRelative, todayIso,
 } from '../../lib/format'
 import { eventDetail, eventLabel } from '../../lib/events'
+import { ratingAction, ratingGrade } from '../../lib/ratings'
 import { signalLabel } from '../../lib/signalLabels'
 import Section from '../ui/Section'
 import DataTable from '../ui/DataTable'
@@ -163,6 +164,28 @@ export function EventsTable({ events, ipo }) {
           {ipo.listing_close != null && <> · day-1 close {fmtInr(ipo.listing_close)} ({fmtPct(ipo.listing_close / ipo.issue_price - 1)})</>}
         </p>
       )}
+    </Section>
+  )
+}
+
+const RATING_COLUMNS = [
+  { key: 'disclosed_at', header: 'Date', nowrap: true, render: (r) => <Source k={r} /> },
+  { key: 'agency', header: 'Agency', nowrap: true },
+  { key: 'term', header: 'Term', render: (r) => (r.term === 'long' ? 'Long' : 'Short') },
+  { key: 'rating', header: 'Rating', nowrap: true, render: (r) => <span className="num">{ratingGrade(r)}</span> },
+  { key: 'action', header: 'Action', nowrap: true, render: (r) => {
+    const a = ratingAction(r)
+    return a.tone ? <Badge tone={a.tone}>{a.label}</Badge> : a.label
+  } },
+  { key: 'quote', header: 'Quote', render: (r) => <span className="t2 cell-wrap wide">“{r.quote}”</span> },
+]
+
+export function CreditRatings({ ratings }) {
+  if (!ratings?.length) return null
+  return (
+    <Section id="ratings" title="Credit ratings"
+             info="Read by rule from the company's NSE rating filings: each agency's rating per filing, with its quote. Global agencies (Fitch, S&P, Moody's) use a different scale.">
+      <DataTable dense caption="Credit rating history" columns={RATING_COLUMNS} rows={ratings} rowKey={(r) => r.id} />
     </Section>
   )
 }

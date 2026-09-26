@@ -1,11 +1,22 @@
 import { fmtCrValue, fmtDate, fmtInr, fmtNum, fmtPctPts } from '../../lib/format'
+import { headlineRating, ratingGrade } from '../../lib/ratings'
 import { Badge } from '../ui/Badge'
 import { Stat } from '../ui/Stat'
 
 const MAX_INDICES = 4
 
+// The headline credit rating; the other agencies' long-term ratings in the tooltip.
+function RatingStat({ cr }) {
+  const others = cr.others.map((r) => `${r.agency} ${ratingGrade(r)}`).join(', ')
+  return (
+    <Stat label="Credit rating" value={ratingGrade(cr)} sub={`${cr.agency} · ${fmtDate(cr.disclosed_at)}`}
+          title={others ? `Also: ${others}` : undefined} />
+  )
+}
+
 // Company identity + four headline stats. `children` (the tab bar) renders inside the header.
-export default function CompanyHeader({ company: c, snap: s, children }) {
+export default function CompanyHeader({ company: c, snap: s, ratings, children }) {
+  const cr = headlineRating(ratings)
   const taxonomy = [...new Set([s?.sector, s?.industry, s?.basic_industry].filter(Boolean))].join(' › ')
     || c.industry
   const line = [taxonomy, c.series, c.listing_date ? `listed ${fmtDate(c.listing_date)}` : null].filter(Boolean)
@@ -37,7 +48,10 @@ export default function CompanyHeader({ company: c, snap: s, children }) {
             <Stat label="Market cap" value={fmtCrValue(s.market_cap_cr)} />
             <Stat label="P/E" value={fmtNum(s.pe, 1)} />
             <Stat label="ROCE" value={fmtPctPts(s.roce)} />
+            {cr && <RatingStat cr={cr} />}
           </dl>
+        ) : cr ? (
+          <dl className="co-stats" aria-label="Headline figures"><RatingStat cr={cr} /></dl>
         ) : <p className="co-stats-none">Fundamentals not fetched yet</p>}
       </div>
       {children}
