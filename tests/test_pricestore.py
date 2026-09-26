@@ -223,3 +223,22 @@ def test_first_bar_gives_the_listing_session_open_and_close(monkeypatch):
     assert ps.first_bar("LATE", "2026-09-30") == {"date": pd.Timestamp("2026-10-01"), "open": 55.0, "close": 52.0}
     assert ps.first_bar("NEWCO", "2026-09-30") is None          # nothing on/after within the window
     assert ps.first_bar("GHOST", "2026-09-26") is None
+
+
+def test_bar_panel_reads_each_month_once_and_prefers_eq(monkeypatch):
+    calls = []
+
+    def month(ym):
+        calls.append(ym)
+        rows = {"2026-08": [("AAA", "EQ", "2026-08-31", 10.0), ("AAA", "BE", "2026-08-31", 9.0),
+                            ("BBB", "SM", "2026-08-31", 50.0), ("CCC", "GS", "2026-08-31", 1.0)],
+                "2026-09": [("AAA", "BE", "2026-09-01", 11.0)]}.get(ym, [])
+        return pd.DataFrame([{"SYMBOL": s, "SERIES": ser, "DATE1": pd.Timestamp(d), "OPEN_PRICE": c, "HIGH_PRICE": c + 1,
+                              "LOW_PRICE": c - 1, "CLOSE_PRICE": c, "TTL_TRD_QNTY": 100, "TURNOVER_LACS": 2.0,
+                              "DELIV_PER": 40.0} for s, ser, d, c in rows])
+    monkeypatch.setattr(ps, "_bhav_month", month)
+    p = ps.bar_panel("2026-08-01", "2026-09-30")
+    assert calls == ["2026-08", "2026-09"]
+    assert sorted(p) == ["AAA", "BBB"]                          # government securities (GS) are not stocks
+    assert list(p["AAA"]["close"]) == [10.0, 11.0]              # EQ over BE on the same day; BE the next
+    assert list(p["AAA"].columns) == ["open", "high", "low", "close", "volume", "turnover_lakh", "delivery_pct"]

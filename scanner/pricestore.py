@@ -196,6 +196,31 @@ def first_bar(symbol: str, day, max_days: int = 10) -> dict | None:
     return None
 
 
+_OHLC = {"OPEN_PRICE": "open", "HIGH_PRICE": "high", "LOW_PRICE": "low", **_BHAV_COLS}
+
+
+def bar_panel(start, end) -> dict[str, pd.DataFrame]:
+    """Every NSE stock's daily OHLC + volume / turnover / delivery in [start, end], reading each raw
+    bhavcopy month once (a per-symbol loop would re-scan them thousands of times). One series per
+    symbol, EQ preferred over BE/BZ/SM/ST/SZ on a shared day. Unadjusted — guard corporate actions."""
+    lo, hi = pd.Timestamp(start).normalize(), pd.Timestamp(end).normalize()
+    rank = {s: i for i, s in enumerate(NSE_SERIES)}
+    parts = []
+    for m in pd.period_range(lo, hi, freq="M"):
+        raw = _bhav_month(str(m))
+        if raw is None or raw.empty:
+            continue
+        f = raw[raw["SERIES"].isin(NSE_SERIES) & (raw["DATE1"] >= lo) & (raw["DATE1"] <= hi)]
+        parts.append(f[["SYMBOL", "SERIES", "DATE1", *_OHLC]])
+    if not parts:
+        return {}
+    df = pd.concat(parts, ignore_index=True)
+    df = (df.assign(_r=df["SERIES"].map(rank)).sort_values(["SYMBOL", "DATE1", "_r"])
+            .drop_duplicates(["SYMBOL", "DATE1"]).rename(columns=_OHLC))
+    cols = ["open", "high", "low", "close", "volume", "turnover_lakh", "delivery_pct"]
+    return {s: g.set_index("DATE1")[cols].astype(float) for s, g in df.groupby("SYMBOL", sort=True)}
+
+
 def _month_bars(symbol: str, lo: pd.Timestamp, hi: pd.Timestamp) -> pd.DataFrame:
     frames = []
     for m in pd.period_range(lo, hi, freq="M"):
