@@ -11,8 +11,18 @@ def test_mainboard_odds_are_lots_over_applications():
     assert p == pytest.approx(204357 / 2751564)
 
 
-def test_mainboard_without_application_count_falls_back_to_times_subscribed():
-    assert allot_prob("mainboard", 12057086, 59, None, 20.0) == pytest.approx(0.05)
+def test_mainboard_without_application_count_uses_calibrated_lots_per_applicant():
+    # P x retail times = 1.10 median over 32 mainboard IPOs with exact counts (applicants bid ~1.1 lots)
+    assert allot_prob("mainboard", 12057086, 59, None, 20.0) == pytest.approx(1.10 / 20)
+
+
+def test_mainboard_older_issue_from_the_nse_retail_figure():
+    assert allot_prob("mainboard", None, 59, None, None, sub_retail_nse=8.99) == pytest.approx(1.10 / (8.99 / 0.647))
+    assert allot_prob("mainboard", None, 59, None, None, sub_retail_nse=0.5) == 1.0      # 0.77x consolidated
+
+
+def test_sme_without_a_retail_figure_is_unknown():
+    assert allot_prob("sme", None, 1000, None, None, sub_retail_nse=None) is None
 
 
 def test_sme_odds_are_one_over_retail_times_subscribed():

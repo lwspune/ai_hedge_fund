@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import re
 
+from scanner.ipobids import final_retail_from_nse
+
 SELL_COST = 0.002        # brokerage + STT + charges on the listing-day sale
+LOTS_PER_APPLICANT = 1.10    # P x retail times, median of 32 mainboard IPOs with exact counts (1.01-1.54)
 # REITs / InvITs list units of a trust, not company shares ("Trust Fintech" is a company)
 _UNIT_TRUST = re.compile(r"\bREIT\b|\bInvIT\b|\b(?:Investment|Infra|Highways|Realty|Select) Trust\b", re.I)
 
@@ -23,17 +26,22 @@ def on_nse(listing_at: str | None) -> bool:
 
 
 def allot_prob(board: str, retail_shares: int | None, lot_size: int | None, applications: int | None,
-               sub_retail: float | None) -> float | None:
-    """P(one retail application is allotted). Mainboard: minimum lots available / applications —
-    many retail bids are for the Rs 2 lakh maximum, so 1/times-subscribed would understate the
-    odds (applications counts every category: a slight underestimate). SME: retail bids are the
-    minimum application, so 1/times-subscribed is the lottery's odds. Undersubscribed: 1."""
+               sub_retail: float | None, sub_retail_nse: float | None = None) -> float | None:
+    """P(one retail application is allotted). Mainboard, best to worst: minimum lots available /
+    applications (applications counts every category: a slight underestimate); else
+    LOTS_PER_APPLICANT / consolidated retail times (applicants bid ~1.1 lots on average, so
+    1/times alone would understate the odds); else the same from NSE's retail figure scaled by
+    NSE's share of retail bids. SME: retail bids are the minimum application, so 1/times is the
+    lottery's odds — and without the retail figure it is unknown (overall times is no proxy:
+    retail / overall ranges 0.2-10x on SME issues). Undersubscribed: 1."""
+    if board == "mainboard" and not sub_retail:
+        sub_retail = final_retail_from_nse(sub_retail_nse)
     if sub_retail is not None and sub_retail <= 1:
         return 1.0
     if board == "mainboard" and retail_shares and lot_size and applications:
         return min(1.0, (retail_shares // lot_size) / applications)
     if sub_retail:
-        return min(1.0, 1 / sub_retail)
+        return min(1.0, (LOTS_PER_APPLICANT if board == "mainboard" else 1.0) / sub_retail)
     return None
 
 

@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner import db  # noqa: E402
 from scanner.eventstudy import forward_abnormal_return, summarize  # noqa: E402
 from scanner.gmp import decision_gmp  # noqa: E402
+from scanner.ipobids import final_retail_from_nse  # noqa: E402
 from scanner.ipostudy import allot_prob, gmp_pct, is_unit_trust, listing_gain, on_nse  # noqa: E402
 from scanner.lockin import BLOCKING, blocking_action  # noqa: E402
 from scanner.pricestore import first_bar, get_closes  # noqa: E402
@@ -91,11 +92,14 @@ def build() -> pd.DataFrame:
         dec = decision_gmp(s, close_day) if close_day else None
         final = decision_gmp(s, lst - timedelta(days=1))
         p = allot_prob(r["board"], r.get("retail_shares_offered"), r.get("lot_size"), r.get("applications"),
-                       float(r["sub_retail"]) if r.get("sub_retail") else None)
+                       float(r["sub_retail"]) if r.get("sub_retail") else None,
+                       float(r["sub_retail_nse"]) if r.get("sub_retail_nse") else None)
+        sub = float(r["sub_retail"]) if r.get("sub_retail") else final_retail_from_nse(
+            float(r["sub_retail_nse"]) if r.get("sub_retail_nse") else None)
         g_open = listing_gain(issue, bar["open"] if bar else None)
         row = {
             "symbol": r["symbol"], "board": r["board"], "listing_date": lst, "year": lst.year, "issue": issue,
-            "sub_retail": float(r["sub_retail"]) if r.get("sub_retail") else None,
+            "sub_retail": sub, "sub_source": "chittorgarh" if r.get("sub_retail") else ("nse" if sub else None),
             "sub_qib": float(r["sub_qib"]) if r.get("sub_qib") else None, "p_allot": p,
             "app_rs": issue * r["lot_size"] if r.get("lot_size") else None,
             "open": bar["open"] if bar else None, "close": bar["close"] if bar else None,
@@ -121,18 +125,20 @@ def _bucket(x, buckets):
 
 
 def _apply_table(d: pd.DataFrame, by: str, order=None) -> None:
+    """Gain if allotted over every IPO in the group; P(allot) and EV only over those whose odds are known."""
     print(f"  {by:<16} {'n':>5} {'gain@open med':>13} {'mean':>7} {'<issue':>7} {'P(allot) med':>12} "
-          f"{'EV/app mean':>11} {'EV/app Rs':>9}")
+          f"{'n(EV)':>6} {'EV/app mean':>11} {'EV/app Rs':>9}")
     groups = d.groupby(by, sort=order is None)
     keys = order if order is not None else [k for k, _ in groups]
     for key in keys:
         if key not in groups.groups:
             continue
         g = groups.get_group(key)
-        rs = (g["ev_open"] * g["app_rs"]).mean()
+        ev = g[g["ev_open"].notna()]
+        rs = (ev["ev_open"] * ev["app_rs"]).mean() if len(ev) else float("nan")
         print(f"  {str(key):<16} {len(g):>5} {pct(g['gain_open'].median()):>13} {pct(g['gain_open'].mean()):>7} "
               f"{(g['gain_open'] < 0).mean()*100:6.0f}% {pct(g['p_allot'].median()):>12} "
-              f"{pct(g['ev_open'].mean()):>11} {rs:9.0f}")
+              f"{len(ev):>6} {pct(ev['ev_open'].mean()) if len(ev) else '   n/a':>11} {rs:9.0f}")
 
 
 def report(df: pd.DataFrame) -> None:
@@ -140,7 +146,7 @@ def report(df: pd.DataFrame) -> None:
     print(f"\nIPOs {len(df)} | with a listing open {len(ok)} | with subscription {int(ok['p_allot'].notna().sum())} "
           f"| with a decision GMP {int(ok['gmp_decision'].notna().sum())}")
     for board in ("mainboard", "sme"):
-        d = ok[(ok["board"] == board) & ok["ev_open"].notna()]
+        d = ok[ok["board"] == board]
         print(f"\n=== Q1 APPLY — {board} (per application, sell at the listing open; EV = P(allot) x gain) ===")
         _apply_table(d.assign(all="all"), "all")
         _apply_table(d, "year")
@@ -150,7 +156,7 @@ def report(df: pd.DataFrame) -> None:
 
     g = ok[ok["gmp_decision"].notna()]
     for board in ("mainboard", "sme"):
-        d = g[(g["board"] == board) & g["ev_open"].notna()]
+        d = g[g["board"] == board]
         if len(d) < 20:
             print(f"\n=== Q2 GMP — {board}: {len(d)} IPOs with a decision GMP (< 20), skipped ===")
             continue
@@ -159,11 +165,12 @@ def report(df: pd.DataFrame) -> None:
         _apply_table(d.assign(gmp=d["gmp_decision"].map(lambda x: _bucket(x, GMP_BUCKETS))), "gmp",
                      [b[2] for b in GMP_BUCKETS])
         base = d["ev_open"].mean()
-        print(f"  rule: apply only if decision GMP >= X  (apply-all EV/app {pct(base)}, {len(d)} apps)")
+        print(f"  rule: apply only if decision GMP >= X  (apply-all EV/app {pct(base)} over "
+              f"{int(d['ev_open'].notna().sum())} with known odds; gain if allotted {pct(d['gain_open'].mean())}, {len(d)} apps)")
         for x in GMP_RULES:
             k = d[d["gmp_decision"] >= x]
             skipped = d[d["gmp_decision"] < x]
-            print(f"    X={x*100:4.0f}%  apps {len(k):>4}  EV/app {pct(k['ev_open'].mean())}  listed below issue "
+            print(f"    X={x*100:4.0f}%  apps {len(k):>4}  gain {pct(k['gain_open'].mean())}  EV/app {pct(k['ev_open'].mean())}  below issue "
                   f"{(k['gain_open'] < 0).mean()*100:3.0f}%  | skipped {len(skipped):>4}, their EV {pct(skipped['ev_open'].mean())}")
         f = d[d["gmp_final"].notna()]
         err = (f["open"] / f["issue"] - 1) - f["gmp_final"]
