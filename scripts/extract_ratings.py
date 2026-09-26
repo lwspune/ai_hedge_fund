@@ -31,7 +31,7 @@ def pending(limit: int, since: str) -> list[dict]:
     return db.select_all("filings", {
         "select": "seq_id,symbol,category,disclosed_at,attachment_url",
         "category": "like.Credit Rating*", "extracted_at": "is.null", "disclosed_at": f"gte.{since}",
-        "order": "disclosed_at.desc,seq_id.desc"})[:limit]
+        "order": "disclosed_at.desc,seq_id.desc"}, max_rows=limit)
 
 
 def main():

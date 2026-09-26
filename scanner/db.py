@@ -165,14 +165,16 @@ def count(table: str, params: dict | None = None) -> int | None:
     return _total(r.headers.get("Content-Range"))
 
 
-def select_all(table: str, params: dict | None = None, page: int = 1000) -> list[dict]:
-    """`select` paged past PostgREST's max-rows cap (1000)."""
+def select_all(table: str, params: dict | None = None, page: int = 1000,
+               max_rows: int | None = None) -> list[dict]:
+    """`select` paged past PostgREST's max-rows cap (1000) — a plain `limit` above it silently
+    returns 1000. `max_rows` stops paging once that many rows are in (a work list off a backlog)."""
     out, off = [], 0
     while True:
         rows = select(table, {**(params or {}), "limit": str(page), "offset": str(off)})
         out += rows
-        if len(rows) < page:
-            return out
+        if len(rows) < page or (max_rows is not None and len(out) >= max_rows):
+            return out if max_rows is None else out[:max_rows]
         off += page
 
 

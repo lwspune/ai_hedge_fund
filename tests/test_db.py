@@ -158,3 +158,25 @@ def test_record_tender_marks_the_buyback_tendered(monkeypatch):
     updates.clear()
     db.record_tender(42, date(2026, 9, 20), tendered=False)   # bought but didn't tender: no lifecycle change
     assert updates == []
+
+
+def _paged(rows, calls):
+    def fake_select(table, params=None):
+        calls.append(int(params["offset"]))
+        off = int(params["offset"])
+        return rows[off:off + min(int(params["limit"]), 1000)]
+    return fake_select
+
+
+def test_select_all_pages_past_the_cap(monkeypatch):
+    rows, calls = list(range(2500)), []
+    monkeypatch.setattr(db, "select", _paged(rows, calls))
+    assert db.select_all("t") == rows and calls == [0, 1000, 2000]
+
+
+def test_select_all_max_rows_stops_paging_early(monkeypatch):
+    rows, calls = list(range(40000)), []
+    monkeypatch.setattr(db, "select", _paged(rows, calls))
+    assert db.select_all("t", max_rows=1500) == rows[:1500] and calls == [0, 1000]
+    calls.clear()
+    assert db.select_all("t", max_rows=300) == rows[:300] and calls == [0]

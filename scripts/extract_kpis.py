@@ -31,11 +31,12 @@ ORDERS_FILTER = '(category.eq."Bagging/Receiving of orders/contracts",category.e
 
 
 def pending(limit: int, since: str, orders_only: bool = False) -> list[dict]:
-    return db.select("filings", {
+    """Paged: PostgREST caps one response at 1000 rows, whatever `limit` asks for."""
+    return db.select_all("filings", {
         "select": "seq_id,symbol,category,subject,disclosed_at,attachment_url",
         "extracted_at": "is.null", "disclosed_at": f"gte.{since}",
         "or": ORDERS_FILTER if orders_only else KPI_FILTER,
-        "order": "disclosed_at.desc", "limit": str(limit)})
+        "order": "disclosed_at.desc,seq_id.desc"}, max_rows=limit)
 
 
 def main():
