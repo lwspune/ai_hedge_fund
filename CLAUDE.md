@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Eighteen signals validated this way; two actionable edges
+falsified signal is never read as edge. Nineteen signals validated this way; two actionable edges
 (buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -37,6 +37,7 @@ of untested ideas, ordered by the thesis.
 | `demerger_listing` | structural | **conditional** | lens (newly listed child −5.9% median in its first 5 sessions, n=64; holder dumping not index flow; unshortable; no recovery trade — don't buy a child in week 1) |
 | `rating_change` | drift | **null** | lens (downgrades −0.3% on the filing, n=456, no drift; the fall came before — agencies follow the price; upgrade bump ≈ one round-trip cost) |
 | `ipo_listing` | structural | **thin** | watch (retail-quota lottery: +1.6% per application pooled, ≈ ₹34 in 2025-26; skip ≤ 2× retail; pre-listing GMP predicts the open; don't buy after listing) |
+| `ipo_unlock` | structural | **null** | lens (entry after the 6-month pre-IPO unlock: −13% median vs NIFTY 500 over 12 months, same as month 3 / 9; no unlock dip; below-issue stocks worst — don't buy new listings on weakness) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -233,7 +234,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (609 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (617 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -436,6 +437,11 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   down — more retail money per issue (odds fall as pops rise). GMP at application time is backlog #25
   (daily capture from 2026-09-26). Allotment odds for old issues come from NSE's retail bids ÷ 0.647, not
   from chittorgarh's paywalled figures.
+- **2026-09-26** — `ipo_unlock` validated **null** (CONCLUSIONS §19): entering a new listing after its 6-month
+  pre-IPO lock-in expiry returns −5.3% / −13.3% median vs NIFTY 500 over 6 / 12 months (n=900 unlocks), no
+  better than month 3 or 9; the unlock itself −0.35% (n.s.); below-issue stocks worst. *Reason:* post-IPO
+  underperformance runs ~18 months and pre-IPO holders aren't forced sellers (same as `pref_lockin`);
+  "it has already fallen" is not a floor.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

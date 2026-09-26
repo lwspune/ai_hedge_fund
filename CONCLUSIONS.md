@@ -473,6 +473,38 @@ prize has been competed down anyway: more retail money chases each issue (odds f
 and issuers price closer to the market. Positive, but thin. (`scanner/gmp.py`, `scanner/ipobids.py`,
 `scanner/ipostudy.py`, `scripts/validate_ipo.py`.) *Evidence:* `ipo_listing/2026-09-26T101256Z`.
 
+### 19. Entry at the 6-month pre-IPO lock-in expiry — NULL (post-IPO drift runs ~1.5 years)
+Hypothesis: new listings sag into month 6, when pre-IPO shareholders (PE / VC / early investors,
+locked 6 months from allotment by SEBI) can first sell; after that overhang clears, the stock is a
+buy for 6-12 months. Events: the 900 NSE company IPOs (Feb-2020 →, same scope as §18) whose unlock
+(allotment + 6 months) has passed; entry at the T+2 close; controls = the same stocks entered the
+same way at month 3 and month 9; abnormal vs NIFTY 500, t clustered by week, windows and segments
+fixed in advance.
+
+| Mainboard (median / % up) | +125 sessions | +250 sessions |
+|---|---|---|
+| **enter after the 6-month unlock** | −5.3% / 43% (n=281) | **−13.3% / 34%** (n=242; mean −5.6%, t_cl −2.1) |
+| same stocks, entered at month 3 | −2.8% / 45% | −13.7% / 36% |
+| same stocks, entered at month 9 | −10.7% / 34% | −14.0% / 33% |
+| below the issue price at T−1 ("after the fall") | −7.6% / 42% | **−15.2% / 29%** (t_cl −2.5) |
+| listed at / below issue (the one flat cell) | +0.4% / 50% (n=72) | −3.7% / 44% |
+
+- **The premise is right, the trade is wrong.** The median new listing does lag into month 6
+  (listing close → unlock −5.9% vs the index, 42% up; the +3.9% mean is a few multibaggers) — and
+  it keeps lagging: whichever month you enter (3, 6 or 9), the next 12 months return ~−13 to −14%
+  median vs NIFTY 500. Month 6 is not a bottom; it is the middle of an ~18-month post-IPO drift.
+- **No unlock event.** T−1 → T+2 −0.35% (t −1.3) mainboard, +0.2% SME — unlike the anchor unlocks
+  (§6, −1.25%), the pre-IPO block doesn't hit the tape at once (pre-IPO holders are not forced
+  sellers; cf. `pref_lockin`, §14). Closes backlog #2's pre-IPO leg.
+- **Weakness is not value.** Below-issue stocks fall furthest (mainboard +250 −15%; SME −27%
+  median, 27% up). Robust across eras (+250 median −11% 2020-22, −14% 2023-26) and cap buckets.
+- SME: +125 / +250 medians −8.7% / −16.3%; means +9% / +11% come from fat tails and the 2020-22
+  SME boom (n=27-38, median +20-26%); 2023-26 median −21% at +250.
+
+Lens: don't buy a new listing on weakness in its first ~1.5 years — neither the unlock nor the
+"it's already fallen" argument marks a turn. (`scanner/ipounlock.py`,
+`scripts/validate_ipo_unlock.py`.) *Evidence:* `ipo_unlock/2026-09-26T122137Z`.
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -482,11 +514,11 @@ and issuers price closer to the market. Positive, but thin. (`scanner/gmp.py`, `
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
 ## The tally (2026-09-26)
-Eighteen signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
+Nineteen signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
 2026-09-24 cum-date correction, `rights_re` conditional watch), 2 real-but-unshortable lenses
-(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 11 null
+(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 12 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
-order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change).
+order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change, ipo_unlock).
 
 ## What's kept
 The platform (`scanner/`, 53 tests), the event-study harness, the smart-money classifier,
