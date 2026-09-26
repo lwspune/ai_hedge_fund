@@ -776,3 +776,47 @@ create table if not exists ofs_events (
 create index if not exists idx_ofs_symbol on ofs_events(symbol, retail_date desc);
 alter table ofs_events enable row level security;
 create policy "anon read ofs_events" on ofs_events for select to anon using (true);
+
+-- ============================================================================
+-- Credit ratings (scanner/ratings.py rule_v1, scripts/extract_ratings.py): each agency's rating
+-- per filing, read from the NSE `Credit Rating*` announcements (Reg 30). One row per (filing,
+-- agency, term); every row keeps its exact quote. A rating filing that yields nothing is marked
+-- filings.extract_status = 'no_rating' (ESG scores, withdrawals without a grade, image-only PDFs).
+-- ============================================================================
+alter table filings drop constraint if exists filings_extract_status_check;
+alter table filings add constraint filings_extract_status_check
+  check (extract_status is null or extract_status in ('ok','no_pdf','error','no_rating'));
+
+create table if not exists credit_ratings (
+  id           bigint generated always as identity primary key,
+  seq_id       bigint not null references filings(seq_id) on delete cascade,
+  symbol       text not null,
+  disclosed_at timestamptz not null,
+  agency       text not null check (agency in ('CRISIL','ICRA','CARE','India Ratings','Acuite','Brickwork',
+                                               'Infomerics','Fitch','S&P','Moody''s','JCR','CareEdge Global')),
+  scale        text not null check (scale in ('domestic','global')),   -- global = Fitch / S&P / Moody's / JCR / CareEdge Global
+  term         text not null check (term in ('long','short')),
+  rating       text not null check (length(rating) between 1 and 4),   -- as the agency writes it: AA-, A1+, Baa3
+  notch        smallint not null check (notch between 1 and 20),       -- 1 = best; short term 1..9 (A1+..D)
+  outlook      text check (outlook in ('Stable','Positive','Negative','Developing')),
+  watch        text check (watch in ('positive','negative','developing')),
+  action       text check (action in ('assigned','reaffirmed','upgraded','downgraded','withdrawn','watch','revised')),
+  prev_rating  text,
+  quote        text not null check (length(quote) between 5 and 400),
+  method       text not null default 'rule_v1',
+  created_at   timestamptz not null default now(),
+  unique (seq_id, agency, term),
+  check (term = 'long' or (scale = 'domestic' and notch <= 9 and outlook is null))
+);
+create index if not exists idx_credit_ratings_symbol on credit_ratings(symbol, disclosed_at desc);
+alter table credit_ratings enable row level security;
+create policy "anon read credit_ratings" on credit_ratings for select to anon using (true);
+
+-- Each agency's standing rating per company and term: its latest action, unless that was a withdrawal.
+create or replace view current_credit_ratings with (security_invoker = true) as
+select * from (
+  select distinct on (symbol, agency, term) *
+  from credit_ratings
+  order by symbol, agency, term, disclosed_at desc, id desc
+) latest
+where action is distinct from 'withdrawn';

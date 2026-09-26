@@ -52,6 +52,12 @@ BUYBACK_CATCH_ALL = {"Record Date", "Copy of Newspaper Publication", "Updates", 
 _BUYBACK = re.compile(r"buy[\s-]*back", re.I)
 
 
+def is_rating(category: str) -> bool:
+    """NSE's credit-rating categories: one `Credit Rating` until Sep-2024, then split into
+    `- New / - Revision / - Others` (scanner/ratings.py reads their PDFs)."""
+    return (category or "").startswith("Credit Rating")
+
+
 def keep(row: dict) -> bool:
     cat, subject = row.get("category") or "", row.get("subject") or ""
     if cat in KEEP:

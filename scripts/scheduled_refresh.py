@@ -1,6 +1,6 @@
 """Scheduled infra refresh — run by GitHub Actions (.github/workflows/refresh-*.yml).
 
-    python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, surveillance, insider, pref issues, deals refill, buybacks
+    python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, surveillance, insider, pref issues, filings + KPIs + ratings, deals refill, buybacks
     python scripts/scheduled_refresh.py weekly   # Sunday: trading calendar, company master, fundamentals, shareholding
 
 Runs each step as a subprocess so one failure doesn't stop the rest, streams output to the
@@ -26,7 +26,7 @@ def steps(mode: str, today: date) -> list[list[str]]:
                 ["refresh_events.py", "board-meetings"], ["refresh_events.py", "bands"],
                 ["refresh_surveillance.py"], ["refresh_insider.py"], ["refresh_prefissues.py"],
                 ["refresh_ofs.py"],
-                ["refresh_filings.py"], ["extract_kpis.py", "--limit", "1500"],
+                ["refresh_filings.py"], ["extract_kpis.py", "--limit", "1500"], ["extract_ratings.py"],
                 ["refill_deals.py", "--from", (today - timedelta(days=DEALS_LOOKBACK_DAYS)).isoformat()],
                 ["-m", "scanner.run", "buyback_arb", "--save"],
                 ["refresh_buyback_results.py"],  # after the scan: needs the settled rows it upserted

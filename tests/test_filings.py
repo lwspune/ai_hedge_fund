@@ -45,6 +45,13 @@ def test_keep_material_categories_and_keyword_filtered_catch_alls():
     assert not keep({"category": "General Updates", "subject": "Loss of share certificate"})
 
 
+def test_rating_categories_include_the_pre_2024_single_category():
+    from scanner.filings import is_rating
+    for cat in ("Credit Rating", "Credit Rating- Revision", "Credit Rating- New", "Credit Rating- Others"):
+        assert is_rating(cat) and keep({"category": cat, "subject": "x"})
+    assert not is_rating("Investor Presentation") and not is_rating("")
+
+
 def test_subject_capped_at_300_chars():
     """WP8: the table's biggest column; the full text lives in the PDF."""
     rows = parse_announcements([_raw(attchmntText="x" * 700)])

@@ -23,6 +23,7 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     assert ["refresh_prefissues.py"] in s                # preferential allotments + lock-in expiries
     assert ["refresh_ofs.py"] in s                       # OFS retail-reservation events (candidate #23)
     assert s.index(["extract_kpis.py", "--limit", "1500"]) > s.index(["refresh_filings.py"])
+    assert s.index(["extract_ratings.py"]) > s.index(["refresh_filings.py"])   # credit ratings from today's filings
     assert ["refill_deals.py", "--from", "2026-09-14"] in s  # 10-day lookback heals pauses
     assert ["-m", "scanner.run", "buyback_arb", "--save"] in s  # primary signal refreshed daily
     assert ["-m", "scanner.run", "rights_re", "--save"] in s   # RE panel data

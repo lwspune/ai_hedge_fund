@@ -40,6 +40,7 @@ def queries(today: date) -> dict:
         "fundamentals": ("company_snapshot", "fetched_at", {}, 8),        # weekly refresh
         "filings": ("filings", "disclosed_at", {}, 5),                    # ~500 filings / trading day
         "kpis": ("company_kpis", "created_at", {}, 5),
+        "credit_ratings": ("credit_ratings", "created_at", {}, 6),       # ~13 rating filings / trading day
         "scans_buyback_arb": ("scan_runs", "run_at", {"signal_name": "eq.buyback_arb"}, 3),
         "scans_rights_re": ("scan_runs", "run_at", {"signal_name": "eq.rights_re"}, 3),
         "board_meetings": ("corporate_events", "created_at", {"source": "eq.nse_bm"}, 10),

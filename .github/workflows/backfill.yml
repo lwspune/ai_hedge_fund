@@ -7,6 +7,8 @@ name: backfill
 #   shareholding    quarterly SHP XBRL history, 30 quarters/symbol, 20k XBRL per run (from = floor, default 2020-01-01)
 #   insider         PIT disclosures: the whole undated list (~5 months) when no from; else the from..to window
 #   pref-issues     preferential allotments + lock-in expiries (from default 2023-01-01, the list's start)
+#   credit-ratings  pre-2024 rating filings into `filings` (from/to default 2020-01-01..2023-12-31), then
+#                   extract every pending rating filing -> credit_ratings (re-run if it reports a backlog)
 # One concurrency group per kind: backfills of different kinds run side by side and alongside the
 # scheduled refresh (they write different rows); two of the same kind queue.
 on:
@@ -14,7 +16,7 @@ on:
     inputs:
       what:
         type: choice
-        options: [board-meetings, prices, orphans, shareholding, insider, pref-issues]
+        options: [board-meetings, prices, orphans, shareholding, insider, pref-issues, credit-ratings]
         required: true
       from:
         description: "start date YYYY-MM-DD (board-meetings / prices)"
@@ -56,4 +58,6 @@ jobs:
             insider)        if [ -n "$FROM" ]; then python -u scripts/refresh_insider.py --from "$FROM" --to "${TO:-$(date +%F)}";
                             else python -u scripts/refresh_insider.py --all; fi ;;
             pref-issues)    python -u scripts/refresh_prefissues.py --from "${FROM:-2023-01-01}" --to "${TO:-$(date +%F)}" ;;
+            credit-ratings) python -u scripts/refresh_filings.py --ratings-only --from "${FROM:-2020-01-01}" --to "${TO:-2023-12-31}"
+                            python -u scripts/extract_ratings.py --limit 15000 ;;
           esac
