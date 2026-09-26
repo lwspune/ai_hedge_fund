@@ -110,5 +110,12 @@
     "verdict": "conditional",
     "role": "lens",
     "summary": "Newly listed demerged child: -5.9% median vs NIFTY 500 over its first 5 sessions (n=64 children of 61 demergers, 2019-26; t=-2.8 clustered by scheme; same-child placebo windows flat; -10% in 2022-23, -5.6% in 2024-26). The mechanism cut fails: index-parent children -1.6% (n=13, n.s.), small/non-index parents carry it -- holders dumping small allotments in trade-for-trade, not index funds. Unshortable (T2T, no F&O); buy-after-T+5 median -0.9% (mean +8% is a fat tail). Lens: don't buy a child in its first week; no recovery trade."
+  },
+  {
+    "name": "rating_change",
+    "type": "drift",
+    "verdict": "null",
+    "role": "lens",
+    "summary": "Credit-rating change (NSE Reg 30 rating filings, 2020-26). Downgrades n=456: announcement -0.3% (t=-0.9), no drift after; the fall came before (T-21->T-1 median -4.6% vs same-stock placebo -3.2%) -- agencies follow the price. Out-of-IG (58) and defaults (31) n.s. Upgrades n=1,258: +0.6% reaction, ~+0.3% over reaffirmation / placebo controls, inside costs, shrinking (2020-22 +0.9%, 2023-26 +0.4%). Informational lens only."
   }
 ]

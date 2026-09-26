@@ -160,6 +160,26 @@ def _run_ofs_retail(**kw) -> str:
             "not a trade: bid at the floor only in a name you would hold anyway.\n\n" + format_ofs_rows(rows))
 
 
+def _run_rating_change(**kw) -> str:
+    """Informational: domestic long-term downgrades and negative watches of the last N days."""
+    from datetime import date, timedelta
+    from scanner import db
+    days = int(kw.get("days") or 30)
+    rows = db.select_all("credit_ratings", {
+        "select": "symbol,agency,rating,prev_rating,watch,action,disclosed_at", "scale": "eq.domestic",
+        "term": "eq.long", "or": "(action.eq.downgraded,and(action.eq.watch,watch.eq.negative))",
+        "disclosed_at": f"gte.{date.today() - timedelta(days=days)}", "order": "disclosed_at.desc"})
+    lines = [f"  {r['disclosed_at'][:10]}  {r['symbol']:<12} {r['agency']:<14} "
+             f"{(r['prev_rating'] or '?') + ' -> ' if r['action'] == 'downgraded' else 'watch negative: '}"
+             f"{r['rating']}" for r in rows]
+    return ("rating_change is NULL: a credit-rating change is not tradeable. Downgrades (n=456, 2020-26) "
+            "move -0.3% on announcement (t=-0.9) and drift nowhere after; the stock had already fallen "
+            "(T-21->T-1 median -4.6%, same-stock placebo -3.2%) -- agencies follow the price. Upgrades' "
+            "+0.6% reaction is ~+0.3% above reaffirmation / placebo controls, inside costs and shrinking. "
+            "Run scripts/validate_rating_change.py.\n"
+            f"Downgrades / negative watches, last {days} days:\n" + ("\n".join(lines) if lines else "  none"))
+
+
 def _run_demerger(**kw) -> str:
     """Informational: recent demerger record dates whose child may list soon, and children listed
     in the last 10 sessions (from the curated data/demerger_listings.csv)."""
@@ -293,6 +313,15 @@ SIGNALS: dict[str, Signal] = {
                    "(T2T, no F&O); buy-after-T+5 median -0.9% (mean +8% is a fat tail). Lens: don't buy "
                    "a child in its first week; no recovery trade."),
         _run_demerger),
+    "rating_change": Signal(
+        SignalMeta("rating_change", "drift", "null", "lens",
+                   "Credit-rating change (NSE Reg 30 rating filings, 2020-26). Downgrades n=456: "
+                   "announcement -0.3% (t=-0.9), no drift after; the fall came before (T-21->T-1 median "
+                   "-4.6% vs same-stock placebo -3.2%) -- agencies follow the price. Out-of-IG (58) and "
+                   "defaults (31) n.s. Upgrades n=1,258: +0.6% reaction, ~+0.3% over reaffirmation / "
+                   "placebo controls, inside costs, shrinking (2020-22 +0.9%, 2023-26 +0.4%). Informational "
+                   "lens only."),
+        _run_rating_change),
 }
 
 
