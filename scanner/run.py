@@ -96,6 +96,15 @@ def main(argv=None):
               f"tender_parsed={stats.get('tender_parsed')} rejected={stats.get('rejected')}")
         if args.save:
             _save_buyback(rows, stats)
+    elif args.signal == "consolidation":
+        from scanner.consolidation import consolidation_candidates, format_scan, live_scan
+        rows = live_scan()
+        print(format_scan(rows))
+        if args.save:  # raises on failure, like the other scheduled scans
+            from scanner import db
+            meta = get_signal("consolidation").meta
+            rid = db.log_scan(meta.name, meta.verdict, consolidation_candidates(rows))
+            print(f"\n[saved] run #{rid} | {len(rows)} stocks in range / breaking out")
     elif args.signal == "rights_re":
         from scanner.rights import format_open_res, open_res
         rows = open_res()

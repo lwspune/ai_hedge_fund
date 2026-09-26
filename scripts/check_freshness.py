@@ -44,6 +44,7 @@ def queries(today: date) -> dict:
         "ipo_gmp": ("ipo_gmp", "updated_at", {}, 10),   # daily re-read of recent issues; quiet weeks happen
         "scans_buyback_arb": ("scan_runs", "run_at", {"signal_name": "eq.buyback_arb"}, 3),
         "scans_rights_re": ("scan_runs", "run_at", {"signal_name": "eq.rights_re"}, 3),
+        "scans_consolidation": ("scan_runs", "run_at", {"signal_name": "eq.consolidation"}, 3),
         "board_meetings": ("corporate_events", "created_at", {"source": "eq.nse_bm"}, 10),
         "snapshot_history": ("company_snapshot_history", "as_of", {}, 8),   # weekly, with fundamentals
         # 2026-09-24 review unlocks (docs/GITHUB_PROJECT_REVIEW.md)

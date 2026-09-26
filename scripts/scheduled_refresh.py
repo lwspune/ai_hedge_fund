@@ -31,6 +31,7 @@ def steps(mode: str, today: date) -> list[list[str]]:
                 ["-m", "scanner.run", "buyback_arb", "--save"],
                 ["refresh_buyback_results.py"],  # after the scan: needs the settled rows it upserted
                 ["-m", "scanner.run", "rights_re", "--save"],
+                ["-m", "scanner.run", "consolidation", "--save"],  # informational scan (verdict: null)
                 ["notify_telegram.py"],  # after the scans: alerts read the runs just saved
                 ["check_freshness.py"]]
     if mode == "weekly":  # fundamentals rows carry `history`, so no separate rebuild step

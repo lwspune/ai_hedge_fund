@@ -222,6 +222,15 @@ def _run_ipo_unlock(**kw) -> str:
             "listing on weakness in its first 1.5 years. Run scripts/validate_ipo_unlock.py.")
 
 
+def _run_consolidation(**kw) -> str:
+    from scanner.consolidation import format_scan, live_scan
+    return ("consolidation is NULL: a breakout from a tight 40-session range (<= 10%, >= Rs 1 cr/day) does not pay. "
+            "Up-breakouts (n=938, 2020-26): +20 median -0.7%, +60 median -1.7% vs NIFTY 500 (44% up) -- no better "
+            "than wide-range breakouts or the same stock earlier; bases after rallies, volume, delivery, liquidity "
+            "all negative medians. Down-breakouts -2.3% at +60 but the same stocks did as badly before. "
+            "Informational lens only. Run scripts/validate_consolidation.py.\n\n" + format_scan(live_scan()))
+
+
 def _run_demerger(**kw) -> str:
     """Informational: recent demerger record dates whose child may list soon, and children listed
     in the last 10 sessions (from the curated data/demerger_listings.csv)."""
@@ -382,6 +391,14 @@ SIGNALS: dict[str, Signal] = {
                    "below issue do worst (+250 median -15%). SME medians -9% / -16% (means are fat tails). "
                    "Lens: post-IPO underperformance runs ~1.5 years -- don't buy a new listing on weakness."),
         _run_ipo_unlock),
+    "consolidation": Signal(
+        SignalMeta("consolidation", "drift", "null", "lens",
+                   "Buy the breakout from a price consolidation (40-session range <= 10% of price, liquid "
+                   "stocks). n=938 up-breakouts 2020-26: +20 / +60 median -0.7% / -1.7% vs NIFTY 500, 44-45% up, "
+                   "no better than wide-range breakouts or the same stock 120 sessions earlier; every pre-set "
+                   "segment (base after a rally, breakout volume, delivery, liquidity, era) has a negative median. "
+                   "Down-breakouts track the stock's prior weakness. Informational scan only."),
+        _run_consolidation),
 }
 
 

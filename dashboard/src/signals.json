@@ -131,5 +131,12 @@
     "verdict": "null",
     "role": "lens",
     "summary": "Enter a new listing after its 6-month pre-IPO lock-in expiry, hold 6-12 months (n=900 unlocks, 2020-26). Mainboard: +125 median -5.3%, +250 median -13.3% vs NIFTY 500 (34% up) -- no better than entering at month 3 or 9; the unlock day itself -0.35% (n.s.); stocks below issue do worst (+250 median -15%). SME medians -9% / -16% (means are fat tails). Lens: post-IPO underperformance runs ~1.5 years -- don't buy a new listing on weakness."
+  },
+  {
+    "name": "consolidation",
+    "type": "drift",
+    "verdict": "null",
+    "role": "lens",
+    "summary": "Buy the breakout from a price consolidation (40-session range <= 10% of price, liquid stocks). n=938 up-breakouts 2020-26: +20 / +60 median -0.7% / -1.7% vs NIFTY 500, 44-45% up, no better than wide-range breakouts or the same stock 120 sessions earlier; every pre-set segment (base after a rally, breakout volume, delivery, liquidity, era) has a negative median. Down-breakouts track the stock's prior weakness. Informational scan only."
   }
 ]
