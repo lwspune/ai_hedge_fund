@@ -24,6 +24,7 @@ describe('signalLabels', () => {
     expect(typeLabel('structural')).toBe('Structural')
     expect(typeLabel('drift')).toBe('Drift')
     expect(typeLabel('spread')).toBe('Spread')
+    expect(typeLabel('premium')).toBe('Premium')
     expect(roleLabel('other')).toBe('other')
   })
 })

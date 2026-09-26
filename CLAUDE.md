@@ -44,8 +44,20 @@ of untested ideas, ordered by the thesis.
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
 *publicly pre-announced* forced flow (index rebalancing) is arbitraged away just like a
 drift signal — being structural isn't enough if everyone can see and front-run it.
-Efficiently-priced spreads (merger arb) get competed to ~risk-free. Do **not** restart
-drift-signal chasing.
+Efficiently-priced spreads (merger arb) get competed to ~risk-free.
+
+**Signal types — each is judged by its own bar** (`catalog.TYPES`):
+- **structural** — a rule forces a flow or reserves an allocation (buyback quota, lock-in, index
+  add). Bar: is the flow really forced, and who else can take the other side?
+- **spread** — two prices a contract ties together converge (merger, open offer, RE vs stock). Bar:
+  spread vs deal-break probability, net of costs. A pair with *no* contract is a spread too, ranked lower.
+- **drift** — slow digestion of public information (incl. liquidity provision / short-term
+  reversal). No barrier required. Bar: net alpha after costs, beats own-momentum + industry +
+  placebo controls, holds in every era. Drift ideas are fair game only with a named mechanism — the
+  record so far is all null, so the bar is high, not a ban.
+- **premium** — a compensated risk (value, quality, low-vol factors). Not a mispricing, so the event
+  study is the wrong test. Bar: long-run net Sharpe and drawdown vs NIFTY 500 and vs the cheap factor
+  ETF that already sells it.
 
 ## Architecture
 - **Signal registry** — `scanner/catalog.py`: every signal + its `SignalMeta`
@@ -436,6 +448,11 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   +0.2–0.3% for reaffirmations and placebo, fading. Robust to a results-window exclusion. *Reason:* a
   public, lagging opinion — the agency reacts to what the price already showed. Ratings stay as data
   on the company page, not an alert or exit rule.
+- **2026-09-26** — Four signal types (structural / spread / drift / **premium**), each with its own bar;
+  a structural barrier is **no longer required** — measured net alpha is. *Reason:* the barrier was a
+  finding about where edge survived, not a precondition; drift ideas with a named mechanism (customer
+  momentum over a buyer–seller graph) are testable under the drift bar. Premium added because a factor
+  can lose for years and still be real — the event-study harness would falsely reject it.
 - **2026-09-26** — `ipo_listing` validated **thin / watch** (CONCLUSIONS §18): the retail quota is a real
   barrier, capturable as a lottery — one mainboard application = P(allot) × listing gain = +1.6% (≈ ₹237)
   pooled but ≈ ₹34 in 2025-26 (n=416); ≤ 2× retail loses; buying after listing is null (median −10% at 1y);
@@ -457,7 +474,8 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
 - **No silent bad data**: every scrape/price path needs sanity guards (we hit warrant
   series mis-picks, delisted-ticker garbage, 246% "premiums"). Guard, don't surface.
-- Don't trade a `null`/`thin` signal as if it were edge. Don't restart drift signals.
+- Don't trade a `null`/`thin` signal as if it were edge. A drift idea needs a named mechanism and
+  must pass the drift bar above (controls + every era) — never re-test a falsified one without a new reason.
 - Schema + edge-function changes go through the Supabase MCP; keep `db/schema.sql` and
   `supabase/functions/` in sync with the live project. Anon key is read-only (RLS) — never
   put the service-role key in any `VITE_` var / client bundle.

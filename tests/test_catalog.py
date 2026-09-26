@@ -24,6 +24,11 @@ def test_every_signal_has_valid_metadata():
         assert meta.summary  # non-empty one-liner
 
 
+def test_four_signal_types():
+    # premium = a compensated risk (factor), judged on long-run net Sharpe / drawdown, not event alpha
+    assert TYPES == {"structural", "spread", "drift", "premium"}
+
+
 def test_only_buyback_is_primary():
     primaries = [m.name for m in list_signals() if m.role == "primary"]
     assert primaries == ["buyback_arb"]

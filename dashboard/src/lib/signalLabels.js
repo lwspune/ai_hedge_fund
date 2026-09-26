@@ -26,7 +26,7 @@ const SIGNALS = {
 }
 
 const ROLES = { primary: 'Trade', watch: 'Watch', lens: 'Lens', documented: 'Control' }
-const TYPES = { structural: 'Structural', drift: 'Drift', spread: 'Spread' }
+const TYPES = { structural: 'Structural', spread: 'Spread', drift: 'Drift', premium: 'Premium' }
 
 export const ROLE_ORDER = { primary: 0, watch: 1, lens: 2, documented: 3 }
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-TYPES = {"structural", "drift", "spread"}
+TYPES = {"structural", "spread", "drift", "premium"}
 VERDICTS = {"edge", "conditional", "thin", "null"}
 ROLES = {"primary", "lens", "watch", "documented"}
 
