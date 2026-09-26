@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Twenty signals validated this way; two actionable edges
+falsified signal is never read as edge. Twenty-one signals validated this way; two actionable edges
 (buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -39,6 +39,7 @@ of untested ideas, ordered by the thesis.
 | `ipo_listing` | structural | **thin** | watch (retail-quota lottery: +1.6% per application pooled, ≈ ₹34 in 2025-26; skip ≤ 2× retail; pre-listing GMP predicts the open; don't buy after listing) |
 | `ipo_unlock` | structural | **null** | lens (entry after the 6-month pre-IPO unlock: −13% median vs NIFTY 500 over 12 months, same as month 3 / 9; no unlock dip; below-issue stocks worst — don't buy new listings on weakness) |
 | `consolidation` | drift | **null** | lens (tight 40-session range breakouts: +60d median −1.7% vs NIFTY 500, n=938, no better than any 40-day high; daily informational scan) |
+| `customer_momentum` | drift | **null** | documented (pilot: suppliers co-move +1.0% on the customer's ≥5% day; next-day entry ~0 at +1/+5, +20d = placebo customer; 301 order-win links 2024-26) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -252,7 +253,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (630 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (682 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -453,6 +454,12 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   finding about where edge survived, not a precondition; drift ideas with a named mechanism (customer
   momentum over a buyer–seller graph) are testable under the drift bar. Premium added because a factor
   can lose for years and still be real — the event-study harness would falsely reject it.
+- **2026-09-26** — `customer_momentum` pilot **null** (CONCLUSIONS §21), first test under the drift bar:
+  buyer→seller links from the SEBI order-win "entity awarding" field (`scanner/links.py`, exact name or
+  curated alias only — abbreviation/substring matching made false links). 301 listed links, 806 events:
+  same-day co-move +1.0%, next-day entry ~0, +20d +0.94% ≈ placebo customer +0.80%. *Reason:* the filing
+  itself names the customer, so the link is public and priced at once. No 2020 free-text backfill; the
+  graph stays evidence, not a table. Weight ≥ 25% hint (+1.6%, t 1.8) logged, not pursued.
 - **2026-09-26** — `ipo_listing` validated **thin / watch** (CONCLUSIONS §18): the retail quota is a real
   barrier, capturable as a lottery — one mainboard application = P(allot) × listing gain = +1.6% (≈ ₹237)
   pooled but ≈ ₹34 in 2025-26 (n=416); ≤ 2× retail loses; buying after listing is null (median −10% at 1y);

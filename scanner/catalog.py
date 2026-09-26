@@ -231,6 +231,14 @@ def _run_consolidation(**kw) -> str:
             "Informational lens only. Run scripts/validate_consolidation.py.\n\n" + format_scan(live_scan()))
 
 
+def _run_customer_momentum(**kw) -> str:
+    return ("customer_momentum is NULL (pilot): after a listed customer's >= 5% move, its order-win suppliers "
+            "(301 links from SEBI order filings 2024-26, 806 events) co-move the same day (+1.0%, not tradable) "
+            "but earn ~0 industry-adjusted at +1 / +5 days; +20d +0.94% (t_cl 2.0) matches the placebo-customer "
+            "control (+0.80%). Pre-registered pass rule failed; no 2020 backfill. Documented, no live screen. "
+            "Run scripts/validate_customer_momentum.py.")
+
+
 def _run_demerger(**kw) -> str:
     """Informational: recent demerger record dates whose child may list soon, and children listed
     in the last 10 sessions (from the curated data/demerger_listings.csv)."""
@@ -399,6 +407,13 @@ SIGNALS: dict[str, Signal] = {
                    "segment (base after a rally, breakout volume, delivery, liquidity, era) has a negative median. "
                    "Down-breakouts track the stock's prior weakness. Informational scan only."),
         _run_consolidation),
+    "customer_momentum": Signal(
+        SignalMeta("customer_momentum", "drift", "null", "documented",
+                   "Follow a listed customer's >= 5% move into its suppliers (buyer-seller links from SEBI "
+                   "order-win filings, 2024-26 pilot: 301 links, 806 events). Same-day co-move +1.0%; next-day "
+                   "entry ~0 at +1/+5 industry-adjusted; +20d +0.94% equals the placebo-customer control "
+                   "(+0.80%). Pre-registered pilot failed. Documented, not traded."),
+        _run_customer_momentum),
 }
 
 

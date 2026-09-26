@@ -138,5 +138,12 @@
     "verdict": "null",
     "role": "lens",
     "summary": "Buy the breakout from a price consolidation (40-session range <= 10% of price, liquid stocks). n=938 up-breakouts 2020-26: +20 / +60 median -0.7% / -1.7% vs NIFTY 500, 44-45% up, no better than wide-range breakouts or the same stock 120 sessions earlier; every pre-set segment (base after a rally, breakout volume, delivery, liquidity, era) has a negative median. Down-breakouts track the stock's prior weakness. Informational scan only."
+  },
+  {
+    "name": "customer_momentum",
+    "type": "drift",
+    "verdict": "null",
+    "role": "documented",
+    "summary": "Follow a listed customer's >= 5% move into its suppliers (buyer-seller links from SEBI order-win filings, 2024-26 pilot: 301 links, 806 events). Same-day co-move +1.0%; next-day entry ~0 at +1/+5 industry-adjusted; +20d +0.94% equals the placebo-customer control (+0.80%). Pre-registered pilot failed. Documented, not traded."
   }
 ]

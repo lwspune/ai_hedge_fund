@@ -9,7 +9,7 @@ EXPECTED = {"buyback_arb", "mean_reversion", "smart_money_deals",
             "merger_arb", "open_offer_arb", "index_rebalance", "lockin_expiry",
             "fno_ban", "rights_re", "promoter_buying", "order_wins", "turn_of_month",
             "promoter_sells", "pref_lockin", "ofs_retail", "demerger_listing", "rating_change",
-            "ipo_listing", "ipo_unlock", "consolidation"}
+            "ipo_listing", "ipo_unlock", "consolidation", "customer_momentum"}
 
 
 def test_all_validated_signals_registered():
@@ -106,3 +106,8 @@ def test_ipo_unlock_is_a_null_structural_lens():
 def test_consolidation_is_a_null_drift_lens():
     m = get_signal("consolidation").meta
     assert (m.type, m.verdict, m.role) == ("drift", "null", "lens")
+
+
+def test_customer_momentum_is_a_documented_null_drift_pilot():
+    m = get_signal("customer_momentum").meta
+    assert (m.type, m.verdict, m.role) == ("drift", "null", "documented")

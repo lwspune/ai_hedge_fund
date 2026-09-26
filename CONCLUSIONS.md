@@ -534,6 +534,46 @@ Thesis check: a pattern anyone can see on any chart, no barrier — the drift-si
 daily scan (`python -m scanner.run consolidation`) stays as an informational list.
 *Evidence:* `consolidation/2026-09-26T140027Z`.
 
+### 21. Customer momentum over a buyer–seller graph — NULL (pilot)
+The first test under the **drift bar** (no barrier required, net alpha vs controls). Hypothesis
+(Cohen–Frazzini): investors are slow to connect linked firms, so a customer's move predicts its
+suppliers' next returns.
+
+**The graph.** SEBI's Reg 30 order-win format (2024-09 →) names the customer in a fixed field.
+`scanner/links.py` reads it and matches a listed symbol by exact normalised name or a curated alias
+(`data/company_aliases.csv`: subsidiaries → parent) — never by abbreviation or substring (Phase 0
+found GETCO → GUJENERGY and NSIL = Nalwa Sons, not NewSpace India). Of 2,522 filings: 301 listed links
+(12%), 1,392 unlisted customers (railway zones, state utilities, ministries, private firms), 278
+withheld, 550 no field. 93 suppliers → 111 customers, concentrated in state-owned buyers (POWERGRID 22,
+L&T 17, NTPC 16, COALINDIA 16, BEL 14). Hand audit: 50 of 50 sampled links correct.
+
+**Design (pre-registered).** Event = a live-linked customer's ≥ 5% abnormal day (link live 365 days
+after its filing, from the day after). Supplier return signed by the shock, entered at the next close.
+Controls: industry-adjusted (supplier − median same-industry peer) and a **placebo customer** (the
+customer's same-industry peer with the closest turnover, unlinked to the supplier). t clustered by
+shock day. Pass: industry-adjusted +5 or +20 ≥ +0.5%, t_cl ≥ 2, and ≥ 0.5% above placebo.
+
+| signed supplier return (n = 806, 286 shock days) | mean | median | t_cl |
+|---|---|---|---|
+| reaction on the shock day (not tradable) | +1.00% | +0.67% | +5.3 |
+| +1d industry-adjusted | +0.06% | −0.01% | +0.5 |
+| +5d industry-adjusted | −0.03% | −0.27% | −0.1 |
+| +20d industry-adjusted | +0.94% | +0.08% | +2.0 |
+| +20d **placebo customer** (n = 965) | +0.80% | −0.28% | +1.6 |
+
+- **The link is priced the same day.** Suppliers co-move +1.0% with their customer on the shock day;
+  from the next close there is nothing at +1 / +5.
+- **+20d is not the link.** +0.94% (median +0.08%) is matched by the placebo customer (+0.80%): order-
+  winning suppliers drifted up in 2024-26 whoever moved. Fails the pass rule on the placebo margin.
+- Cuts: order ≥ 25% of supplier revenue +1.61% at +20d (median +1.61%, n=124, t_cl 1.8) is the one
+  mechanism-consistent hint; up-shocks +1.54% (median −0.33%, a fat tail); small suppliers +1.13%
+  (median +0.12%). None clears the bar and all are one era.
+
+Thesis check: a public link (the filing itself names the customer) between liquid stocks is read
+immediately — the drift-signal fate, now measured without a barrier requirement. Pilot failed →
+**no 2020 backfill** of free-text order wins. The weight ≥ 25% hint is logged, not pursued: revisit
+only if pre-2024 order filings get ingested for another reason. Graph stays in the evidence, not a table.
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -543,11 +583,12 @@ daily scan (`python -m scanner.run consolidation`) stays as an informational lis
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
 ## The tally (2026-09-26)
-Twenty signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
+Twenty-one signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
 2026-09-24 cum-date correction, `rights_re` conditional watch), 2 real-but-unshortable lenses
-(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 13 null
+(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 14 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
-order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change, ipo_unlock, consolidation).
+order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change, ipo_unlock, consolidation,
+customer_momentum).
 
 ## What's kept
 The platform (`scanner/`, 53 tests), the event-study harness, the smart-money classifier,
