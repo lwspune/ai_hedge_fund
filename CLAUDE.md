@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Sixteen signals validated this way; two actionable edges
+falsified signal is never read as edge. Seventeen signals validated this way; two actionable edges
 (buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -35,6 +35,7 @@ of untested ideas, ordered by the thesis.
 | `pref_lockin` | structural | **null** | documented control (allottees aren't forced sellers) |
 | `ofs_retail` | structural | **thin** | watch (OFS 10% retail quota: ~+2% by T+1 at the floor, n=26, one era; cut-off unrecorded) |
 | `demerger_listing` | structural | **conditional** | lens (newly listed child −5.9% median in its first 5 sessions, n=64; holder dumping not index flow; unshortable; no recovery trade — don't buy a child in week 1) |
+| `rating_change` | drift | **null** | lens (downgrades −0.3% on the filing, n=456, no drift; the fall came before — agencies follow the price; upgrade bump ≈ one round-trip cost) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -221,7 +222,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (547 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (561 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -411,6 +412,12 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   sites would be one scraper each with unproven runner reachability. Ratings are **data / a lens**
   (credit health, avoid downgrades), not a signal: a rating change is public news, i.e. a drift signal —
   test it in the event-study harness before trusting any reaction to it.
+- **2026-09-26** — `rating_change` validated **null** (CONCLUSIONS §17): downgrades n=456 move −0.3% on
+  the filing (t −0.9) with no drift after, and the stock had already fallen (T−21→T−1 median −4.6% vs
+  −3.2% for the same stock 120 sessions earlier); out-of-IG / default cuts n.s.; upgrades +0.6% vs
+  +0.2–0.3% for reaffirmations and placebo, fading. Robust to a results-window exclusion. *Reason:* a
+  public, lagging opinion — the agency reacts to what the price already showed. Ratings stay as data
+  on the company page, not an alert or exit rule.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

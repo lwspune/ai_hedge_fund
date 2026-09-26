@@ -388,6 +388,45 @@ out (no short, T2T) keeps retail out too — the lock-in pattern again — and t
 dumping, not a mandate-bound institution. (`scanner/demerger.py`, `scripts/validate_demerger.py`,
 `data/demerger_listings.csv`.) *Evidence:* published from Actions after this commit (`validation_runs`).
 
+### 17. Credit-rating change — NULL (agencies follow the price)
+Hypothesis: a rating action is news about default risk, so the stock reacts on the filing and
+(for a slow market) keeps drifting — a downgrade as an exit / avoid rule, an upgrade as a buy.
+Events: `credit_ratings` (every NSE Reg 30 rating filing 2020-26, parsed by `scanner/ratings.py`:
+11,432 filings, 17,798 agency ratings, 1,537 companies) → `scanner/ratingevents.py`: domestic
+long-term grade moves (size from the stated or our own previous rating), watch placements, and
+**reaffirmations as the control**; T = first session after the filing (15:30 IST cut-off); one
+event per symbol and kind per 30 days; corporate-action guard. Abnormal vs NIFTY 500, unadjusted
+cloud closes, t clustered by event week, windows and segments fixed in advance.
+
+| Window (vs NIFTY 500) | Downgrades n=456 | Upgrades n=1,258 | Reaffirmed n=3,456 |
+|---|---|---|---|
+| pre T−21→T−1 (median / mean, t_cl) | **−4.6% / −2.7%, −2.7** | −0.5% / +1.5%, +3.3 | −1.2% / −0.1%, −0.3 |
+| react T−1→T+1 | −0.8% / −0.3%, **−0.9** | +0.0% / **+0.6%, +4.5** | −0.2% / +0.2%, +2.7 |
+| follower +20d | −1.7% / +1.1%, +1.2 | −0.3% / +1.4%, +3.0 | −0.7% / +1.0%, +3.3 |
+| follower +60d | −1.0% / +3.0%, +2.0 | −1.3% / +3.4%, +2.8 | −1.3% / +2.6%, +4.4 |
+| same stock 120 sessions earlier, 20d | −3.2% / −1.5%, −2.2 | +0.3% / +2.2%, +5.0 | −1.0% / +0.6%, +2.1 |
+| same stock earlier, 2d | −0.6% / −0.5%, −2.1 | −0.2% / +0.3%, +2.2 | −0.3% / +0.2%, +1.9 |
+
+- **Downgrades carry no news.** No announcement move (t −0.9, the same stocks' random 2-day
+  windows are as negative) and no drift after (medians negative, means positive: no direction).
+  The fall happened first — the run-up window is barely worse than the same stock 120 sessions
+  earlier (median −4.6% vs −3.2%): these are weak stocks the agency catches up with. Pre-specified
+  cuts all n.s.: out of investment grade (58) react −1.0% (t −0.9), into default (31) −2.0% (t −1.1),
+  2+ notches (95) −0.9%.
+- **Upgrades: a small, fading bump.** +0.6% on the filing against +0.2-0.3% for reaffirmations and
+  the same stocks' placebo — ~+0.3% of news, one round-trip cost; 2020-22 +0.9%, 2023-26 +0.4%.
+  Nothing after: +20d is below the same stocks' own placebo (+2.2%). The positive means everywhere
+  are small-cap fat tails in a bull market; medians sit at or below zero.
+- Watch placements (48 negative / 38 positive) and global agencies (92 moves) n.s.
+- Robust to dropping the 366 events within 2 trading days of a results meeting (downgrade react
+  −0.3%, t −0.9; upgrade +0.56% vs reaffirmed +0.27%).
+
+Thesis check: a rating is public, and the agency reacts to the same public information the market
+already priced — a lagging opinion, not a barrier. Kept as data: the company page shows each
+agency's current rating and history. (`scanner/ratings.py`, `scanner/ratingevents.py`,
+`scripts/validate_rating_change.py`.) *Evidence:* `rating_change/2026-09-26T061849Z` (all events) and
+`rating_change/2026-09-26T072017Z` (`--exclude-results-window 2`).
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -396,12 +435,12 @@ dumping, not a mandate-bound institution. (`scanner/demerger.py`, `scripts/valid
 - screener.in (fundamentals) and chittorgarh (buybacks) are scrapable from a residential IP.
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
-## The tally (2026-09-24)
-Sixteen signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
+## The tally (2026-09-26)
+Seventeen signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
 2026-09-24 cum-date correction, `rights_re` conditional watch), 2 real-but-unshortable lenses
-(`lockin_expiry`, `demerger_listing`), 2 thin (`merger_arb`, `ofs_retail`), 10 null
+(`lockin_expiry`, `demerger_listing`), 2 thin (`merger_arb`, `ofs_retail`), 11 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
-order_wins, turn_of_month, promoter_sells, pref_lockin).
+order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change).
 
 ## What's kept
 The platform (`scanner/`, 53 tests), the event-study harness, the smart-money classifier,
