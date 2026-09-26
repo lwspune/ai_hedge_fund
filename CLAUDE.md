@@ -222,7 +222,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (561 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (565 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,

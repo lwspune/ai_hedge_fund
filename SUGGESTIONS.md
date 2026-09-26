@@ -240,7 +240,7 @@ the `prices` row floor (it doesn't — the floor is per-day).
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
-### `extract_kpis.py --limit 1500` silently gets 1000 (PostgREST row cap) — OPEN (logged 2026-09-26)
+### ~~`extract_kpis.py --limit 1500` silently gets 1000 (PostgREST row cap)~~ — **DONE 2026-09-26** (`db.select_all(..., max_rows=)` stops paging at the limit; both extractors use it; tests `test_extract_kpis.py`, `test_db.py`; live work list 1500)
 
 **Learning (credit-ratings backfill, 2026-09-26):** a single `db.select(..., limit=N)` returns at
 most 1000 rows whatever N is; the ratings backfill asked for 15000 and processed 1000. Fixed there by
