@@ -242,3 +242,50 @@ def test_bar_panel_reads_each_month_once_and_prefers_eq(monkeypatch):
     assert sorted(p) == ["AAA", "BBB"]                          # government securities (GS) are not stocks
     assert list(p["AAA"]["close"]) == [10.0, 11.0]              # EQ over BE on the same day; BE the next
     assert list(p["AAA"].columns) == ["open", "high", "low", "close", "volume", "turnover_lakh", "delivery_pct"]
+
+
+# --- split / bonus / consolidation adjustment of unadjusted closes (long-horizon return studies) ---
+
+_D = ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]
+
+
+def test_adjust_split_scales_history_before_the_ex_date():
+    s = _s(_D, [1000, 1010, 202, 204])                     # FV 10 -> 2 on 01-03: 5 new for 1
+    acts = [{"event_type": "split", "event_date": "2024-01-03", "details": {"from_fv": 10.0, "to_fv": 2.0}}]
+    out = ps.adjust_for_actions(s, acts)
+    assert list(out.round(2)) == [200.0, 202.0, 202.0, 204.0]
+
+
+def test_adjust_bonus_ratio_is_new_for_held():
+    s = _s(_D, [300, 300, 151, 150])                       # bonus 1:1 -> price halves
+    acts = [{"event_type": "bonus", "event_date": "2024-01-03", "details": {"ratio": "1:1"}}]
+    assert list(ps.adjust_for_actions(s, acts).round(2)) == [150.0, 150.0, 151.0, 150.0]
+    s = _s(_D, [700, 700, 500, 500])                       # 2:5 -> 5 old become 7
+    acts = [{"event_type": "bonus", "event_date": "2024-01-03", "details": {"ratio": "2:5"}}]
+    assert ps.adjust_for_actions(s, acts).iloc[0] == pytest.approx(500.0)
+
+
+def test_adjust_consolidation_raises_history():
+    s = _s(_D, [5, 5, 50, 51])                             # FV 1 -> 10
+    acts = [{"event_type": "consolidation", "event_date": "2024-01-03", "details": {"from_fv": 1.0, "to_fv": 10.0}}]
+    assert list(ps.adjust_for_actions(s, acts).round(2)) == [50.0, 50.0, 50.0, 51.0]
+
+
+def test_adjust_rejects_an_action_the_prices_do_not_show():
+    # a 1:1 bonus recorded but no halving in the prices: wrong date or wrong ratio -> unusable
+    s = _s(_D, [300, 300, 301, 299])
+    acts = [{"event_type": "bonus", "event_date": "2024-01-03", "details": {"ratio": "1:1"}}]
+    assert ps.adjust_for_actions(s, acts) is None
+
+
+def test_adjust_ignores_actions_outside_the_series_and_other_types():
+    s = _s(_D, [100, 101, 102, 103])
+    acts = [{"event_type": "split", "event_date": "2023-06-01", "details": {"from_fv": 10.0, "to_fv": 1.0}},
+            {"event_type": "dividend", "event_date": "2024-01-03", "details": {}}]
+    assert list(ps.adjust_for_actions(s, acts)) == [100, 101, 102, 103]
+
+
+def test_adjust_rejects_an_unreadable_ratio():
+    s = _s(_D, [300, 300, 150, 150])
+    acts = [{"event_type": "bonus", "event_date": "2024-01-03", "details": {"ratio": "n/a"}}]
+    assert ps.adjust_for_actions(s, acts) is None

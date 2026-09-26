@@ -58,6 +58,50 @@ def clean_series(s: pd.Series) -> pd.Series:
     return s
 
 
+ADJUST_TOLERANCE = 0.35  # |log(observed jump / expected factor)| above log(1.35) = not in the prices
+
+
+def _action_factor(a: dict) -> float | None:
+    """Multiplier for closes before the ex-date: split FV 10 -> 2 = 0.2, bonus a:b (a new for b
+    held) = b / (a + b), consolidation FV 1 -> 10 = 10. None if the details can't be read."""
+    d = a.get("details") or {}
+    try:
+        if a["event_type"] in ("split", "consolidation"):
+            f = float(d["to_fv"]) / float(d["from_fv"])
+        elif a["event_type"] == "bonus":
+            new, held = (float(x) for x in str(d["ratio"]).split(":"))
+            f = held / (new + held)
+        else:
+            return None
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        return None
+    return f if f > 0 else None
+
+
+def adjust_for_actions(s: pd.Series, actions: list[dict]) -> pd.Series | None:
+    """Split / bonus / consolidation-adjust UNADJUSTED closes ("db" / "nse") for return studies
+    that span an action. `actions`: corporate_events rows (event_type, event_date, details).
+    Guarded: an action inside the series whose jump the prices don't show (wrong date, wrong
+    ratio) returns None — never a silently wrong return. Other event types are ignored."""
+    import math
+    out = s.sort_index().astype("float64").copy()
+    for a in actions:
+        if a.get("event_type") not in ("split", "bonus", "consolidation"):
+            continue
+        ex = pd.Timestamp(a["event_date"])
+        if ex <= out.index.min() or ex > out.index.max():
+            continue
+        f = _action_factor(a)
+        if f is None:
+            return None
+        before, after = out[out.index < ex], out[out.index >= ex]
+        observed = after.iloc[0] / before.iloc[-1]
+        if abs(math.log(observed / f)) > math.log(1 + ADJUST_TOLERANCE):
+            return None
+        out[out.index < ex] = before * f
+    return out
+
+
 def write_cache(fp: Path, s: pd.Series) -> None:
     fp.parent.mkdir(parents=True, exist_ok=True)
     idx = pd.DatetimeIndex(s.index).as_unit("us")  # MICROS round-trips; MILLIS did not
