@@ -24,6 +24,7 @@ on:
           - validate_ofs_retail.py
           - validate_demerger.py
           - validate_rating_change.py
+          - validate_ipo.py
       args:
         description: "extra args, e.g. --exclude-results-window 2"
         required: false
