@@ -820,3 +820,28 @@ select * from (
   order by symbol, agency, term, disclosed_at desc, id desc
 ) latest
 where action is distinct from 'withdrawn';
+
+-- ============================================================================
+-- IPO study (scripts/validate_ipo.py): subscription by category from the chittorgarh page
+-- (scanner/events.parse_ipo_page) + the daily grey-market premium from investorgain
+-- (scanner/gmp.py, scripts/refresh_gmp.py). A retail lottery ticket's odds are roughly
+-- (retail_shares_offered / lot_size) / applications.
+-- ============================================================================
+alter table ipos add column if not exists sub_retail numeric check (sub_retail is null or sub_retail > 0);
+alter table ipos add column if not exists sub_qib numeric check (sub_qib is null or sub_qib > 0);
+alter table ipos add column if not exists sub_nii numeric check (sub_nii is null or sub_nii > 0);
+alter table ipos add column if not exists sub_total numeric check (sub_total is null or sub_total > 0);
+alter table ipos add column if not exists retail_shares_offered bigint check (retail_shares_offered is null or retail_shares_offered > 0);
+alter table ipos add column if not exists lot_size integer check (lot_size is null or lot_size > 0);
+alter table ipos add column if not exists applications bigint check (applications is null or applications > 0);
+
+create table if not exists ipo_gmp (
+  chittorgarh_id  integer not null,          -- no FK: upcoming issues are quoted before they list
+  investorgain_id integer not null,
+  gmp_date        date not null,
+  gmp             numeric not null,          -- rupees over the issue price; can be negative
+  updated_at      timestamptz not null default now(),
+  primary key (chittorgarh_id, gmp_date)
+);
+alter table ipo_gmp enable row level security;
+create policy "anon read ipo_gmp" on ipo_gmp for select to anon using (true);
