@@ -170,6 +170,16 @@ def parse_ipo_page(html: str, ipo_id: int) -> dict | None:
     anchor = _field(h, "shares_offered_anchor_investor")
     allotted = _field(h, "no_of_shares_allotted")
     close = _field(h, "listing_day_closing_price")
+
+    def pos(key, cast=float):
+        """A published positive number, else None (0 / blank = not published on older pages)."""
+        v = _field(h, key)
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        return cast(v) if v > 0 else None
+
     return {
         "chittorgarh_id": ipo_id, "symbol": sym, "company": company,
         "board": "sme" if listing_at and "SME" in listing_at.upper() else "mainboard",
@@ -183,6 +193,11 @@ def parse_ipo_page(html: str, ipo_id: int) -> dict | None:
         "shares_allotted": int(allotted) if isinstance(allotted, float) else None,
         "anchor_lockin_30": _long_date(_field(h, "timetable_anchor_lockin_end_dt_1")),
         "anchor_lockin_90": _long_date(_field(h, "timetable_anchor_lockin_end_dt_2")),
+        # subscription (times, by category) + what a retail lottery ticket is up against
+        "sub_retail": pos("rii"), "sub_qib": pos("qib"), "sub_nii": pos("nii"),
+        "sub_total": pos("times_subscribed"),
+        "retail_shares_offered": pos("rii_offered", int), "lot_size": pos("market_lot_size", int),
+        "applications": pos("total_application", int),
     }
 
 
@@ -201,11 +216,13 @@ def ipo_events(ipo: dict) -> list[dict]:
 
 def recheck_ids(ipos: list[dict], today: date, days: int = 120) -> list[int]:
     """chittorgarh ids to re-read: listed within `days` (or not yet listed) and still missing
-    a lock-in date — those fields get filled in after the page is first seen."""
+    a lock-in date or the retail subscription — those fields get filled in after the page is
+    first seen (subscription only once the issue closes)."""
     cutoff = (today - timedelta(days=days)).isoformat()
     return sorted(r["chittorgarh_id"] for r in ipos
                   if r["listing_date"] >= cutoff
-                  and not (r.get("anchor_lockin_30") and r.get("anchor_lockin_90")))
+                  and (not (r.get("anchor_lockin_30") and r.get("anchor_lockin_90"))
+                       or ("sub_retail" in r and r["sub_retail"] is None)))
 
 
 def fetch_ipo(ipo_id: int, session=None) -> tuple[bool, dict | None]:

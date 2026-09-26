@@ -95,6 +95,8 @@ FULL = dict(
     timetable_anchor_lockin_end_dt_2='\\"December 8, 2025\\"',
     issue_price_final="81", listing_day_closing_price="85.7",
     shares_offered_anchor_investor="873600", no_of_shares_allotted="2944000",
+    rii="13.9786", qib="168.1944", nii="51.1658", times_subscribed='\\"67.84\\"',
+    rii_offered="12057086", market_lot_size="59", total_application="2751564",
 )
 
 
@@ -106,6 +108,8 @@ def test_parse_ipo_page_full():
         "boa_date": "2025-09-10", "listing_date": "2025-09-12", "issue_price": 81.0,
         "listing_close": 85.7, "anchor_shares": 873600, "shares_allotted": 2944000,
         "anchor_lockin_30": "2025-10-09", "anchor_lockin_90": "2025-12-08",
+        "sub_retail": 13.9786, "sub_qib": 168.1944, "sub_nii": 51.1658, "sub_total": 67.84,
+        "retail_shares_offered": 12057086, "lot_size": 59, "applications": 2751564,
     }
 
 
@@ -115,6 +119,13 @@ def test_parse_ipo_page_mainboard_without_anchor_and_guards():
     ipo = parse_ipo_page(_page(**kv), 1)
     assert ipo["board"] == "mainboard"
     assert ipo["anchor_lockin_30"] is None and ipo["anchor_shares"] == 0
+    # subscription not published (older pages) -> None, never 0
+    bare = {k: v for k, v in FULL.items() if k not in ("rii", "qib", "nii", "times_subscribed", "rii_offered",
+                                                       "market_lot_size", "total_application")}
+    ipo = parse_ipo_page(_page(**bare), 5)
+    assert all(ipo[k] is None for k in ("sub_retail", "sub_qib", "sub_nii", "sub_total",
+                                        "retail_shares_offered", "lot_size", "applications"))
+    assert parse_ipo_page(_page(**{**FULL, "rii": "0", "market_lot_size": "0"}), 6)["sub_retail"] is None
     # no symbol (BSE-only / not yet listed) or no price -> not stored
     assert parse_ipo_page(_page(**{**FULL, "nse_symbol": '\\"\\"'}), 2) is None
     assert parse_ipo_page(_page(**{**FULL, "issue_price_final": "0"}), 3) is None
@@ -288,3 +299,14 @@ def test_parse_band_changes():
                      "record_date": None, "details": {"from": 10.0, "to": 5.0, "series": "EQ"},
                      "source": "nse_band"}
     assert len(ev) == 4
+
+
+def test_recheck_ids_also_waits_for_subscription():
+    """Subscription figures appear after the issue closes: a recent IPO with lock-ins but no
+    retail subscription is re-read too; one with both is left alone."""
+    from datetime import date
+    from scanner.events import recheck_ids
+    both = {"anchor_lockin_30": "2026-10-01", "anchor_lockin_90": "2026-11-30"}
+    rows = [{"chittorgarh_id": 5, "listing_date": "2026-09-01", **both, "sub_retail": None},
+            {"chittorgarh_id": 6, "listing_date": "2026-09-01", **both, "sub_retail": 13.9}]
+    assert recheck_ids(rows, date(2026, 9, 24), days=120) == [5]

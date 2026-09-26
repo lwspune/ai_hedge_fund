@@ -68,8 +68,8 @@ def _ipo_frontier() -> int:
 
 
 def run_recheck(days: int = 120) -> None:
-    """Re-read recent IPO pages whose lock-in dates weren't published when first seen."""
-    rows = db.select_all("ipos", {"select": "chittorgarh_id,listing_date,anchor_lockin_30,anchor_lockin_90"})
+    """Re-read recent IPO pages whose lock-in dates or subscription weren't published when first seen."""
+    rows = db.select_all("ipos", {"select": "chittorgarh_id,listing_date,anchor_lockin_30,anchor_lockin_90,sub_retail"})
     ids, s, got = recheck_ids(rows, date.today(), days), requests.Session(), []
     for i in ids:
         try:
