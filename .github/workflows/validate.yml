@@ -26,6 +26,7 @@ on:
           - validate_rating_change.py
           - validate_ipo.py
           - validate_ipo_unlock.py
+          - validate_consolidation.py
       args:
         description: "extra args, e.g. --exclude-results-window 2"
         required: false
