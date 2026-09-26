@@ -505,6 +505,35 @@ Lens: don't buy a new listing on weakness in its first ~1.5 years — neither th
 "it's already fallen" argument marks a turn. (`scanner/ipounlock.py`,
 `scripts/validate_ipo_unlock.py`.) *Evidence:* `ipo_unlock/2026-09-26T122137Z`.
 
+### 20. Price-consolidation breakouts — NULL (a public chart pattern)
+Hypothesis: a liquid stock that trades sideways in a tight range, then closes out of it, keeps going
+(the "base breakout"). Definition fixed in advance (`scanner/consolidation.py`): a 40-session range
+(highest high − lowest low) ≤ 10% of the mean close, median turnover ≥ ₹1 crore/day; breakout = the
+first close outside the range as it stood the day before; one event per stock, kind and direction per
+40 sessions. Every NSE company 2020 → (3,417 — 932 ETFs / funds dropped: liquid-fund ETFs sit in a
+sub-1% range and "break out" daily), raw bhavcopy OHLC, entry at the next session's close, abnormal
+vs NIFTY 500, t clustered by week; split / bonus / rights / demerger near the event drops it.
+
+| vs NIFTY 500 (median / % up) | +5 | +20 | +60 |
+|---|---|---|---|
+| **tight-range UP breakout** (n=938) | −0.4% / 45% | **−0.7% / 45%** | **−1.7% / 44%** |
+| wide-range up breakout (control, n≈17k) | −0.8% | −1.2% | −1.5% (mean +2.6%: fat tails) |
+| same stock 120 sessions earlier | — | −0.6% | −1.4% |
+| tight-range DOWN breakout (n=961) | −0.3% | −1.0% | −2.3% (t_cl −2.4) |
+| its same-stock control | — | −1.2% | −2.9% |
+
+- **Up-breakouts don't pay** and a tight range adds nothing over any 40-day high. Every
+  pre-specified cut has a negative median at +60: base after a > 20% rally −2.0% (n=73), breakout
+  volume ≥ 1.5× −1.9%, delivery ≥ 50% −1.2%, most liquid tercile −1.3%; era 2020-22 −4.6%, 2023-26
+  −0.8%. The 20-session window agrees (+60 median −1.7%, n=6,887).
+- **Down-breakouts are not a separate exit signal:** the same stocks lagged as much 120 sessions
+  earlier — the breakdown marks an already-weak stock, it doesn't add information.
+- SME stocks almost never qualify (1 event: ≥ ₹1 crore/day with a ≤ 10% range is rare there).
+
+Thesis check: a pattern anyone can see on any chart, no barrier — the drift-signal fate again. The
+daily scan (`python -m scanner.run consolidation`) stays as an informational list.
+*Evidence:* `consolidation/2026-09-26T140027Z`.
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -514,11 +543,11 @@ Lens: don't buy a new listing on weakness in its first ~1.5 years — neither th
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
 ## The tally (2026-09-26)
-Nineteen signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
+Twenty signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
 2026-09-24 cum-date correction, `rights_re` conditional watch), 2 real-but-unshortable lenses
-(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 12 null
+(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 13 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
-order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change, ipo_unlock).
+order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change, ipo_unlock, consolidation).
 
 ## What's kept
 The platform (`scanner/`, 53 tests), the event-study harness, the smart-money classifier,
