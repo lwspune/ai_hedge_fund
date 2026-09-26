@@ -124,5 +124,12 @@
     "verdict": "thin",
     "role": "watch",
     "summary": "Apply to IPOs via the retail quota (lottery of one minimum lot when oversubscribed). Mainboard n=416 (2020-26): if allotted +9.8% median at the open (28% below issue); per application P(allot) x gain = +1.6% (~Rs 237) pooled, +3.1% in 2023-24, +0.2-0.3% (~Rs 34) in 2025-26. Best at 2-10x retail (+3.5%); <= 2x loses (55% below issue); hot issues pay +39% at ~2% odds. Pre-listing GMP predicts the open (rho 0.87 mainboard, 0.82 SME; GMP <= 0 -> 61% below issue); GMP at application time untestable before 2026 (forward capture on). Buying after listing: mainboard null (median -10% at 1y), SME mean from fat tails (median -14%)."
+  },
+  {
+    "name": "ipo_unlock",
+    "type": "structural",
+    "verdict": "null",
+    "role": "lens",
+    "summary": "Enter a new listing after its 6-month pre-IPO lock-in expiry, hold 6-12 months (n=900 unlocks, 2020-26). Mainboard: +125 median -5.3%, +250 median -13.3% vs NIFTY 500 (34% up) -- no better than entering at month 3 or 9; the unlock day itself -0.35% (n.s.); stocks below issue do worst (+250 median -15%). SME medians -9% / -16% (means are fat tails). Lens: post-IPO underperformance runs ~1.5 years -- don't buy a new listing on weakness."
   }
 ]

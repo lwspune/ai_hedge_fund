@@ -213,6 +213,15 @@ def _run_ipo_listing(**kw) -> str:
             "Run scripts/validate_ipo.py.\nIPOs not yet listed:\n" + ("\n".join(lines) if lines else "  none"))
 
 
+def _run_ipo_unlock(**kw) -> str:
+    return ("ipo_unlock is NULL: buying a new listing at its 6-month pre-IPO lock-in expiry is not an entry. "
+            "Mainboard (n~280 / 240): enter T+2, +125 sessions median -5.3% vs NIFTY 500 (43% up), +250 median "
+            "-13.3% (34% up) -- the same as entering at month 3 (-13.7%) or month 9 (-14.0%): post-IPO drift runs "
+            "~1.5 years. The unlock itself: -0.35% (t=-1.3). 'Buy after the fall' (below issue at T-1) is worse: "
+            "+250 median -15.2% (29% up). SME medians -8.7% / -16.3%, -27% below issue. Lens: don't buy a new "
+            "listing on weakness in its first 1.5 years. Run scripts/validate_ipo_unlock.py.")
+
+
 def _run_demerger(**kw) -> str:
     """Informational: recent demerger record dates whose child may list soon, and children listed
     in the last 10 sessions (from the curated data/demerger_listings.csv)."""
@@ -365,6 +374,14 @@ SIGNALS: dict[str, Signal] = {
                    "61% below issue); GMP at application time untestable before 2026 (forward capture on). "
                    "Buying after listing: mainboard null (median -10% at 1y), SME mean from fat tails (median -14%)."),
         _run_ipo_listing),
+    "ipo_unlock": Signal(
+        SignalMeta("ipo_unlock", "structural", "null", "lens",
+                   "Enter a new listing after its 6-month pre-IPO lock-in expiry, hold 6-12 months (n=900 "
+                   "unlocks, 2020-26). Mainboard: +125 median -5.3%, +250 median -13.3% vs NIFTY 500 (34% up) "
+                   "-- no better than entering at month 3 or 9; the unlock day itself -0.35% (n.s.); stocks "
+                   "below issue do worst (+250 median -15%). SME medians -9% / -16% (means are fat tails). "
+                   "Lens: post-IPO underperformance runs ~1.5 years -- don't buy a new listing on weakness."),
+        _run_ipo_unlock),
 }
 
 
