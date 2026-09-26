@@ -164,6 +164,21 @@ drift-signal chasing.
     every false positive found by hand review becomes a regression test in `tests/test_kpis.py`.
     **Retention (WP8):** `scripts/archive_filings.py` (weekly) copies months older than 24 to bucket
     `filings` (YYYY-MM.parquet) then nulls `subject` — except rows extraction may still need.
+  - **Credit ratings (2026-09-26)** — `scanner/ratings.py` rule_v1 reads each agency's rating from the
+    NSE `Credit Rating*` filings (Reg 30; one `Credit Rating` category until Sep-2024, then `- New /
+    - Revision / - Others`) → `credit_ratings` (one row per filing × agency × long/short term: grade,
+    1-20 notch, outlook, watch, action, previous rating, exact quote) + view `current_credit_ratings`
+    (latest per symbol/agency/term, withdrawals dropped). Domestic `[ICRA]AA-` / `CRISIL|Crisil` / `CARE`
+    / `IND` / `ACUITE` / `BWR` / `IVR` prefixes; global Fitch / S&P / Moody's / JCR / CareEdge Global
+    from the covering letter only, each on its own scale, capped at A-/A3 (an Indian issuer can't sit
+    far above the sovereign — a better grade is a misread). First rating per agency+term wins (skips
+    history/glossaries); "Current | Previous" columns give `prev_rating` (header order decides which
+    is which); `(CE)`/`(SO)` paper and bracketed third parties ("Bank of India (BoI, CARE AA+ …)") are
+    skipped. `scripts/extract_ratings.py` (daily, newest 500) marks the filing `ok` / `no_rating` (ESG
+    scores, gradeless withdrawals, image-only PDFs, unparsed → review queue). Measured on 300 live
+    filings: ~97% of text filings that state a rating are read; grades 40/40 + 22/22 on audit; known
+    slips are secondary fields (an outlook written "The Outlook remains Stable", a short-term row
+    taking the long-term verb). Dashboard: header "Credit rating" stat + Events-tab history.
 
 ## Data sources (free, proven)
 **Every source below works from datacenter IPs** — verified from a GitHub Actions runner
@@ -206,7 +221,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (482 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (547 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -214,7 +229,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
 **Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):
 `refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, IPOs +
 120-day re-check, rights, board meetings/results, band changes, ASM/GSM snapshot, PIT insider
-filings, preferential issues, filings + KPIs, 10-day deals refill, buyback + rights scans, Telegram alerts) and
+filings, preferential issues, filings + KPIs + credit ratings, 10-day deals refill, buyback + rights scans, Telegram alerts) and
 `refresh-weekly` (Sun 10:00 IST: trading calendar, price prune, company master + index membership,
 fundamentals + snapshot history, shareholding/pledge (2 new quarters per symbol), filings archive;
 `smoke` input for a 5-company test). Both call `scripts/scheduled_refresh.py`;
@@ -225,13 +240,14 @@ the run on any **age** rule (calendar or trading days), **row-volume floor**, **
 pages and parsed 0 tenders — the 2026 format change), or **DB size** (warn 300 MB, fail 400 MB via
 RPC `db_size_bytes`). A test forces every dated table in `db/schema.sql` to carry a rule.
 **CI** (`ci.yml`): pytest + dashboard lint/build on every push.
-On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|orphans|shareholding|insider|pref-issues`,
+On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|orphans|shareholding|insider|pref-issues|credit-ratings`,
 `from`/`to`) · `validate.yml` (`script=validate_*.py`, `args`; publishes evidence) ·
 `probe-sources.yml`. Manual: `gh workflow run refresh-daily.yml`.
 Individual loaders: `scripts/refresh_companies.py` · `scripts/refresh_events.py
 actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_prices.py [--date D |
 --from A --to B | --prune]` · `scripts/refresh_fundamentals.py [--symbols A,B] [--stale-days 7]` ·
 `scripts/refill_deals.py --from` · `scripts/archive_filings.py` · `scripts/backfill_orphans.py` ·
+`scripts/extract_ratings.py [--limit N] [--since D]` · `scripts/refresh_filings.py --ratings-only --from --to` ·
 `scripts/refresh_shareholding.py [--symbols] [--per-symbol N] [--xbrl-limit N]` · `scripts/refresh_insider.py
 [--from --to | --all]` · `scripts/refresh_surveillance.py` · `scripts/refresh_prefissues.py [--from --to]` ·
 `scripts/rebuild_snapshot_history.py` (no re-scrape) · `scripts/refresh_buyback_results.py [--all]
@@ -389,6 +405,12 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   competed tail-risk premium (beta, not alpha), SEBI 2024-25 raised the retail floor (~₹15 lakh lots),
   a lot is ~7× the ₹2 lakh buyback slab so it can't hedge our edge, and fresh listings aren't in F&O so
   puts can't short the unshortable lenses.
+- **2026-09-26** — Credit ratings come from the **NSE rating filings we already index**, parsed by rule,
+  not agency websites or NSDL. *Reason:* Reg 30 makes every listed company file every rating action, the
+  PDFs have text layers (no OCR), one parser covers all agencies, and it runs in the daily job; agency
+  sites would be one scraper each with unproven runner reachability. Ratings are **data / a lens**
+  (credit health, avoid downgrades), not a signal: a rating change is public news, i.e. a drift signal —
+  test it in the event-study harness before trusting any reaction to it.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
