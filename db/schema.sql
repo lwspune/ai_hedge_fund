@@ -834,6 +834,9 @@ alter table ipos add column if not exists sub_total numeric check (sub_total is 
 alter table ipos add column if not exists retail_shares_offered bigint check (retail_shares_offered is null or retail_shares_offered > 0);
 alter table ipos add column if not exists lot_size integer check (lot_size is null or lot_size > 0);
 alter table ipos add column if not exists applications bigint check (applications is null or applications > 0);
+-- NSE-platform retail times subscribed (scanner/ipobids.py): the free retail figure for older mainboard
+-- issues; ~0.647 of the consolidated one (scripts/refresh_ipo_bids.py)
+alter table ipos add column if not exists sub_retail_nse numeric check (sub_retail_nse is null or sub_retail_nse > 0);
 
 create table if not exists ipo_gmp (
   chittorgarh_id  integer not null,          -- no FK: upcoming issues are quoted before they list

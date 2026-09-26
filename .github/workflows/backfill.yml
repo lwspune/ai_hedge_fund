@@ -11,6 +11,7 @@ name: backfill
 #                   extract every pending rating filing -> credit_ratings (re-run if it reports a backlog)
 #   ipos            re-read every chittorgarh IPO page (subscription fields; from/to = ids, default 1..3500)
 #   ipo-gmp         investorgain grey-market premium series for every IPO listed on/after from (default 2017-01-01)
+#   ipo-bids        NSE retail times-subscribed for mainboard IPOs missing it (from default 2020-01-01)
 # One concurrency group per kind: backfills of different kinds run side by side and alongside the
 # scheduled refresh (they write different rows); two of the same kind queue.
 on:
@@ -18,7 +19,7 @@ on:
     inputs:
       what:
         type: choice
-        options: [board-meetings, prices, orphans, shareholding, insider, pref-issues, credit-ratings, ipos, ipo-gmp]
+        options: [board-meetings, prices, orphans, shareholding, insider, pref-issues, credit-ratings, ipos, ipo-gmp, ipo-bids]
         required: true
       from:
         description: "start date YYYY-MM-DD (board-meetings / prices)"
@@ -64,4 +65,5 @@ jobs:
                             python -u scripts/extract_ratings.py --limit 15000 ;;
             ipos)           python -u scripts/refresh_events.py ipos --from-id "${FROM:-1}" --to-id "${TO:-3500}" ;;
             ipo-gmp)        python -u scripts/refresh_gmp.py --since "${FROM:-2017-01-01}" ;;
+            ipo-bids)       python -u scripts/refresh_ipo_bids.py --since "${FROM:-2020-01-01}" ;;
           esac

@@ -1,0 +1,124 @@
+{
+ "data": [
+  {
+   "category": "Category",
+   "noOfSharesOffered": "No.of shares offered/reserved",
+   "noOfTime": "No. of times of total meant for the category",
+   "noOfsharesBid": "No. of shares bid for",
+   "srNo": "Sr.No."
+  },
+  {
+   "category": "Qualified Institutional Buyers(QIBs)",
+   "noOfSharesOffered": "2748241",
+   "noOfTime": "7.999255887675062",
+   "noOfsharesBid": "21983883",
+   "srNo": "1"
+  },
+  {
+   "category": "Foreign Institutional Investors(FIIs)",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "3802751",
+   "srNo": "1(a)"
+  },
+  {
+   "category": "Domestic Financial Institutions(Banks/ Financial Institutions(FIs)/ Insurance Companies)",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "2276034",
+   "srNo": "1(b)"
+  },
+  {
+   "category": "Mutual funds",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "15887595",
+   "srNo": "1(c)"
+  },
+  {
+   "category": "Others",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "17503",
+   "srNo": "1(d)"
+  },
+  {
+   "category": "Non Institutional Investors",
+   "noOfSharesOffered": "1947222",
+   "noOfTime": "1.3322887683068494",
+   "noOfsharesBid": "2594262",
+   "srNo": "2"
+  },
+  {
+   "category": "Corporates",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "632592",
+   "srNo": "2(a)"
+  },
+  {
+   "category": "Individuals(Other than RIIs)",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "1928918",
+   "srNo": "2(b)"
+  },
+  {
+   "category": "others",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "32752",
+   "srNo": "2(c)"
+  },
+  {
+   "category": "Retail Individual Investors(RIIs)",
+   "noOfSharesOffered": "4543517",
+   "noOfTime": "0.5870736260038204",
+   "noOfsharesBid": "2667379",
+   "srNo": "3"
+  },
+  {
+   "category": "Cut Off",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "2231713",
+   "srNo": "3(a)"
+  },
+  {
+   "category": "Price bids",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "435666",
+   "srNo": "3(b)"
+  },
+  {
+   "category": "Employees",
+   "noOfSharesOffered": "117213",
+   "noOfTime": "0.09556107257727385",
+   "noOfsharesBid": "11201",
+   "srNo": "4"
+  },
+  {
+   "category": "Cut Off",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "5819",
+   "srNo": "4(a)"
+  },
+  {
+   "category": "Price Bids",
+   "noOfSharesOffered": "",
+   "noOfTime": "",
+   "noOfsharesBid": "5382",
+   "srNo": "4(b)"
+  },
+  {
+   "category": "Total",
+   "noOfSharesOffered": "9356193.0",
+   "noOfTime": "2.9132281687647956",
+   "noOfsharesBid": "2.7256725E7",
+   "srNo": null
+  }
+ ],
+ "updateTime": "Updated as on 26-May-2022 17:00:02 hrs"
+}
