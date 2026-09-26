@@ -573,6 +573,7 @@ Thesis check: a public link (the filing itself names the customer) between liqui
 immediately — the drift-signal fate, now measured without a barrier requirement. Pilot failed →
 **no 2020 backfill** of free-text order wins. The weight ≥ 25% hint is logged, not pursued: revisit
 only if pre-2024 order filings get ingested for another reason. Graph stays in the evidence, not a table.
+*Evidence:* `customer_momentum/2026-09-26T171236Z` (links + extraction audit included).
 
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
