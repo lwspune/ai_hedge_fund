@@ -180,6 +180,39 @@ def _run_rating_change(**kw) -> str:
             f"Downgrades / negative watches, last {days} days:\n" + ("\n".join(lines) if lines else "  none"))
 
 
+def _run_ipo_listing(**kw) -> str:
+    """Live lens: IPOs not yet listed — issue price, latest GMP, retail subscription where published,
+    estimated allotment odds, and the study's flags (<= 2x retail, GMP <= 0)."""
+    from datetime import date
+    from scanner import db
+    from scanner.ipostudy import allot_prob, is_unit_trust
+    rows = db.select_all("ipos", {"select": "chittorgarh_id,symbol,company,board,issue_close,listing_date,issue_price,"
+                                            "sub_retail,retail_shares_offered,lot_size,applications",
+                                  "listing_date": f"gte.{date.today()}", "order": "listing_date"})
+    gmp: dict = {}
+    for g in db.select_all("ipo_gmp", {"select": "chittorgarh_id,gmp_date,gmp",
+                                        "chittorgarh_id": f"in.({','.join(str(r['chittorgarh_id']) for r in rows) or '0'})",
+                                        "order": "gmp_date"}):
+        gmp[g["chittorgarh_id"]] = float(g["gmp"])          # ascending: the last one wins
+    lines = []
+    for r in rows:
+        if is_unit_trust(r.get("company")):
+            continue
+        issue, sub = float(r["issue_price"]), float(r["sub_retail"]) if r.get("sub_retail") else None
+        g = gmp.get(r["chittorgarh_id"])
+        p = allot_prob(r["board"], r.get("retail_shares_offered"), r.get("lot_size"), r.get("applications"), sub)
+        flags = [f for f, on in (("<=2x retail", sub is not None and sub <= 2), ("GMP<=0", g is not None and g <= 0)) if on]
+        lines.append(f"  {r['listing_date']}  {r['symbol']:<12} {r['board']:<9} issue {issue:>8.2f}  "
+                     f"GMP {'   n/a' if g is None else f'{g / issue * 100:+5.1f}%'}  retail "
+                     f"{'  n/a' if sub is None else f'{sub:5.1f}x'}  odds {'  n/a' if p is None else f'{p * 100:4.1f}%'}"
+                     f"{'  [' + ', '.join(flags) + ']' if flags else ''}")
+    return ("ipo_listing is THIN (watch): applying is a small positive lottery, not an edge worth capital. "
+            "Mainboard (n=416, 2020-26): one application = P(allot) x listing gain = +1.6% (~Rs 237) pooled, "
+            "but +0.2-0.3% (~Rs 34) in 2025-26. Skip <= 2x retail (55% list below issue); GMP before listing "
+            "predicts the open (rho 0.87); don't buy after listing (median -10% vs NIFTY 500 at 1 year). "
+            "Run scripts/validate_ipo.py.\nIPOs not yet listed:\n" + ("\n".join(lines) if lines else "  none"))
+
+
 def _run_demerger(**kw) -> str:
     """Informational: recent demerger record dates whose child may list soon, and children listed
     in the last 10 sessions (from the curated data/demerger_listings.csv)."""
@@ -322,6 +355,16 @@ SIGNALS: dict[str, Signal] = {
                    "placebo controls, inside costs, shrinking (2020-22 +0.9%, 2023-26 +0.4%). Informational "
                    "lens only."),
         _run_rating_change),
+    "ipo_listing": Signal(
+        SignalMeta("ipo_listing", "structural", "thin", "watch",
+                   "Apply to IPOs via the retail quota (lottery of one minimum lot when oversubscribed). "
+                   "Mainboard n=416 (2020-26): if allotted +9.8% median at the open (28% below issue); per "
+                   "application P(allot) x gain = +1.6% (~Rs 237) pooled, +3.1% in 2023-24, +0.2-0.3% (~Rs 34) in "
+                   "2025-26. Best at 2-10x retail (+3.5%); <= 2x loses (55% below issue); hot issues pay "
+                   "+39% at ~2% odds. Pre-listing GMP predicts the open (rho 0.87 mainboard, 0.82 SME; GMP <= 0 -> "
+                   "61% below issue); GMP at application time untestable before 2026 (forward capture on). "
+                   "Buying after listing: mainboard null (median -10% at 1y), SME mean from fat tails (median -14%)."),
+        _run_ipo_listing),
 }
 
 

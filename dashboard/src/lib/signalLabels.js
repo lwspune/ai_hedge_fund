@@ -19,6 +19,7 @@ const SIGNALS = {
   ofs_retail: ['OFS retail quota', 'Floor bids +1.9% median by T+1 (n=26, 2025–26); thin, cut-off above floor unrecorded'],
   turn_of_month: ['Turn-of-month seasonality', '2022–23 flicker (t=3.9), ~0 in 2024–26; calendar control'],
   demerger_listing: ['Demerger listing flow', 'Child −5.9% median in its first 5 sessions (n=64); unshortable, no recovery trade'],
+  ipo_listing: ['IPO retail application', 'Small positive lottery: +1.6% per application, ~₹34 in 2025–26; skip ≤ 2× subscribed'],
   rating_change: ['Credit rating change', 'Downgrades −0.3% on the day (n=456), fall came before; agencies follow the price'],
 }
 

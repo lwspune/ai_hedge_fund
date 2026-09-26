@@ -117,5 +117,12 @@
     "verdict": "null",
     "role": "lens",
     "summary": "Credit-rating change (NSE Reg 30 rating filings, 2020-26). Downgrades n=456: announcement -0.3% (t=-0.9), no drift after; the fall came before (T-21->T-1 median -4.6% vs same-stock placebo -3.2%) -- agencies follow the price. Out-of-IG (58) and defaults (31) n.s. Upgrades n=1,258: +0.6% reaction, ~+0.3% over reaffirmation / placebo controls, inside costs, shrinking (2020-22 +0.9%, 2023-26 +0.4%). Informational lens only."
+  },
+  {
+    "name": "ipo_listing",
+    "type": "structural",
+    "verdict": "thin",
+    "role": "watch",
+    "summary": "Apply to IPOs via the retail quota (lottery of one minimum lot when oversubscribed). Mainboard n=416 (2020-26): if allotted +9.8% median at the open (28% below issue); per application P(allot) x gain = +1.6% (~Rs 237) pooled, +3.1% in 2023-24, +0.2-0.3% (~Rs 34) in 2025-26. Best at 2-10x retail (+3.5%); <= 2x loses (55% below issue); hot issues pay +39% at ~2% odds. Pre-listing GMP predicts the open (rho 0.87 mainboard, 0.82 SME; GMP <= 0 -> 61% below issue); GMP at application time untestable before 2026 (forward capture on). Buying after listing: mainboard null (median -10% at 1y), SME mean from fat tails (median -14%)."
   }
 ]
