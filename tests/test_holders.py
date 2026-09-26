@@ -59,6 +59,14 @@ def test_public_investor_axes(axis, name, kind):
     ("OtherNonInstitutions", "IEPF"),                                  # unclaimed shares, not an investor
     ("OtherNonInstitutions", "INVESTOR EDUCATION AND PROTECTION FUND AUTHORITY MINISTRY OF CORPORATE AFFAIRS"),
     ("OtherNonInstitutions", "Clearing Members"),
+    # sub-category labels some filers list as if they were holders
+    ("OtherNonInstitutions", "LLP"),
+    ("OtherNonInstitutions", "Trusts"),
+    ("OtherNonInstitutions", "HUF"),
+    ("OtherNonInstitutions", "Others"),
+    ("OtherNonInstitutions", "Foreign Portfolio Investor (Category - II)"),
+    ("OtherNonInstitutions", "Non Resident Indian (NRI)"),
+    ("BodiesCorporate", "Bodies Corporate"),
 ])
 def test_non_investors_are_excluded(axis, name):
     assert holder_kind(axis, name) is None
@@ -132,6 +140,14 @@ def test_name_variant_or_axis_move_is_not_an_entry():
     assert list(ev["quarter_end"]) == ["2023-09-30"]
 
 
+def test_fund_house_already_holding_through_another_scheme_is_not_new():
+    df = pd.DataFrame(
+        _rows("ABC", "2023-06-30", "2023-07-15T10:00:00", [("MutualFundsOrUTI", "HDFC MUTUAL FUND - HDFC FLEXI CAP FUND", 2.0)])
+        + _rows("ABC", "2023-09-30", "2023-10-15T10:00:00", [("MutualFundsOrUTI", "HDFC MUTUAL FUND - HDFC FLEXI CAP FUND", 2.0),
+                                                              ("MutualFundsOrUTI", "HDFC Manufacturing Fund", 1.1)]))
+    assert entry_events(df).empty
+
+
 def test_reentry_within_a_year_is_not_new():
     q = [("2022-03-31", [(IND, "X Y HOLDER", 1.2)]), ("2022-06-30", []), ("2022-09-30", [(IND, "X Y HOLDER", 1.3)])]
     df = pd.DataFrame([r for qe, h in q for r in _rows("ABC", qe, f"{qe}T00:00:00", h)])
@@ -184,3 +200,30 @@ def test_persistence_is_rank_correlation_of_two_periods():
     b = pd.Series({"x": 0.2, "y": 0.05, "z": -0.4, "v": 1.0})
     rho, n = persistence(a, b)
     assert n == 3 and rho == pytest.approx(1.0)
+
+
+def test_walk_forward_ranks_only_on_outcomes_known_before_the_test_period():
+    from scanner.holders import walk_forward
+    T = pd.Timestamp
+    ev = pd.DataFrame([
+        # training for the 2024-H1 fold: exits before 2024-01-01
+        {"investor": "good", "entry_date": T("2022-03-01"), "exit": T("2022-09-01"), "r": 0.30},
+        {"investor": "good", "entry_date": T("2022-06-01"), "exit": T("2022-12-01"), "r": 0.20},
+        {"investor": "good", "entry_date": T("2023-01-01"), "exit": T("2023-07-01"), "r": 0.25},
+        {"investor": "bad", "entry_date": T("2022-03-01"), "exit": T("2022-09-01"), "r": -0.30},
+        {"investor": "bad", "entry_date": T("2022-06-01"), "exit": T("2022-12-01"), "r": -0.20},
+        {"investor": "bad", "entry_date": T("2023-01-01"), "exit": T("2023-07-01"), "r": -0.25},
+        # entered in 2023 but exits in 2024: must NOT be used to rank the 2024-H1 fold
+        {"investor": "late", "entry_date": T("2023-09-01"), "exit": T("2024-03-01"), "r": 9.0},
+        {"investor": "late", "entry_date": T("2023-09-02"), "exit": T("2024-03-02"), "r": 9.0},
+        {"investor": "late", "entry_date": T("2023-09-03"), "exit": T("2024-03-03"), "r": 9.0},
+        # test events
+        {"investor": "good", "entry_date": T("2024-02-01"), "exit": None, "r": None},
+        {"investor": "bad", "entry_date": T("2024-03-01"), "exit": None, "r": None},
+        {"investor": "new", "entry_date": T("2024-04-01"), "exit": None, "r": None},
+    ])
+    out = walk_forward(ev, "r", "exit", [("2024-01-01", "2024-07-01")], min_n=3, frac=0.5)
+    g = dict(zip(out["investor"], out["group"]))
+    assert g == {"good": "top", "bad": "bottom", "new": "unranked"}
+    assert set(out["fold"]) == {"2024-01-01"}
+    assert out.loc[out["investor"] == "good", "train_score"].iloc[0] == pytest.approx(0.25)

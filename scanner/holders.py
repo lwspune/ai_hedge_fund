@@ -45,6 +45,15 @@ _KINDS = {
 }
 _PASSIVE = re.compile(r"\b(ETF|INDEX|NIFTY|SENSEX|BEES|VANGUARD|ISHARES)\b")
 _NOT_INVESTOR = re.compile(r"\b(IEPF|INVESTOR EDUCATION|CLEARING MEMBERS?|UNCLAIMED|SUSPENSE)\b")
+# a "name" made only of these words is a sub-category label ("LLP", "Trusts", "Foreign Portfolio
+# Investor (Category - II)"), not a holder — some filers list sub-totals without a holder count
+_CATEGORY_WORDS = {"LLP", "LLPS", "TRUST", "TRUSTS", "HUF", "HUFS", "OTHER", "OTHERS", "BODIES", "BODY",
+                   "CORPORATE", "CORPORATES", "CLEARING", "MEMBER", "MEMBERS", "NRI", "NRIS", "NON", "RESIDENT",
+                   "RESIDENTS", "INDIAN", "INDIANS", "INDIVIDUALS", "FOREIGN", "NATIONAL", "NATIONALS", "ESCROW",
+                   "ACCOUNT", "DIRECTORS", "RELATIVES", "EMPLOYEES", "FIRMS", "PARTNERSHIP", "LIMITED",
+                   "LIABILITY", "PORTFOLIO", "INVESTOR", "INVESTORS", "CATEGORY", "I", "II", "III", "COMPANIES",
+                   "COMPANY", "BANKS", "INSTITUTIONS", "FINANCIAL", "OVERSEAS", "AND", "OF", "FPI", "SOCIETY",
+                   "SOCIETIES", "CO", "OPERATIVE", "PUBLIC", "PRIVATE", "GROUP", "KMP", "HOLDERS"}
 _HONORIFICS = {"MR", "MRS", "MS", "DR", "SMT", "SHRI", "SH", "KUM", "MISS", "M/S", "MS/"}
 _LEGAL = {"LIMITED", "LTD", "PRIVATE", "PVT", "LLP", "THE", "CO", "COMPANY", "INC", "PLC"}
 
@@ -101,7 +110,7 @@ def holder_kind(axis: str, name: str) -> str | None:
     if kind is None:
         return None
     words = " ".join(_tokens(name))
-    if _PASSIVE.search(words) or _NOT_INVESTOR.search(words):
+    if _PASSIVE.search(words) or _NOT_INVESTOR.search(words) or set(words.split()) <= _CATEGORY_WORDS:
         return None
     return kind
 
@@ -138,17 +147,20 @@ def _quarter_index(q: str) -> int:
 
 def entry_events(holders: pd.DataFrame) -> pd.DataFrame:
     """One row per investor entry: symbol, quarter_end, entry_date (broadcast date), investor, kind,
-    name, pct. Needs the filing immediately before (no gap) and no match in the previous
+    name, pct, shares (pct and shares give the company's total shares -> point-in-time market cap). Needs the filing immediately before (no gap) and no match in the previous
     LOOKBACK_QUARTERS filed quarters under any axis or name variant."""
-    cols = ["symbol", "quarter_end", "entry_date", "investor", "kind", "name", "pct"]
+    cols = ["symbol", "quarter_end", "entry_date", "investor", "kind", "name", "pct", "shares"]
     if holders.empty:
         return pd.DataFrame(columns=cols)
     out = []
     for sym, g in holders.groupby("symbol"):
         filings = g[g["axis"] == FILING].drop_duplicates("quarter_end").sort_values("quarter_end")
         seen: dict[int, list[frozenset]] = {}
+        seen_keys: dict[int, set] = {}  # investor keys (a fund house holding through another scheme)
         for q, rows in g[g["axis"] != FILING].groupby("quarter_end"):
             seen[_quarter_index(q)] = [_loose(n) for n in rows["name"]]
+            kinds = [(holder_kind(a, n), n) for a, n in zip(rows["axis"], rows["name"])]
+            seen_keys[_quarter_index(q)] = {investor_key(k, n) for k, n in kinds if k}
         filed = {_quarter_index(q) for q in filings["quarter_end"]}
         for _, f in filings.iterrows():
             qi = _quarter_index(f["quarter_end"])
@@ -158,17 +170,18 @@ def entry_events(holders: pd.DataFrame) -> pd.DataFrame:
             if (broadcast - pd.Timestamp(f["quarter_end"])).days > MAX_FILING_LAG_DAYS:
                 continue
             prior = [n for k in range(qi - LOOKBACK_QUARTERS, qi) if k in filed for n in seen.get(k, [])]
+            prior_keys = set().union(*(seen_keys.get(k, set()) for k in range(qi - LOOKBACK_QUARTERS, qi)))
             now = g[(g["quarter_end"] == f["quarter_end"]) & (g["axis"] != FILING)]
             for _, h in now.iterrows():
                 kind = holder_kind(h["axis"], h["name"])
                 if kind is None:
                     continue
-                me = _loose(h["name"])
-                if any(_same_holder(me, p) for p in prior):
+                me, key = _loose(h["name"]), investor_key(kind, h["name"])
+                if key in prior_keys or any(_same_holder(me, p) for p in prior):
                     continue
                 out.append({"symbol": sym, "quarter_end": f["quarter_end"], "entry_date": broadcast,
-                            "investor": investor_key(kind, h["name"]), "kind": kind, "name": h["name"],
-                            "pct": h["pct"]})
+                            "investor": key, "kind": kind, "name": h["name"],
+                            "pct": h["pct"], "shares": h["shares"]})
     df = pd.DataFrame(out, columns=cols)
     # one investor may appear under two axes in the same filing (director + >2 lakh individual)
     return df.drop_duplicates(["symbol", "quarter_end", "investor"]).reset_index(drop=True)
@@ -189,6 +202,27 @@ def split_by_rank(ranks: pd.DataFrame, frac: float = 0.2) -> tuple[set, set]:
     k = max(1, int(len(ranks) * frac))
     order = ranks.sort_values("score", ascending=False).index
     return set(order[:k]), set(order[-k:])
+
+
+def walk_forward(events: pd.DataFrame, col: str, exit_col: str, periods: list[tuple[str, str]],
+                 min_n: int = 3, frac: float = 0.2) -> pd.DataFrame:
+    """Out-of-sample labels. For each test period [start, end): rank investors on the events whose
+    `col` outcome was realised (exit date) before `start`, then label the period's entries by their
+    investor's rank: top / bottom (`frac` each), mid, or unranked (too few scored events). Returns
+    the test events with fold (start), group and train_score."""
+    out = []
+    for start, end in periods:
+        s, e = pd.Timestamp(start), pd.Timestamp(end)
+        train = events[events[exit_col].notna() & (pd.to_datetime(events[exit_col]) < s)]
+        ranks = rank_investors(train, col, min_n=min_n)
+        top, bottom = split_by_rank(ranks, frac) if len(ranks) else (set(), set())
+        test = events[(events["entry_date"] >= s) & (events["entry_date"] < e)].copy()
+        test["fold"] = start
+        test["group"] = ["top" if i in top else "bottom" if i in bottom else "mid" if i in ranks.index
+                         else "unranked" for i in test["investor"]]
+        test["train_score"] = test["investor"].map(ranks["score"])
+        out.append(test)
+    return pd.concat(out, ignore_index=True) if out else events.iloc[0:0]
 
 
 def persistence(a: pd.Series, b: pd.Series) -> tuple[float | None, int]:
