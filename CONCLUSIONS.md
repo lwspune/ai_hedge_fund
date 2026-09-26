@@ -427,6 +427,52 @@ agency's current rating and history. (`scanner/ratings.py`, `scanner/ratingevent
 `scripts/validate_rating_change.py`.) *Evidence:* `rating_change/2026-09-26T061849Z` (all events) and
 `rating_change/2026-09-26T072017Z` (`--exclude-results-window 2`).
 
+### 18. IPOs and the grey-market premium (#11) — THIN (a small positive lottery, decayed)
+Hypothesis: the retail quota (35% of a mainboard issue, lottery-allotted one minimum lot per winner
+when oversubscribed; institutions can't bid into it) is a structural barrier like the buyback's, so
+one application is worth P(allotment) × listing gain. Scope: every NSE company IPO listed Feb-2020 →
+Sep-2026 (1,002; 385 BSE-only issues have no free listing price, 13 REITs/InvITs excluded). Listing
+gain = sell at the listing-day open (bhavcopy), after 0.2% costs. Odds: exact where chittorgarh
+publishes the basis of allotment (2026); else 1.10 ÷ consolidated retail times (lots per applicant,
+calibrated on 32 issues, 1.01-1.54), with older consolidated figures rebuilt from NSE's own retail bid
+data ÷ 0.647 (NSE's share of retail bids, 0.51-0.72 over 32 issues) — chittorgarh keeps them behind
+its paywall and that was left alone. SME: no free retail figure before 2026 and overall times is no
+proxy (retail/overall 0.2-10×), so SME odds only for 7 recent issues.
+
+| Mainboard, one application | n | Gain if allotted (median / mean) | Below issue | P(allot) median | EV per application |
+|---|---|---|---|---|---|
+| all 2020-26 | 416 | +9.8% / +20.2% | 28% | 14.8% | **+1.6% (≈ ₹237)** |
+| 2020-22 / 2023-24 / 2025-26 | 102 / 142 / 172 | — | — | — | +1.9% / +3.1% / **+0.3%** (≈ ₹276 / ₹457 / **₹34**) |
+| retail ≤ 2× | 109 | −0.2% | 55% | 100% | −0.1% |
+| retail 2-10× | 130 | +9.3% | 27% | 24% | **+3.5%** (+4.0 / +5.0 / +1.6% by era) |
+| retail 10-50× | 132 | +19.3% | 14% | 5.4% | +1.5% |
+| retail > 50× | 44 | +38.8% | 5% | 1.7% | +0.9% |
+
+- **The quota is real but the prize is small and shrinking.** The median application is ₹14,841;
+  ~₹237 of expected profit per application pooled, ~₹34 in 2025-26 as listing gains fell (median
+  +5% in 2025, 32-35% of issues below issue). The better the listing, the worse the odds — hot
+  issues pay +39% at ~2%. Only multiple PANs scale it (one application each).
+- **Skip undersubscribed issues:** ≤ 2× retail lists below issue 55% of the time — the one cell a
+  rule can act on (the live subscription is public on the last bidding day). 2-10× is the best cell
+  in every era (post-hoc cut: a hypothesis, not a finding).
+- **GMP:** the last pre-listing GMP predicts the listing open (Spearman +0.87 mainboard n=407, +0.82
+  SME n=441; median error −1 / −2 pts, |error| 6 / 13 pts; GMP ≤ 0 → 61% of mainboard issues below
+  issue, GMP > 30% → none). But GMP *at application time* is untestable: before 2026 investorgain
+  keeps only the last ~3 quotes, all after the issue closes (n=25 with a pre-close quote: ρ +0.79,
+  GMP ≥ 20% → 0 of 11 below issue). Daily capture now runs → backlog #25.
+- **Don't buy after listing.** Mainboard from the listing close: +5/+20/+60/+250 sessions ≈ 0 mean
+  (t ≤ 1.3), medians −1.6% / −1.1% / −2.8% / **−10.5%**; the biggest pops do worst (> 50% pop: +60d
+  median −8.9%). SME: mean +10% at +60 and +33% at +250 (t_cl 3) but median −8.5% / −14% and 41-45%
+  up — a few multibaggers, concentrated in 2020-22 (+60d mean +41% vs +5% in 2023-26), in lots of
+  ₹1-2 lakh, trade-for-trade: a lottery, not a portfolio anyone can hold.
+- SME if allotted: median +14.6% at the open (mean +38%), 23% below issue; +40% median in 2024, +6% /
+  +3% in 2025-26 with 37-38% below issue.
+
+Thesis check: a barrier (the retail quota) does let retail in and keep institutions out — and the
+prize has been competed down anyway: more retail money chases each issue (odds fall as pops rise),
+and issuers price closer to the market. Positive, but thin. (`scanner/gmp.py`, `scanner/ipobids.py`,
+`scanner/ipostudy.py`, `scripts/validate_ipo.py`.) *Evidence:* `ipo_listing/2026-09-26T101256Z`.
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -436,9 +482,9 @@ agency's current rating and history. (`scanner/ratings.py`, `scanner/ratingevent
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
 ## The tally (2026-09-26)
-Seventeen signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
+Eighteen signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
 2026-09-24 cum-date correction, `rights_re` conditional watch), 2 real-but-unshortable lenses
-(`lockin_expiry`, `demerger_listing`), 2 thin (`merger_arb`, `ofs_retail`), 11 null
+(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 11 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
 order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change).
 

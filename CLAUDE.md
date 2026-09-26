@@ -13,7 +13,7 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Seventeen signals validated this way; two actionable edges
+falsified signal is never read as edge. Eighteen signals validated this way; two actionable edges
 (buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
@@ -36,6 +36,7 @@ of untested ideas, ordered by the thesis.
 | `ofs_retail` | structural | **thin** | watch (OFS 10% retail quota: ~+2% by T+1 at the floor, n=26, one era; cut-off unrecorded) |
 | `demerger_listing` | structural | **conditional** | lens (newly listed child −5.9% median in its first 5 sessions, n=64; holder dumping not index flow; unshortable; no recovery trade — don't buy a child in week 1) |
 | `rating_change` | drift | **null** | lens (downgrades −0.3% on the filing, n=456, no drift; the fall came before — agencies follow the price; upgrade bump ≈ one round-trip cost) |
+| `ipo_listing` | structural | **thin** | watch (retail-quota lottery: +1.6% per application pooled, ≈ ₹34 in 2025-26; skip ≤ 2× retail; pre-listing GMP predicts the open; don't buy after listing) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
 (the buyback 15% small-shareholder reservation institutions are legally barred from). A
@@ -152,6 +153,16 @@ drift-signal chasing.
     rows are newspaper scans → `python -m scanner.track result --buyback-id … --ss-reserved … --ss-tendered …`).
     `scripts/refresh_buyback_results.py [--all] [--retry-manual]` (daily, after the scan);
     `python -m scanner.calibrate` compares realized acceptance with `_MCAP_ACCEPTANCE_PRIOR`.
+  - **IPO study (2026-09-26, #11)** — `ipos` gains subscription by category (`sub_retail/qib/nii/total`,
+    `retail_shares_offered`, `lot_size`, `applications`; chittorgarh publishes the category split only for recent
+    issues — older ones are behind its paywall, left alone) + `sub_retail_nse` (`scanner/ipobids.py`, NSE
+    `api/ipo-bid-details`: NSE-platform bids only, ≈ 0.647 of the consolidated retail figure; mainboard only).
+    `ipo_gmp` (`scanner/gmp.py`, investorgain `chr-gmp/x/<chittorgarh id>/` → its own page's `gmpData`: one GMP per
+    day, kept to the issue's window; **before 2026 only the last ~3 post-close quotes exist**, so daily capture
+    `scripts/refresh_gmp.py` is the only source of application-time GMP). `pricestore.first_bar` gives a session's
+    OPEN from the bhavcopy months (the table keeps closes). Odds per application: `scanner/ipostudy.allot_prob`.
+    Study `scripts/validate_ipo.py`; live lens `python -m scanner.run ipo_listing`. NSE listings only (BSE is
+    unreachable from runners); REITs / InvITs excluded.
   - **OFS events (#23)** — `scanner/ofs.py` → `ofs_events` (chittorgarh `/ofs/x/<id>/`, 2025→: floor,
     both days, share split, seller; cut-off is never populated there). `scripts/refresh_ofs.py`
     (daily id probe) · `scripts/validate_ofs_retail.py` · live `python -m scanner.run ofs_retail`.
@@ -222,14 +233,14 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (565 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (609 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
 `scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
 **Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):
 `refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, IPOs +
-120-day re-check, rights, board meetings/results, band changes, ASM/GSM snapshot, PIT insider
+120-day re-check + GMP, rights, board meetings/results, band changes, ASM/GSM snapshot, PIT insider
 filings, preferential issues, filings + KPIs + credit ratings, 10-day deals refill, buyback + rights scans, Telegram alerts) and
 `refresh-weekly` (Sun 10:00 IST: trading calendar, price prune, company master + index membership,
 fundamentals + snapshot history, shareholding/pledge (2 new quarters per symbol), filings archive;
@@ -241,14 +252,14 @@ the run on any **age** rule (calendar or trading days), **row-volume floor**, **
 pages and parsed 0 tenders — the 2026 format change), or **DB size** (warn 300 MB, fail 400 MB via
 RPC `db_size_bytes`). A test forces every dated table in `db/schema.sql` to carry a rule.
 **CI** (`ci.yml`): pytest + dashboard lint/build on every push.
-On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|orphans|shareholding|insider|pref-issues|credit-ratings`,
+On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|orphans|shareholding|insider|pref-issues|credit-ratings|ipos|ipo-gmp|ipo-bids`,
 `from`/`to`) · `validate.yml` (`script=validate_*.py`, `args`; publishes evidence) ·
 `probe-sources.yml`. Manual: `gh workflow run refresh-daily.yml`.
 Individual loaders: `scripts/refresh_companies.py` · `scripts/refresh_events.py
 actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_prices.py [--date D |
 --from A --to B | --prune]` · `scripts/refresh_fundamentals.py [--symbols A,B] [--stale-days 7]` ·
 `scripts/refill_deals.py --from` · `scripts/archive_filings.py` · `scripts/backfill_orphans.py` ·
-`scripts/extract_ratings.py [--limit N] [--since D]` · `scripts/refresh_filings.py --ratings-only --from --to` ·
+`scripts/extract_ratings.py [--limit N] [--since D]` · `scripts/refresh_gmp.py [--since D]` · `scripts/refresh_ipo_bids.py` · `scripts/refresh_filings.py --ratings-only --from --to` ·
 `scripts/refresh_shareholding.py [--symbols] [--per-symbol N] [--xbrl-limit N]` · `scripts/refresh_insider.py
 [--from --to | --all]` · `scripts/refresh_surveillance.py` · `scripts/refresh_prefissues.py [--from --to]` ·
 `scripts/rebuild_snapshot_history.py` (no re-scrape) · `scripts/refresh_buyback_results.py [--all]
@@ -418,6 +429,13 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   +0.2–0.3% for reaffirmations and placebo, fading. Robust to a results-window exclusion. *Reason:* a
   public, lagging opinion — the agency reacts to what the price already showed. Ratings stay as data
   on the company page, not an alert or exit rule.
+- **2026-09-26** — `ipo_listing` validated **thin / watch** (CONCLUSIONS §18): the retail quota is a real
+  barrier, capturable as a lottery — one mainboard application = P(allot) × listing gain = +1.6% (≈ ₹237)
+  pooled but ≈ ₹34 in 2025-26 (n=416); ≤ 2× retail loses; buying after listing is null (median −10% at 1y);
+  pre-listing GMP predicts the open (ρ 0.87). *Reason:* a barrier that lets retail in still gets competed
+  down — more retail money per issue (odds fall as pops rise). GMP at application time is backlog #25
+  (daily capture from 2026-09-26). Allotment odds for old issues come from NSE's retail bids ÷ 0.647, not
+  from chittorgarh's paywalled figures.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
