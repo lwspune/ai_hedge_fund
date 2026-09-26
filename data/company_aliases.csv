@@ -1,0 +1,27 @@
+alias,symbol,relation
+Garden Reach Shipbuilders Limited,GRSE,name_variant
+PowerGrid Corporation of India Limited,POWERGRID,name_variant
+PGCIL,POWERGRID,short_form
+ONGC Limited,ONGC,short_form
+BHEL,BHEL,short_form
+BPCL,BPCL,short_form
+HPCL,HINDPETRO,short_form
+IOCL,IOC,short_form
+IndianOil Corporation Limited,IOC,name_variant
+L&T,LT,short_form
+SAIL,SAIL,short_form
+Tata Power Renewable Energy Limited,TATAPOWER,subsidiary
+Tata Power Delhi Distribution Limited,TATAPOWER,subsidiary
+Adani Electricity Mumbai Limited,ADANIENSOL,subsidiary
+Jio Credit Limited,JIOFIN,subsidiary
+Reliance Jio Infocomm Limited,RELIANCE,subsidiary
+Reliance Retail Limited,RELIANCE,subsidiary
+NTPC Vidyut Vyapar Nigam Limited,NTPC,subsidiary
+NTPC Mining Limited,NTPC,subsidiary
+NTPC Renewable Energy Limited,NTPCGREEN,subsidiary
+Mahanadi Coalfields Limited,COALINDIA,subsidiary
+Northern Coalfields Limited,COALINDIA,subsidiary
+South Eastern Coalfields Limited,COALINDIA,subsidiary
+Central Coalfields Limited,COALINDIA,subsidiary
+Western Coalfields Limited,COALINDIA,subsidiary
+Eastern Coalfields Limited,COALINDIA,subsidiary
