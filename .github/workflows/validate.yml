@@ -27,6 +27,7 @@ on:
           - validate_ipo.py
           - validate_ipo_unlock.py
           - validate_consolidation.py
+          - validate_customer_momentum.py
       args:
         description: "extra args, e.g. --exclude-results-window 2"
         required: false
