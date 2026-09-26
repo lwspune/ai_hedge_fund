@@ -64,3 +64,22 @@ def test_current_state_for_the_scanner():
     assert 0.0 <= s["position"] <= 1.0
     assert current_state(_frame([100.0 * (1 + 0.2 * np.sin(i)) for i in range(N)]), "ABC")["in_range"] is False
     assert current_state(_frame([100.0] * 10), "ABC") is None                       # too short
+
+
+def test_scan_now_lists_ranges_and_todays_breakouts():
+    from scanner.consolidation import consolidation_candidates, scan_now
+    panel = {"RANGE": _frame(_base(60)), "BREAK": _frame(_base(60) + [110.0]),
+             "WILD": _frame([100.0 * (1 + 0.2 * np.sin(i)) for i in range(60)]),
+             "SHORT": _frame([100.0] * 10), "THIN": _frame(_base(60), turnover=20.0)}
+    rows = scan_now(panel)
+    kinds = {(r["symbol"], r["status"]) for r in rows}
+    assert kinds == {("RANGE", "in range"), ("BREAK", "breakout up")}
+    c = {x["symbol"]: x for x in consolidation_candidates(rows)}
+    assert c["BREAK"]["payload"]["status"] == "breakout up" and 0 < c["RANGE"]["score"] <= 0.10
+
+
+def test_scan_now_keeps_to_the_company_universe():
+    from scanner.consolidation import scan_now
+    # a liquid-fund ETF sits in a sub-1% range forever: not a company, not a consolidation
+    panel = {"LIQUIDBEES": _frame([1000.0 + 0.01 * i for i in range(60)], spread=0.001), "RANGE": _frame(_base(60))}
+    assert {r["symbol"] for r in scan_now(panel, universe={"RANGE"})} == {"RANGE"}

@@ -83,3 +83,55 @@ def current_state(df: pd.DataFrame, symbol: str, n: int = WINDOW) -> dict | None
             "position": float((last["close"] - w["lo"]) / span) if span > 0 else 0.5,
             "vol_trend": float(recent / w["vol_mean"]) if w["vol_mean"] else None,
             "close": float(last["close"]), "hi": float(w["hi"]), "lo": float(w["lo"])}
+
+
+def scan_now(panel: dict[str, pd.DataFrame], n: int = WINDOW, universe: set | None = None) -> list[dict]:
+    """The live scan over a recent bar panel: stocks in a tight range on the last session, and
+    tight-range breakouts that happened on it. Every stock is judged on its own last session.
+    `universe`: company symbols only — ETFs (liquid funds sit in a sub-1% range forever) are out."""
+    out = []
+    for sym, df in panel.items():
+        if (universe is not None and sym not in universe) or len(df) <= n:
+            continue
+        last = df.index.max()
+        brk = [e for e in breakout_events(df, sym, n) if e["tight"] and e["date"] == last]
+        if brk:
+            e = brk[0]
+            out.append({"symbol": sym, "date": last, "status": f"breakout {e['direction']}",
+                        "range_pct": e["range_pct"], "days_in_range": e["days_in_range"], "position": None,
+                        "vol_trend": e["vol_ratio"], "close": e["close"]})
+            continue
+        s = current_state(df, sym, n)
+        if s and s["in_range"]:
+            out.append({**{k: s[k] for k in ("symbol", "date", "range_pct", "days_in_range", "position",
+                                            "vol_trend", "close")}, "status": "in range"})
+    return sorted(out, key=lambda r: (r["status"] == "in range", r["range_pct"]))
+
+
+def consolidation_candidates(rows: list[dict]) -> list[dict]:
+    """scan_now rows -> `candidates` rows (score = range %, tighter first) for the dashboard."""
+    keys = ("status", "range_pct", "days_in_range", "position", "vol_trend", "close")
+    return [{"symbol": r["symbol"], "score": r["range_pct"],
+             "payload": {**{k: r.get(k) for k in keys}, "date": str(pd.Timestamp(r["date"]).date())}} for r in rows]
+
+
+def format_scan(rows: list[dict]) -> str:
+    if not rows:
+        return "No liquid stock is in a tight 40-session range."
+    lines = [f"{'symbol':<12} {'status':<14} {'range':>6} {'days':>5} {'position':>9} {'vol trend':>9} {'close':>10}"]
+    for r in rows:
+        pos = "" if r["position"] is None else f"{r['position'] * 100:7.0f}%"
+        vt = "" if r["vol_trend"] is None else f"{r['vol_trend']:8.2f}x"
+        lines.append(f"{r['symbol']:<12} {r['status']:<14} {r['range_pct'] * 100:5.1f}% {r['days_in_range']:>5} "
+                     f"{pos:>9} {vt:>9} {r['close']:>10.2f}")
+    return "\n".join(lines)
+
+
+def live_scan(days: int = 120) -> list[dict]:
+    """Today's scan from the raw bhavcopy months (the store's table keeps closes, not highs / lows)."""
+    from datetime import date, timedelta
+    from scanner import db
+    from scanner.pricestore import bar_panel
+    today = date.today()
+    companies = {c["symbol"] for c in db.select_all("companies", {"select": "symbol", "status": "eq.listed"})}
+    return scan_now(bar_panel(today - timedelta(days=days), today), universe=companies)

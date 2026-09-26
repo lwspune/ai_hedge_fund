@@ -2,7 +2,8 @@
 
 Consolidation (scanner/consolidation.py): a 40-session range <= 10% of price on a stock with median
 turnover >= Rs 1 crore/day; breakout = the first close outside the range as it stood the day before.
-Every NSE stock, Jan-2020 -> (raw bhavcopy OHLC, one read per month: pricestore.bar_panel).
+Every NSE company (the company master, listed + delisted — ETFs and funds excluded), Jan-2020 ->
+(raw bhavcopy OHLC, one read per month: pricestore.bar_panel).
 Fixed in advance:
   entry     the close the session AFTER the breakout (the evening scan's earliest action)
   measured  +5 / +20 / +60 sessions abnormal vs NIFTY 500; up and down breakouts separately;
@@ -126,7 +127,12 @@ def _study(args) -> dict:
                                                  "event_type": f"in.({','.join(sorted(BLOCKING))})",
                                                  "event_date": "gte.2019-09-01"}):
         acts.setdefault(a["symbol"], []).append(a)
-    sme = {c["symbol"] for c in db.select_all("companies", {"select": "symbol,series"}) if c.get("series") in SME_SERIES}
+    companies = db.select_all("companies", {"select": "symbol,series"})   # listed + delisted, no ETFs
+    sme = {c["symbol"] for c in companies if c.get("series") in SME_SERIES}
+    universe = {c["symbol"] for c in companies}
+    dropped = len(panel)
+    panel = {s: d for s, d in panel.items() if s in universe}
+    print(f"company universe: {len(panel)} symbols ({dropped - len(panel)} ETFs / funds / other series dropped)", flush=True)
     df = build(panel, bench, acts, sme, 40)
     df20 = build(panel, bench, acts, sme, 20)
     OUT.parent.mkdir(exist_ok=True)
