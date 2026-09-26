@@ -14,6 +14,7 @@ Verified 2026-09-24 against IndusInd Bank (pledge 42.78% of promoter holding, 6.
 """
 from __future__ import annotations
 
+import html
 import re
 from datetime import datetime
 
@@ -127,6 +128,49 @@ def parse_shp_xbrl(xml: str) -> dict:
             out["pledge_pct_of_promoter"] = 0.0
             if out["pledge_pct_of_total"] is None:
                 out["pledge_pct_of_total"] = 0.0
+    return out
+
+
+_TYPED = re.compile(r'<xbrldi:typedMember dimension="in-bse-shp:(\w+)"><[^>]+>([^<]+)<')
+_AXIS_PREFIX = re.compile(r"^Details(?:Of)?SharesHeldBy|^DetailsOfThe|Axis$")
+
+
+def _facts_by_context(xml: str, tag: str) -> dict[str, str]:
+    return {cid: v.strip() for cid, v in
+            re.findall(rf'<in-bse-shp:{tag}\s[^>]*contextRef="([^"]+)"[^>]*>([^<]*)<', xml)}
+
+
+def parse_shp_holders(xml: str) -> list[dict]:
+    """Every named holder in an SHP XBRL: {axis, name, shares, pct, n_holders}. The name sits in
+    a duration context and the numbers in the instant context sharing its typed member (context
+    ids differ by taxonomy), so rows are keyed by (axis, typed member). pct = shares / total
+    shares x 100 — unit-free, since the 2025-10 taxonomy reports fractions and older ones percent.
+    Sub-category totals (> 1 holder, e.g. 'Bodies Corporate'), unnamed and zero-share rows are
+    dropped. Which axes are promoters vs public investors is the caller's call."""
+    total_ctx = _member_contexts(xml).get("ShareholdingPatternMember", [])
+    total = _num(_fact(xml, "NumberOfShares", total_ctx))
+    if not total:
+        return []
+    names, shares = _facts_by_context(xml, "NameOfTheShareholder"), _facts_by_context(xml, "NumberOfShares")
+    counts = _facts_by_context(xml, "NumberOfShareholders")
+    groups: dict[tuple, dict] = {}
+    for cid, body in re.findall(r'<xbrli:context id="([^"]+)">(.*?)</xbrli:context>', xml, re.S):
+        m = _TYPED.search(body)
+        if not m:
+            continue
+        g = groups.setdefault((m.group(1), m.group(2)), {})
+        for key, src in (("name", names), ("shares", shares), ("n", counts)):
+            if cid in src and src[cid]:
+                g[key] = src[cid]
+    out = []
+    for (axis, _member), g in groups.items():
+        name = " ".join(html.unescape(g.get("name", "")).split())
+        n, n_holders = _num(g.get("shares")), _num(g.get("n"))
+        if not name or not n or n <= 0 or (n_holders is not None and n_holders > 1):
+            continue
+        out.append({"axis": _AXIS_PREFIX.sub("", axis), "name": name, "shares": int(n),
+                    "pct": round(n / total * 100, 4),
+                    "n_holders": int(n_holders) if n_holders is not None else None})
     return out
 
 

@@ -1,7 +1,7 @@
 """Scheduled infra refresh — run by GitHub Actions (.github/workflows/refresh-*.yml).
 
     python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, surveillance, insider, pref issues, filings + KPIs + ratings, deals refill, buybacks
-    python scripts/scheduled_refresh.py weekly   # Sunday: trading calendar, company master, fundamentals, shareholding
+    python scripts/scheduled_refresh.py weekly   # Sunday: trading calendar, company master, fundamentals, shareholding, holders
 
 Runs each step as a subprocess so one failure doesn't stop the rest, streams output to the
 console (the Actions log; add --log to also append to logs/refresh-<mode>-<date>.log) and exits
@@ -37,6 +37,7 @@ def steps(mode: str, today: date) -> list[list[str]]:
     if mode == "weekly":  # fundamentals rows carry `history`, so no separate rebuild step
         return [["refresh_events.py", "holidays"], ["refresh_prices.py", "--prune"],
                 ["refresh_companies.py"], ["refresh_fundamentals.py"], ["refresh_shareholding.py"],
+                ["refresh_holders.py", "--max-minutes", "60"],  # new quarters' named holders (bucket)
                 ["archive_filings.py"],
                 ["check_freshness.py"]]
     raise ValueError(f"unknown mode {mode!r}")

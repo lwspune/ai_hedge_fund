@@ -848,3 +848,9 @@ create table if not exists ipo_gmp (
 );
 alter table ipo_gmp enable row level security;
 create policy "anon read ipo_gmp" on ipo_gmp for select to anon using (true);
+
+-- investor_skill (2026-09-26): every named SHP holder per filing (>= 1% public + promoter group), one
+-- parquet per symbol (<SYM>.parquet), written by scripts/refresh_holders.py. No policies.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('holders', 'holders', false, 5242880)
+on conflict (id) do nothing;

@@ -45,6 +45,7 @@ def test_weekly_steps_refresh_master_before_fundamentals():
     assert ["refresh_prices.py", "--prune"] in s           # daily_prices retention (WP3)
     assert ["archive_filings.py"] in s                     # filings retention (WP8)
     assert s.index(["refresh_companies.py"]) < s.index(["refresh_shareholding.py"])   # needs the listed set
+    assert s.index(["refresh_companies.py"]) < s.index(["refresh_holders.py", "--max-minutes", "60"])  # named SHP holders
     assert s[-1] == ["check_freshness.py"]
 
 
