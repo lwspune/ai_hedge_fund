@@ -209,3 +209,17 @@ def test_get_closes_requires_explicit_source():
     """Adjusted Yahoo closes silently used for a nominal-price premium was a real bug class."""
     with pytest.raises(TypeError):
         ps.get_closes("X", "2024-01-01", "2024-02-01")
+
+
+def test_first_bar_gives_the_listing_session_open_and_close(monkeypatch):
+    months = {"2026-09": pd.DataFrame([
+        {"SYMBOL": "NEWCO", "SERIES": "BE", "DATE1": pd.Timestamp("2026-09-29"), "OPEN_PRICE": 99.0, "CLOSE_PRICE": 98.0},
+        {"SYMBOL": "NEWCO", "SERIES": "EQ", "DATE1": pd.Timestamp("2026-09-29"), "OPEN_PRICE": 120.0, "CLOSE_PRICE": 131.5},
+        {"SYMBOL": "OTHER", "SERIES": "EQ", "DATE1": pd.Timestamp("2026-09-28"), "OPEN_PRICE": 10.0, "CLOSE_PRICE": 11.0}]),
+        "2026-10": pd.DataFrame([
+        {"SYMBOL": "LATE", "SERIES": "SM", "DATE1": pd.Timestamp("2026-10-01"), "OPEN_PRICE": 55.0, "CLOSE_PRICE": 52.0}])}
+    monkeypatch.setattr(ps, "_bhav_month", lambda ym: months.get(ym))
+    assert ps.first_bar("NEWCO", "2026-09-26") == {"date": pd.Timestamp("2026-09-29"), "open": 120.0, "close": 131.5}
+    assert ps.first_bar("LATE", "2026-09-30") == {"date": pd.Timestamp("2026-10-01"), "open": 55.0, "close": 52.0}
+    assert ps.first_bar("NEWCO", "2026-09-30") is None          # nothing on/after within the window
+    assert ps.first_bar("GHOST", "2026-09-26") is None

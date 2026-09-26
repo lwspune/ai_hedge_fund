@@ -178,6 +178,24 @@ def _bhav_month(ym: str) -> pd.DataFrame | None:
     return df
 
 
+def first_bar(symbol: str, day, max_days: int = 10) -> dict | None:
+    """The first session on/after `day` (within `max_days`) from the raw bhavcopy months, with its
+    OPEN — the table keeps closes only. For listing-day studies: {"date", "open", "close"} or None."""
+    lo = pd.Timestamp(day).normalize()
+    hi = lo + pd.Timedelta(days=max_days)
+    rank = {s: i for i, s in enumerate(NSE_SERIES)}
+    for m in pd.period_range(lo, hi, freq="M"):
+        raw = _bhav_month(str(m))
+        if raw is None or raw.empty:
+            continue
+        f = raw[(raw["SYMBOL"] == symbol) & raw["SERIES"].isin(NSE_SERIES)
+                & (raw["DATE1"] >= lo) & (raw["DATE1"] <= hi)]
+        if len(f):
+            r = f.assign(_r=f["SERIES"].map(rank)).sort_values(["DATE1", "_r"]).iloc[0]
+            return {"date": r["DATE1"], "open": float(r["OPEN_PRICE"]), "close": float(r["CLOSE_PRICE"])}
+    return None
+
+
 def _month_bars(symbol: str, lo: pd.Timestamp, hi: pd.Timestamp) -> pd.DataFrame:
     frames = []
     for m in pd.period_range(lo, hi, freq="M"):
