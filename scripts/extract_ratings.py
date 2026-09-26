@@ -27,10 +27,11 @@ MAX_PAGES = 12   # covering letter + the agency letter; rationale annexures add 
 
 
 def pending(limit: int, since: str) -> list[dict]:
-    return db.select("filings", {
+    """Paged: PostgREST caps one response at 1000 rows, whatever `limit` asks for."""
+    return db.select_all("filings", {
         "select": "seq_id,symbol,category,disclosed_at,attachment_url",
         "category": "like.Credit Rating*", "extracted_at": "is.null", "disclosed_at": f"gte.{since}",
-        "order": "disclosed_at.desc", "limit": str(limit)})
+        "order": "disclosed_at.desc,seq_id.desc"})[:limit]
 
 
 def main():
