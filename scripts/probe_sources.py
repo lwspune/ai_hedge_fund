@@ -21,6 +21,20 @@ def probe(name, fn):
         traceback.print_exc(limit=1, file=sys.stdout)
 
 
+def _investorgain_gmp() -> str:
+    """chittorgarh id -> investorgain GMP page (redirect), which must carry the gmpData payload."""
+    import requests
+    ua = {"User-Agent": "Mozilla/5.0"}
+    r = requests.get("https://www.investorgain.com/chr-gmp/x/2020/", headers=ua, timeout=20, allow_redirects=False)
+    loc = r.headers.get("location")
+    if not loc:
+        raise RuntimeError(f"no redirect ({r.status_code})")
+    page = requests.get(loc, headers=ua, timeout=20)
+    if page.status_code != 200 or "gmpData" not in page.text:
+        raise RuntimeError(f"{page.status_code}, gmpData {'present' if 'gmpData' in page.text else 'absent'}")
+    return f"{loc.rstrip('/').split('/')[-1]} ok, {len(page.text)} bytes"
+
+
 def main():
     from scanner import master, events, deals, fundamentals
     from scanner.pricestore import _fetch_nse, _fetch_yf
@@ -39,6 +53,7 @@ def main():
     probe("NSE corporate announcements", lambda: len(__import__("scanner.filings", fromlist=["x"]).fetch_announcements(
         date.today() - timedelta(days=2), date.today())))
     probe("chittorgarh rights page", lambda: events.fetch_rights(454)[1]["symbol"])
+    probe("investorgain IPO GMP page", _investorgain_gmp)
     probe("screener.in TCS", lambda: fundamentals.fetch_company_page("TCS")[0]["ratios"].get("market_cap_cr"))
     # DATA_INFRA_SPEC WP6 (calendar) + WP3 (bhavcopy)
     probe("NSE holiday master JSON", lambda: len(events.holiday_descriptions(events.fetch_holidays())))
