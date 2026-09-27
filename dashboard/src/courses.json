@@ -417,13 +417,284 @@
         "learnings": ["barrier-thesis", "known-flow-not-enough", "unshortable-lens", "four-signal-types"],
         "signals": ["buyback_arb", "rights_re", "lockin_expiry"]
       },
-      { "id": "factors-india", "level": "advanced", "status": "planned", "title": "Factors in India: momentum, quality, low-vol and the ETFs that sell them" },
-      { "id": "derivatives", "level": "advanced", "status": "planned", "title": "Derivatives without the hype: SEBI's F&O rules and why most retail traders lose" },
-      { "id": "sizing", "level": "advanced", "status": "planned", "title": "Position sizing and capacity: Kelly for a ₹2 lakh slab" },
-      { "id": "execution", "level": "advanced", "status": "planned", "title": "Execution: SEBI's retail algo framework, broker APIs and slippage" },
-      { "id": "research-process", "level": "expert", "status": "planned", "title": "The research process: pre-registration, evidence and a live track record" },
-      { "id": "live-book", "level": "expert", "status": "planned", "title": "Running a live book: tracking, reviewing and retiring edges" },
-      { "id": "capstone", "level": "expert", "status": "planned", "title": "Capstone: validate a new signal end to end" }
+      {
+        "id": "factors-india",
+        "level": "advanced",
+        "status": "ready",
+        "title": "Factors in India: momentum, quality, low-vol and the ETFs that sell them",
+        "minutes": 12,
+        "goals": [
+          "Know what a factor premium is and why it's tested differently from an event",
+          "Measure a factor index honestly: long-run Sharpe, drawdown, years of lagging",
+          "Decide between building a factor strategy and buying the ETF"
+        ],
+        "lesson": [
+          "A factor is a trait that has historically paid extra return over long periods. Momentum means recent winners keep winning for a while. Quality means profitable, low-debt companies. Low volatility means calmer stocks, which do about as well with smaller swings. Value means cheap on earnings or book. The explanation is a paid-for risk or a persistent behaviour, not a mispricing someone will arbitrage away tomorrow.",
+          "That changes the test. A factor can lag the market for three or four years and still be real, so an event study with a +20 day window will wrongly reject it. The right test is long-run: 10+ years of monthly returns, Sharpe, max drawdown, and how long the worst stretch of lagging lasted. Ask yourself: could I have held through it?",
+          "In India you don't need to build these. NSE Indices publishes strategy indices such as NIFTY200 Momentum 30, NIFTY200 Quality 30, NIFTY100 Low Volatility 30 and NIFTY Alpha 50, and several fund houses sell ETFs on them for about 0.3% a year. That ETF is your benchmark. A homemade factor strategy must beat it after your costs and taxes, which rebalancing twice a year makes hard.",
+          "Where you might add something is combining factors (momentum inside quality, for example) or avoiding known traps the index can't: this platform's lenses, like anchor unlocks and new demerger children. But treat any combination as a new idea with its own tries ledger."
+        ],
+        "india": [
+          { "text": "NSE factor ('strategy') indices, incl. NIFTY200 Momentum 30 and NIFTY200 Quality 30, with TRI history on niftyindices.com.", "asOf": "2026-09-27", "source": "NSE Indices — strategy indices", "url": "https://www.niftyindices.com/indices/equity/strategy-indices/nifty200-quality-30" },
+          { "text": "NIFTY200 Momentum 30 ETFs (e.g. HDFC, Motilal Oswal) charge about 0.30% a year.", "asOf": "2026-09-27", "source": "Value Research — fund pages", "url": "https://www.valueresearchonline.com/funds/42569/hdfc-nifty200-momentum-30-etf/" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Download the longest TRI history available for NIFTY200 Momentum 30, NIFTY100 Low Volatility 30 and NIFTY 500 from niftyindices.com (Historical Data, 'Total Returns Index').",
+            "Resample to monthly. For each: CAGR, volatility, Sharpe, max drawdown.",
+            "Compute rolling 3-year excess return vs NIFTY 500. Find each factor's longest stretch of lagging, in months.",
+            "Subtract 0.3% a year for the ETF and recompute."
+          ],
+          "code": [
+            "import pandas as pd, numpy as np",
+            "m = px.resample('ME').last().pct_change().dropna()   # px: TRI closes, one column per index",
+            "sharpe = (m.mean() * 12 - 0.06) / (m.std() * np.sqrt(12))",
+            "roll = (1 + m).rolling(36).apply(np.prod) - 1",
+            "excess = roll.sub(roll['NIFTY 500'], axis=0)"
+          ],
+          "deliverable": "A one-table factor scorecard (CAGR, Sharpe, max DD, longest lagging stretch) and a decision: which factor ETF, if any, you'd own, and why."
+        },
+        "check": [
+          { "q": "A momentum strategy lagged NIFTY 500 for the last 2 years. Is it broken?", "a": "Not necessarily. Factors can lag for years. Judge it on 10+ years and whether its worst lagging stretch is within its history, not on a +20 day event window." },
+          { "q": "Why is the factor ETF the benchmark for your homemade factor strategy?", "a": "You can own the same premium for ~0.3% a year with no work. Your version must beat that after your own costs and tax." }
+        ],
+        "deeper": [
+          { "title": "NSE Indices — strategy index methodology documents", "url": "https://www.niftyindices.com/" }
+        ],
+        "learnings": ["four-signal-types"],
+        "signals": []
+      },
+      {
+        "id": "derivatives",
+        "level": "advanced",
+        "status": "ready",
+        "title": "Derivatives without the hype: SEBI's F&O rules and why most retail traders lose",
+        "minutes": 12,
+        "goals": [
+          "Understand futures and options well enough to price the break-even",
+          "Know the current SEBI rules for index derivatives",
+          "Know where derivatives help you, and where they don't"
+        ],
+        "lesson": [
+          "A future is an agreement to buy or sell at a fixed price later, on margin. An option is the right, not the obligation, to buy (call) or sell (put) at a strike, for a premium paid up front. Buyers pay premium that decays every day (theta). Sellers collect it and carry the rare, large loss. Neither side is 'edge' by itself. The premium is a price for tail risk, competed over by professional desks with far better tools.",
+          "The evidence is blunt. SEBI's own studies found about 9 in 10 individual F&O traders lose money: 93% over FY22–FY24, and 91% in FY25, with net losses of about ₹1.06 lakh crore in FY25 alone after costs. The other side is mostly proprietary traders and foreign funds with speed and scale.",
+          "SEBI has tightened the rules since late 2024. Index contracts must be worth at least ₹15 lakh when introduced (the NIFTY lot is 65 from 31 Dec 2025). Each exchange keeps one weekly-expiry index. Premium is collected up front. And from 1 Apr 2026, STT on options rose to 0.15% of premium and on futures to 0.05%. Every one of these raises the hurdle for small traders.",
+          "Where derivatives are useful: hedging. If you ever hold a large equity portfolio, index puts or a short NIFTY future can cap a crash for a known cost. Where they aren't: this platform's edges. A lot is about 7× the ₹2 lakh buyback slab, new listings aren't in F&O, and a payoff shape isn't a barrier."
+        ],
+        "india": [
+          { "text": "SEBI study: 91% of individual equity F&O traders lost money in FY25; net losses about ₹1.06 lakh crore.", "asOf": "2026-09-27", "source": "SEBI study, Jul 2025 (reported by Business Standard)", "url": "https://www.business-standard.com/markets/news/net-losses-of-traders-in-fo-widens-in-fy25-sebi-study-125070701221_1.html" },
+          { "text": "Earlier SEBI study: 93% of individual traders lost money in equity F&O between FY22 and FY24, aggregate losses above ₹1.8 lakh crore.", "asOf": "2026-09-27", "source": "SEBI press release, Sep 2024", "url": "https://www.sebi.gov.in/media-and-notifications/press-releases/sep-2024/updated-sebi-study-reveals-93-of-individual-traders-incurred-losses-in-equity-fando-between-fy22-and-fy24-aggregate-losses-exceed-1-8-lakh-crores-over-three-years_86906.html" },
+          { "text": "Index derivative contract value ≥ ₹15 lakh at introduction; one weekly expiry index per exchange; NIFTY lot 65 from 31 Dec 2025.", "asOf": "2026-09-27", "source": "ICICI Direct — index derivative lot sizes", "url": "https://www.icicidirect.com/faqs/fno/what-are-the-new-lot-sizes-for-index-derivatives" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Pick next week's NIFTY at-the-money call. Note its premium, the lot size (65) and the NIFTY level.",
+            "Compute the break-even at expiry: strike + premium + all costs (brokerage ₹20 × 2, STT 0.15% of premium on sell, exchange fees, GST, stamp).",
+            "From the last 2 years of NIFTY closes, count how often the index moved more than that break-even in one week.",
+            "Paper-trade one written rule for 8 weekly expiries (no real money) and log every entry, exit and cost."
+          ],
+          "deliverable": "A break-even calculation, the historical hit rate for that move, and an 8-week paper log with your net result after costs."
+        },
+        "check": [
+          { "q": "Why doesn't 'selling options earns steady income' count as edge?", "a": "The premium pays for tail risk that shows up rarely but hugely. Over time it's roughly a fair price competed by professionals, not a mispricing." },
+          { "q": "Can you short an anchor-unlock stock with F&O to capture its dip?", "a": "No. Freshly listed stocks aren't in the F&O segment, which is exactly why the dip survives." }
+        ],
+        "deeper": [
+          { "title": "John Hull — Options, Futures and Other Derivatives (chapters 1–3, 10–11)" }
+        ],
+        "learnings": ["declined-options", "unshortable-lens"],
+        "signals": ["lockin_expiry"]
+      },
+      {
+        "id": "sizing",
+        "level": "advanced",
+        "status": "ready",
+        "title": "Position sizing and capacity: Kelly for a ₹2 lakh slab",
+        "minutes": 12,
+        "goals": [
+          "Size a bet from its edge and its risk (Kelly, and why you use half)",
+          "Work out an edge's capacity in rupees per year",
+          "Write a sizing policy before the next trade, not during it"
+        ],
+        "lesson": [
+          "A real edge can still ruin you if the bets are too big, and waste itself if they're too small. The Kelly criterion gives the growth-maximising fraction of capital per bet. For a simple win/lose bet it is f = edge ÷ odds. For returns it is roughly mean ÷ variance. Full Kelly is violently volatile and assumes you know the edge exactly. You don't, so professionals use half Kelly or less.",
+          "Capacity often binds before Kelly does. The buyback edge lives in the small-shareholder quota: a holding of at most ₹2 lakh on the record date, per shareholder. So per tender the most one account can deploy is about ₹2 lakh, whatever Kelly says. Yearly capacity is ₹2 lakh × accounts × the number of tenders worth taking × the return per tender. That can be small in rupees even when it's large in %.",
+          "Correlated bets are one bet. Three tenders in the same week, or five stocks all exposed to one sector, count as one bigger position for risk. Cap your total exposure to any one event date and any one theme.",
+          "Write the policy down while you're calm. Include the maximum per position, the maximum per event date, when you skip a tender (for example, estimated return below the costs hurdle), and a drawdown at which you stop and review. Decisions made mid-trade are the ones that hurt."
+        ],
+        "india": [
+          { "text": "Small shareholder in a buyback = holding shares worth ≤ ₹2 lakh on the record date (at that day's closing price); 15% of the buyback is reserved for them.", "asOf": "2026-09-27", "source": "SEBI (Buy-back of Securities) Regulations, 2018" },
+          { "text": "Income from assets gifted to a spouse is clubbed with the giver's income (the clubbing rules of s.64 of the 1961 Act, carried into the Income-tax Act, 2025 in force from 1 Apr 2026). 'Family accounts' need their own money to change who is taxed.", "asOf": "2026-09-27", "source": "Income-tax Act, 1961 s.64 / Income-tax Act, 2025" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Get the buyback study's per-event returns (the published evidence in the evidence bucket, or run the validate workflow).",
+            "Compute mean, standard deviation and the Kelly fraction (mean ÷ variance) of the after-tax return per tender. Halve it.",
+            "Count tenders per year in the buybacks table since 2023 that met your skip rule.",
+            "Compute yearly capacity in rupees: ₹2 lakh × your number of accounts × tenders taken × median after-tax return."
+          ],
+          "code": [
+            "r = results['aftertax_floor'].dropna()   # per-tender after-tax returns",
+            "kelly = r.mean() / r.var()",
+            "print(r.mean(), r.std(), kelly, kelly / 2)"
+          ],
+          "deliverable": "A one-page sizing policy: per-position cap, per-date cap, skip rule, stop-and-review drawdown, and the edge's realistic ₹ per year."
+        },
+        "check": [
+          { "q": "Kelly says put 40% of capital into each tender. What's wrong with following it?", "a": "Kelly assumes the edge is known exactly (it isn't; use half or less), and the ₹2 lakh small-shareholder cap binds anyway." },
+          { "q": "Three tenders have record dates in the same week. How many positions is that for risk?", "a": "Closer to one. They share the same market week, so a market drop hits all three residuals together." }
+        ],
+        "deeper": [
+          { "title": "Edward Thorp — The Kelly Capital Growth Investment Criterion (selected chapters)" }
+        ],
+        "learnings": ["barrier-gets-crowded"],
+        "signals": ["buyback_arb", "ipo_listing"]
+      },
+      {
+        "id": "execution",
+        "level": "advanced",
+        "status": "ready",
+        "title": "Execution: SEBI's retail algo framework, broker APIs and slippage",
+        "minutes": 12,
+        "goals": [
+          "Measure slippage on your own trades",
+          "Pick the order type that fits the trade",
+          "Know what SEBI allows a retail trader to automate, and how"
+        ],
+        "lesson": [
+          "Slippage is the gap between the price you decided at and the price you got. In liquid large caps it's a few basis points. In small caps and SME stocks, where buyback and rights ideas often live, the bid-ask spread and your own order can cost 0.5–1%. Measure it. The 30 bps this platform assumes is a guess until your own log confirms it.",
+          "Use limit orders for anything illiquid, and split size across the day rather than hitting the book once. For record-date trades, buy a day or two early rather than in the last session's rush. A 'must fill today' order is the most expensive order you'll place. Remember the closing auction for F&O stocks since Aug 2026: a closing price is now reachable with an auction order.",
+          "Automation rules changed in 2025–26. Under SEBI's retail algo framework, mandatory from 1 Apr 2026: API orders go through your broker, who is responsible for them; every algo order carries an exchange-assigned Algo ID; API access needs a static IP; and a strategy placing more than 10 orders a second per exchange must be registered. Your own algorithm for your own account below that threshold doesn't need registration. Selling a black-box algo to others requires SEBI Research Analyst registration.",
+          "For an end-of-day scanner like this one, automation stops at the alert. The signal is computed in the cloud and sent to Telegram. You place the order yourself. That's by design: the call is judgement, and the order count is tiny."
+        ],
+        "india": [
+          { "text": "SEBI retail algo framework mandatory from 1 Apr 2026: Algo ID on every algo order, static IP for API access, registration above 10 orders/second per exchange, broker as principal.", "asOf": "2026-09-27", "source": "HDFC Sky — SEBI algo trading rules 2026", "url": "https://hdfcsky.com/sky-learn/algo-trading/sebi-algo-trading-rules" },
+          { "text": "Self-built algos for your own account below the 10 orders/second threshold need no registration; black-box algos offered to others need a SEBI-registered Research Analyst.", "asOf": "2026-09-27", "source": "QuantInsti — algorithmic trading in India (2026)", "url": "https://www.quantinsti.com/articles/algorithmic-trading-india/" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Start a trade log (a sheet is fine). For each of your next 10 trades record: decision time and price, order type, limit price, fill price(s), fill time.",
+            "Compute slippage in basis points = (fill − decision) ÷ decision × 10,000 (sign flipped for sells).",
+            "Split the log by liquidity: stocks with turnover above and below ₹10 crore a day (from the bhavcopy).",
+            "Compare your average all-in cost (charges + slippage) with the 30 bps assumption."
+          ],
+          "deliverable": "A 10-trade slippage log and your measured all-in cost, liquid vs illiquid, next to the platform's 30 bps assumption."
+        },
+        "check": [
+          { "q": "You wrote a Python script that places 3 orders a day through your broker's API for your own account. Do you need to register it?", "a": "No, it's far below 10 orders/second. It still goes through the broker, needs the static IP and gets tagged, but no separate registration." },
+          { "q": "Why buy a buyback stock a day or two before the last cum session instead of on it?", "a": "The last session is when every tendering buyer shows up, so the spread and impact are worst. Buying early trades a little price risk for lower slippage." }
+        ],
+        "deeper": [],
+        "learnings": ["declined-kite", "cum-date-entry"],
+        "signals": ["buyback_arb"]
+      },
+      {
+        "id": "research-process",
+        "level": "expert",
+        "status": "ready",
+        "title": "The research process: pre-registration, evidence and a live track record",
+        "minutes": 10,
+        "goals": [
+          "Write a pre-registration before touching the data",
+          "Publish evidence so any result can be re-run and checked",
+          "Turn a verdict into a durable decision"
+        ],
+        "lesson": [
+          "What separates a research process from a string of backtests is that decisions are made before results are seen, and everything is kept. A pre-registration is one page written first. It states the hypothesis and mechanism, who is excluded, the data and universe, the event date and windows, the controls (placebo, same-stock, industry), the eras, the one pre-specified mechanism cut, and the kill criteria: what result means null.",
+          "Then run it where anyone can re-run it. Here that means the validate workflow on GitHub Actions with --publish. The results and the printed report go to the evidence bucket, stamped with the git commit, and a validation_runs row points at them. A result you can't reproduce isn't evidence.",
+          "Record the verdict in three places, each with a job. The catalog (scanner/catalog.py) is what the runner and dashboard show, so a falsified signal is never read as edge. CONCLUSIONS.md holds the evidence and reasoning. The decisions log in CLAUDE.md is one line saying why, so nobody re-litigates it without a new reason.",
+          "A null is a result. Most of this platform's 21 verdicts are null, and each one saved money and narrowed where to look. Report nulls with the same care as positives."
+        ],
+        "india": [],
+        "tryIt": {
+          "steps": [
+            "Take the idea you ranked first in module 10.",
+            "Write its pre-registration in docs/ (hypothesis, mechanism, who's excluded, data, universe, windows, controls, eras, one mechanism cut, kill criteria).",
+            "Find the closest existing validate_*.py and list what you'd reuse (loader, windows, summarize with clusters, exclude_results).",
+            "Get someone, or a fresh Claude session, to read the pre-registration and point out one loophole. Fix it before any data is touched."
+          ],
+          "deliverable": "A committed pre-registration document for your capstone signal, dated before any results exist."
+        },
+        "check": [
+          { "q": "Why write the kill criteria before running the study?", "a": "After seeing results it's tempting to move the bar. Fixing it first is what makes a pass meaningful." },
+          { "q": "Why does a verdict go in the catalog as well as CONCLUSIONS.md?", "a": "The catalog drives what the runner and dashboard display, so a null signal is always shown with its verdict and never mistaken for edge." }
+        ],
+        "deeper": [],
+        "learnings": ["validate-before-trust", "segment-before-trust", "multiple-testing"],
+        "signals": []
+      },
+      {
+        "id": "live-book",
+        "level": "expert",
+        "status": "ready",
+        "title": "Running a live book: tracking, reviewing and retiring edges",
+        "minutes": 10,
+        "goals": [
+          "Record every live trade so results can be compared with the backtest",
+          "Review the book on a fixed schedule",
+          "Know in advance what would make you retire an edge"
+        ],
+        "lesson": [
+          "A backtest is a forecast; the live book is the measurement. Record every trade the day you place it: the signal, the expected return at entry, the size, the fill, and later the outcome. Here that is python -m scanner.track (tender, then outcome), and python -m scanner.calibrate compares realised buyback acceptance with the model's prior.",
+          "Review monthly, on a fixed day. Compare live results with the backtest's range, not its average. Ten live tenders will scatter; the question is whether they sit inside what the study said to expect. Check the data too: the freshness checks exist because the primary signal once went silently blind for nine months.",
+          "Decide the retirement rule while the edge is still working. For example: retire or re-test if the live median over the last N trades falls below the backtest's lower bound, if a rule or tax change alters the economics, or if the barrier weakens (more competitors, or a rule change that lets institutions in). Edges decay; the IPO lottery did.",
+          "Keep the tax records as you go: the broker's capital-gains statement, buyback acceptance letters, contract notes. After a Budget or SEBI change, re-run the affected verdicts before the next trade. The Apr-2026 buyback tax change is the worked example."
+        ],
+        "india": [
+          { "text": "Buybacks paid on or after 1 Apr 2026 are taxed as capital gains for non-promoters (Finance Act 2026). Live expected returns and the study were updated for it on 2026-09-27.", "asOf": "2026-09-27", "source": "Taxguru — buyback taxation, Finance Act 2026", "url": "https://taxguru.in/income-tax/buy-taxation-finance-act-2026-resettling-unsettledae.html" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Record your most recent (or next) tender: python -m scanner.track tender … and, when settled, python -m scanner.track outcome ….",
+            "Run python -m scanner.calibrate and read how realised acceptance compares with the 45% prior.",
+            "Write a one-page monthly review template: trades this month, live vs backtest range, data freshness, rule changes, keep / watch / retire.",
+            "Write the retirement rule for buyback_arb in one sentence, with a number in it."
+          ],
+          "deliverable": "A live ledger with at least one tracked tender, a monthly review template, and a written retirement rule for the primary signal."
+        },
+        "check": [
+          { "q": "Your first 5 live tenders all returned less than the backtest median. Retire the edge?", "a": "Not yet. Five trades scatter widely. Check whether they fall outside the backtest's range, and whether costs, taxes or acceptance changed." },
+          { "q": "Why write the retirement rule before results come in?", "a": "Afterwards you'll be tempted to explain away bad results (or chase good ones). A rule fixed in advance keeps the decision honest." }
+        ],
+        "deeper": [],
+        "learnings": ["silent-blindness", "rules-move", "barrier-gets-crowded"],
+        "signals": ["buyback_arb"]
+      },
+      {
+        "id": "capstone",
+        "level": "expert",
+        "status": "ready",
+        "title": "Capstone: validate a new signal end to end",
+        "minutes": 10,
+        "goals": [
+          "Take one untested idea all the way to a published verdict",
+          "Use every earlier module in one piece of work",
+          "Leave the platform with a new, honest entry, whatever the answer"
+        ],
+        "lesson": [
+          "The capstone is the platform's own workflow, done by you. Start from your pre-registration (module 15). Build the event list: a loader for the data, with tests first for any parsing, and guards against bad rows (module 4). Price it with unadjusted closes where a nominal price is involved, and point-in-time market caps for any size cut (modules 4 and 6).",
+          "Write scripts/validate_<name>.py on top of scanner.validation.run and scanner.eventstudy: fixed windows, a NIFTY 500 benchmark, placebo and same-stock controls, a cluster-robust t, era splits, the one mechanism cut, and --exclude-results-window (modules 7 and 8). Keep the tries ledger as you go (module 9).",
+          "Run it on GitHub Actions with --publish (never the laptop) and read it against your kill criteria. Then record it: a catalog entry with type and verdict, a CONCLUSIONS section, a decisions-log line, and a Learnings entry if it taught something new (module 15).",
+          "Success is a correct verdict, not a positive one. Most ideas here have been null, and a clean null on a well-built study is a full pass."
+        ],
+        "india": [],
+        "tryIt": {
+          "steps": [
+            "Branch: git switch -c signal/<name>.",
+            "Tests first for the loader/parser; then the loader; then validate_<name>.py.",
+            "Add the script to the validate workflow's options, push, and run it with --publish.",
+            "Write the verdict into scanner/catalog.py, CONCLUSIONS.md, the decisions log and (if new) learnings.json; update the dashboard labels (a test enforces it)."
+          ],
+          "deliverable": "A merged change with a published validation run and a verdict in the catalog: the platform's 22nd signal."
+        },
+        "check": [
+          { "q": "Your capstone signal comes back null. Did the capstone fail?", "a": "No. A correctly built study with a clear null is a full result. It narrows where edge can be, the same as most of this platform's verdicts." },
+          { "q": "Name three checks the study needs before a positive result is trusted.", "a": "A placebo or same-stock control, a result that holds in every era, and the pre-specified mechanism cut. Plus it must clear costs and tax, and survive the tries count." }
+        ],
+        "deeper": [],
+        "learnings": ["barrier-thesis", "nulls-safe-positives-scrutinised"],
+        "signals": []
+      }
     ]
   }
 ]
