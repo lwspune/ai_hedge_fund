@@ -23,6 +23,7 @@ const SIGNALS = {
   consolidation: ['Consolidation breakout', 'Tight 40-day range breakouts: +60d median −1.7% (n=938); scan only'],
   ipo_unlock: ['IPO 6-month unlock entry', 'Buy after the pre-IPO unlock: −13% median over 12 months; month 6 is not a bottom'],
   customer_momentum: ['Customer momentum', 'Suppliers co-move on the day; next-day entry ≈ placebo (pilot, 806 events)'],
+  investor_skill: ['Follow skilled investors', 'Top-ranked investors\' new ≥ 1% stakes: −8.6% median at 12 months, ≈ all entrants'],
   rating_change: ['Credit rating change', 'Downgrades −0.3% on the day (n=456), fall came before; agencies follow the price'],
 }
 

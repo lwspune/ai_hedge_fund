@@ -239,6 +239,14 @@ def _run_customer_momentum(**kw) -> str:
             "Run scripts/validate_customer_momentum.py.")
 
 
+def _run_investor_skill(**kw) -> str:
+    return ("investor_skill is NULL: following the >= 1% SHP entries of investors ranked on their earlier "
+            "outcomes (walk-forward, 13,534 entries by 5,655 investors, 2022-26) returns -8.6% median vs "
+            "NIFTY 500 at 12 months, below all entrants (-7.4%); t_cl -0.4; an investor's 2022-23 hit rate "
+            "does not predict 2024-25 (rho 0.03). Pre-registered pass rule failed. Documented, no live screen. "
+            "Run scripts/validate_investor_skill.py.")
+
+
 def _run_demerger(**kw) -> str:
     """Informational: recent demerger record dates whose child may list soon, and children listed
     in the last 10 sessions (from the curated data/demerger_listings.csv)."""
@@ -415,6 +423,13 @@ SIGNALS: dict[str, Signal] = {
                    "entry ~0 at +1/+5 industry-adjusted; +20d +0.94% equals the placebo-customer control "
                    "(+0.80%). Pre-registered pilot failed. Documented, not traded."),
         _run_customer_momentum),
+    "investor_skill": Signal(
+        SignalMeta("investor_skill", "drift", "null", "documented",
+                   "Follow the new >= 1% stakes (SEBI shareholding pattern, named public holders) of investors "
+                   "ranked on outcomes known at the time (walk-forward from 2023, top 20%). Top-ranked entries "
+                   "-8.6% median vs NIFTY 500 at +250 sessions vs -7.4% for all entrants (t_cl -0.4); skill "
+                   "does not persist (rho 0.03, 97 investors). Pre-registered rule failed. Documented, not traded."),
+        _run_investor_skill),
 }
 
 

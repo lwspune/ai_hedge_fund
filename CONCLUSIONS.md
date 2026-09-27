@@ -594,6 +594,48 @@ immediately — the drift-signal fate, now measured without a barrier requiremen
 only if pre-2024 order filings get ingested for another reason. Graph stays in the evidence, not a table.
 *Evidence:* `customer_momentum/2026-09-26T171236Z` (links + extraction audit included).
 
+### 22. Investor skill — following ≥ 1% entries of "skilled" holders — NULL
+Drift bar. Hypothesis: some investors who take disclosed stakes (the SEBI shareholding pattern names
+every public holder ≥ 1%) pick well and keep picking well, so a follower can copy their next entry
+once it is filed.
+
+**Data.** `scanner/holders.py` over 40,971 SHP XBRL filings (2,451 companies, bucket `holders`):
+13,534 entries — an investor's first ≥ 1% appearance after a filed prior quarter — by 5,655
+investors (individuals, AIFs, fund houses, FPIs, insurers, bodies corporate; promoters, trusts,
+custodians, FDI, pension and passive funds excluded; a fund house already holding through another
+scheme is not a new entry). Entry = the close after the filing's broadcast; returns on split / bonus /
+consolidation-adjusted cloud closes vs NIFTY 500; delisted stocks scored to the last close.
+
+**Design (pre-registered 2026-09-26, before the data was loaded).** Walk-forward: each half-year from
+2023, rank investors on entries whose +125-session outcome was known before the half began (≥ 3),
+follow the top 20%; compare with all entrants and the bottom 20% in the same halves (unique
+stock-quarter, t clustered by entry quarter). Pass (all): top +250 median > 0 and ≥ 3 pp above all
+entrants; top − all > 0 in 2023-24 and 2025-26; top +250 t_cl ≥ 2; persistence ρ > 0 with t ≥ 2.
+
+| excess vs NIFTY 500, +250 sessions (≈ 12 months) | n | mean | median | t_cl |
+|---|---|---|---|---|
+| **top-ranked investors' entries** | 182 | −1.1% | **−8.6%** | −0.4 |
+| all entrants, same halves | 5,013 | +5.6% | −7.4% | +1.3 |
+| bottom-ranked investors | 193 | +6.0% | −6.1% | +1.6 |
+| top, ranked on +250 instead (§D) | 98 | −4.5% | −9.0% | −1.2 |
+
+- **No skill a follower can use.** The top group is no better than all entrants (median −8.6% vs
+  −7.4%) and no better than the bottom group; ranking on +250 instead makes it worse. At +500 the top
+  group is −16.2% median, the bottom +2.4%.
+- **No persistence.** An investor's median +125 in 2022-23 does not predict 2024-25: ρ = 0.03 over 97
+  investors with ≥ 3 entries in each (t 0.3). Today's "best" names (+140%, +114% medians on 3-5 entries)
+  are the luck tail of 5,655 investors.
+- **Entrants as a whole** carry no signal: +250 median −6.2%, mean +6.9% (a fat right tail, t_cl 1.6).
+  The year of entry decides the sign (2022-23 +5% median, 2024-25 −10 to −14%) — the small-cap cycle,
+  not the holders. Large caps (+1.5% median, t_cl 3.2) and insurers (t_cl 3.0) are the market, not a pick.
+- Rule verdict: top median −8.6% (fails > 0), top − all −1.2 pp overall (fails ≥ 3 pp; +1.6 / +2.7 pp
+  within each era — the top group's entries fall later, in the weak era), t_cl −0.4, ρ 0.03 → **FAIL**.
+
+Thesis check: a filed stake is public news a quarter late, and "who bought" is a label anyone can
+screen for; the investors worth copying are not identifiable in advance from their record. The
+holder history stays as data (company page, a lens on who owns what), not a screen.
+*Evidence:* `investor_skill/2026-09-27T033128Z`.
+
 ## Data infrastructure findings (free stack, residential IP)
 - yfinance proven for `.NS`; **nselib** reaches historical/delisted symbols (filter
   `Series=='EQ'`); jugaad-data fallback.
@@ -602,13 +644,13 @@ only if pre-2024 order filings get ingested for another reason. Graph stays in t
 - screener.in (fundamentals) and chittorgarh (buybacks) are scrapable from a residential IP.
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
-## The tally (2026-09-26)
-Twenty-one signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
+## The tally (2026-09-27)
+Twenty-two signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
 2026-09-24 cum-date correction, `rights_re` conditional watch), 2 real-but-unshortable lenses
-(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 14 null
+(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 15 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
 order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change, ipo_unlock, consolidation,
-customer_momentum).
+customer_momentum, investor_skill).
 
 ## What's kept
 The platform (`scanner/`, 53 tests), the event-study harness, the smart-money classifier,

@@ -145,5 +145,12 @@
     "verdict": "null",
     "role": "documented",
     "summary": "Follow a listed customer's >= 5% move into its suppliers (buyer-seller links from SEBI order-win filings, 2024-26 pilot: 301 links, 806 events). Same-day co-move +1.0%; next-day entry ~0 at +1/+5 industry-adjusted; +20d +0.94% equals the placebo-customer control (+0.80%). Pre-registered pilot failed. Documented, not traded."
+  },
+  {
+    "name": "investor_skill",
+    "type": "drift",
+    "verdict": "null",
+    "role": "documented",
+    "summary": "Follow the new >= 1% stakes (SEBI shareholding pattern, named public holders) of investors ranked on outcomes known at the time (walk-forward from 2023, top 20%). Top-ranked entries -8.6% median vs NIFTY 500 at +250 sessions vs -7.4% for all entrants (t_cl -0.4); skill does not persist (rho 0.03, 97 investors). Pre-registered rule failed. Documented, not traded."
   }
 ]
