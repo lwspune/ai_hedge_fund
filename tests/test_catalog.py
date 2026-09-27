@@ -30,9 +30,16 @@ def test_four_signal_types():
     assert TYPES == {"structural", "spread", "drift", "premium"}
 
 
-def test_only_buyback_is_primary():
-    primaries = [m.name for m in list_signals() if m.role == "primary"]
-    assert primaries == ["buyback_arb"]
+def test_a_primary_signal_needs_a_real_edge():
+    for m in list_signals():
+        if m.role == "primary":
+            assert m.verdict in {"edge", "conditional"}, m.name
+
+
+def test_buyback_is_thin_watch_after_the_2026_tax_change():
+    # Finance Act 2026: ~+2.4% after tax on selected tenders only (CONCLUSIONS §3, 2026-09-27)
+    m = get_signal("buyback_arb").meta
+    assert (m.type, m.verdict, m.role) == ("structural", "thin", "watch")
 
 
 def test_drift_signals_marked_null():

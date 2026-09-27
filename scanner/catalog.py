@@ -273,13 +273,13 @@ def _run_demerger(**kw) -> str:
 
 SIGNALS: dict[str, Signal] = {
     "buyback_arb": Signal(
-        SignalMeta("buyback_arb", "structural", "conditional", "primary",
+        SignalMeta("buyback_arb", "structural", "thin", "watch",
                    "Small-shareholder tender arb, entered at the last cum-entitlement close "
                    "(the record date is ex). Blind tendering loses ~2%; selected high-acceptance "
                    "tenders earn ~+3% gross. Buybacks paid from 1 Apr 2026 are taxed as capital "
                    "gains on the net gain (Finance Act 2026), slab-free: ~+2.4% median after tax "
                    "on high-acceptance tenders, -2.3% at the floor. The old <=5%-slab route is "
-                   "gone. Actionable only on selected high-acceptance tenders; thin."),
+                   "gone. Thin / watch: tender only when high acceptance looks likely."),
         _run_buyback),
     "mean_reversion": Signal(
         SignalMeta("mean_reversion", "drift", "null", "lens",
