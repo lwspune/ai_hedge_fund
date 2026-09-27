@@ -67,6 +67,25 @@ in `after_tax_return`); without gains to offset, that benefit only carries forwa
 one structural signal, but its actionable envelope is now narrow: the right account, the right
 tender.**
 
+*Update (2026-09-27) — Finance Act 2026 changed the tax again.* Buybacks **paid on or after 1 Apr
+2026** are taxed as **capital gains on the net gain** for non-promoters (STCG 20% under 12 months),
+no longer as a deemed dividend at slab rate. The slab no longer matters, so the ≤5%-slab route
+above is gone. Re-run on Actions (same 101 events, sha 7638b6b, run 36290509129):
+
+| After tax, today's rule (capital gains, any slab) | Mean | Median | Win |
+|---|---|---|---|
+| Floor acceptance | −2.1% | **−2.3%** | 43% |
+| 3× entitlement (high-acceptance) | +1.8% | **+2.4%** | 60% |
+| Each event under its own regime, floor | −2.3% | −2.6% | 42% |
+| Events paid from Apr 2026 (n=18), gross floor | +1.5% | +0.4% | 61% |
+
+Reading: blind tendering still loses ~2%; a well-chosen high-acceptance tender earns ~+2.4% after
+tax for any account — better than the old rule at a 20-30% slab, far worse than at ≤5%. That is
+the size the old tables called "thin at 20%". The edge is now purely a **selection** problem
+(which tenders reach high acceptance), which the realized-acceptance data below is starting to
+answer. The Oct-2024 to Mar-2026 slab rows stay in the report as history. Payment date is proxied
+from the tender close + 7 days (`buyback.tax_regime`); chittorgarh gives no payment date.
+
 *Realized acceptance (2026-09-24):* the post-buyback public announcements each company files on NSE
 carry the actual response table, and 24 of the 106 settled tenders since 2023 parse cleanly (65 are
 newspaper scans awaiting hand entry, 17 not yet announced). **Small-shareholder acceptance is ~50%

@@ -255,7 +255,7 @@ next" with a pointer to `CANDIDATE_SIGNALS.md`. Docs only.
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
-### `buyback_arb` taxes 2026 tenders under the retired deemed-dividend rule (Finance Act 2026)
+### ~~`buyback_arb` taxes 2026 tenders under the retired deemed-dividend rule (Finance Act 2026)~~ — **DONE 2026-09-27** (`tax_regime` + `post_apr2026`, payment proxied from the close; study re-run n=101: 3× +2.4% after tax, floor −2.3%; verdict text updated in catalog / alerts / dashboard / CONCLUSIONS §3; verdict label left for the owner)
 
 **Learning (course research, 2026-09-27):** for any buyback on or after **1 Apr 2026**, a non-promoter's
 proceeds are taxed as **capital gains** (buyback price − cost; STCG 20% under 12 months), not as a deemed

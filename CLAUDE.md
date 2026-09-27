@@ -19,7 +19,7 @@ of untested ideas, ordered by the thesis.
 
 | Signal | Type | Verdict | Role |
 |---|---|---|---|
-| `buyback_arb` | structural | **conditional edge (narrow)** | **primary (actionable only from a ≤5%-slab account, on selected tenders; thin at 20%, negative at 30%)** |
+| `buyback_arb` | structural | **conditional edge (narrow)** | **primary (selected high-acceptance tenders only: ~+2.4% median after tax under the Apr-2026 capital-gains rule; blind −2.3%)** |
 | `merger_arb` | spread | thin | watch |
 | `mean_reversion` | drift | **null** | lens (informational only) |
 | `smart_money_deals` | drift | **null** | lens (informational only) |
@@ -482,6 +482,11 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   range return −0.7% / −1.7% median vs NIFTY 500 at +20 / +60 (n=938), no better than wide-range breakouts
   or the same stock earlier; every pre-set segment negative; down-breakouts only mark already-weak stocks.
   *Reason:* a public chart pattern with no barrier. Kept as a daily informational scan.
+- **2026-09-27** — `buyback_arb` re-taxed for **Finance Act 2026**: buybacks paid from 1 Apr 2026 are
+  capital gains on the net gain (slab-free), not deemed dividend. Re-run (n=101): high-acceptance 3× **+2.4%**
+  median after tax, floor −2.3%; the ≤5%-slab route (+8-9%) is gone. `buyback.tax_regime` picks the regime
+  (payment proxied as tender close + 7 d). *Reason:* found while fact-checking the course; the live scan was
+  computing 2026 tenders under the retired rule. Verdict label kept pending the owner's call.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
