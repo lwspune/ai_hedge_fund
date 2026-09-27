@@ -3,7 +3,7 @@
 // When a signal is added to catalog.py, add its entry here too (signalLabels.test.js enforces it).
 
 const SIGNALS = {
-  buyback_arb: ['Buyback tender arbitrage', 'Quota edge only at a ≤ 5% tax slab (thin at 20%); buy by the day before the record date'],
+  buyback_arb: ['Buyback tender arbitrage', 'Quota edge on high-acceptance tenders only (~+2.4% after tax); buy before record date'],
   rights_re: ['Rights entitlement discount', 'REs trade ~3.5% below stock − issue price on liquid days'],
   lockin_expiry: ['Anchor lock-in unlock', '−1.25% dip T−1→T+2 at the 90-day unlock; not shortable'],
   merger_arb: ['Merger arbitrage', 'Thin (~4–5% annualised), efficiently priced, deal-break tail'],

@@ -4,7 +4,7 @@
     "type": "structural",
     "verdict": "conditional",
     "role": "primary",
-    "summary": "Small-shareholder tender arb, entered at the last cum-entitlement close (the record date is ex). Blind tendering loses ~2%; selected high-acceptance tenders earn ~+3% gross = -3% after tax at a 30% slab, ~+1% at 20%, +8-9% at a <=5% slab. Actionable only from a nil/5%-slab account, on selected tenders. The one structural edge, narrow."
+    "summary": "Small-shareholder tender arb, entered at the last cum-entitlement close (the record date is ex). Blind tendering loses ~2%; selected high-acceptance tenders earn ~+3% gross. Buybacks paid from 1 Apr 2026 are taxed as capital gains on the net gain (Finance Act 2026), slab-free: ~+2.4% median after tax on high-acceptance tenders, -2.3% at the floor. The old <=5%-slab route is gone. Actionable only on selected high-acceptance tenders; thin."
   },
   {
     "name": "mean_reversion",

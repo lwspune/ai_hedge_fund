@@ -46,7 +46,7 @@ const COLUMNS = [
   },
   { key: 'acceptance', header: 'Est. acceptance', align: 'right', render: (r) => fmtPct(p(r).est_acceptance, 0) },
   {
-    key: 'exp_return', header: 'After-tax est.', align: 'right', sortable: true, title: 'At the 30% slab; see Signals',
+    key: 'exp_return', header: 'After-tax est.', align: 'right', sortable: true, title: 'Capital gains on the net gain (buybacks paid from 1 Apr 2026); see Signals',
     sortValue: (r) => p(r).exp_return,
     render: (r) => <span className={p(r).exp_return > GOOD ? 'tone-pos' : undefined}>{fmtPct(p(r).exp_return)}</span>,
   },
@@ -69,7 +69,7 @@ export default function OpenBuybacks() {
   return (
     <Section id="open-buybacks" title="Open buybacks" level={3}
              meta={data?.runAt ? `as of ${fmtDateTime(data.runAt)}` : null}
-             info={`${signalHeadline('buyback_arb')}. After-tax estimate shown at the 30% slab.`}
+             info={`${signalHeadline('buyback_arb')}. After-tax estimate under the capital-gains rule for buybacks paid from 1 Apr 2026.`}
              infoHref="#/signals" status={r.status}
              action={<Button busy={r.busy} onClick={r.refresh}
                              aria-label="Refresh buybacks from chittorgarh">Refresh</Button>}>

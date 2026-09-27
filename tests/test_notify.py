@@ -24,7 +24,7 @@ def test_buyback_alerts_only_open_tenders_keyed_by_symbol_and_record_date():
 
 def test_buyback_text_carries_the_numbers_and_the_tax_caveat():
     text = buyback_alerts([_bb()])[0]["text"]
-    for s in ("TCS", "4,500", "4,017", "12.0%", "40%", "3.5%", "2026-09-30", "2026-10-10", "≤5%",
+    for s in ("TCS", "4,500", "4,017", "12.0%", "40%", "3.5%", "2026-09-30", "2026-10-10", "high-acceptance", "capital-gains",
               "buy by 2026-09-29"):
         assert s in text
     assert "#/company/TCS" in text
