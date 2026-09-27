@@ -255,6 +255,49 @@ next" with a pointer to `CANDIDATE_SIGNALS.md`. Docs only.
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
+### `estimate_acceptance` ignores the offer premium — the strongest pre-record predictor of acceptance
+
+**Learning (hand-entry of the 65 scanned response tables + 13 missing ones, 2026-09-27):** with 101
+realized small-shareholder acceptances (was 24), market cap barely separates them (small 49%, small-mid
+43%, mid 47%, large 61% on n=13). The buyback price over the **last cum-entitlement close** does
+(Spearman −0.63, n=100): premium ≤ 5% → median 100%, 5-10% → 83%, 10-20% → 38%, 20-40% → 34%,
+> 40% → 12%. Same direction before and after Oct-2024. It is known before the record date, unlike
+chittorgarh's entitlement ratio (ρ 0.67, but published after it). Scratch analysis only — no study yet.
+
+**360:**
+- *Scope:* `buyback.estimate_acceptance` (mcap + size heuristic, flat 45% prior), `scanner.calibrate`
+  (buckets by mcap), the live scan's `exp_return` ranking, CONCLUSIONS §3 "choosing them in advance
+  isn't proven yet" — the re-promotion condition of the 2026-09-27 downgrade.
+- *Blast radius:* ranking + alert text of the live scan; possibly the signal's verdict.
+- *Does it really apply?* Only half-proven: high acceptance comes **with** a small premium, so it may
+  not raise expected return (acceptance × premium). Needs the selection-rule test (premium band at the
+  last cum close → after-tax return, by era, clustered) before any model change.
+- *Risk / reversibility:* study is read-only; a model change is a small, reversible commit with tests.
+- *Cost:* study ~half a day; model + calibrate change ~2 h after it.
+- *Recommendation:* **do the study first**; change the model only if a premium band shows positive
+  after-tax return in both eras.
+
+### `refresh_buyback_results` stores the wrong filing for ~1 in 7 tenders
+
+**Learning (same session):** 9 of 65 `needs_manual` pointers were extinguishment certificates
+("Closure of Buy Back"), not the response table. `is_result_announcement` accepts a "Copy of Newspaper
+Publication" only when its *subject* says post-buyback, but most companies file it with the generic
+subject — so the closure letter wins. Two tenders (Dhampur 2025, HGS 2023) also had the announcement
+outside the close→+45 d window; 17 tenders had no row at all (13 found by hand). About 10 of the 65
+"scans" had a text layer the parser failed on (e.g. `211 .04` with a stray space, columnar layouts).
+
+**360:**
+- *Scope:* `buyback_results.is_result_announcement` / `pick_result`, the loader window, `_solve`
+  tokenizer.
+- *Blast radius:* future tenders only — all 101 historical rows are now filled (64 by hand,
+  `parsed_by='manual'`, never retried).
+- *Does it really apply?* Yes for new tenders: ~1 in 7 will land on a closure letter and stay
+  `needs_manual` though a readable table exists.
+- *Risk / reversibility:* low; parser fixtures from the PDFs read today.
+- *Cost:* ~1-2 h with tests.
+- *Recommendation:* **do** — try every newspaper copy in the window (the arithmetic check already
+  rejects non-tables), rank closure letters last, tolerate a space before a decimal.
+
 ### ~~`buyback_arb` taxes 2026 tenders under the retired deemed-dividend rule (Finance Act 2026)~~ — **DONE 2026-09-27** (`tax_regime` + `post_apr2026`, payment proxied from the close; study re-run n=101: 3× +2.4% after tax, floor −2.3%; verdict text updated in catalog / alerts / dashboard / CONCLUSIONS §3; verdict label left for the owner)
 
 **Learning (course research, 2026-09-27):** for any buyback on or after **1 Apr 2026**, a non-promoter's
