@@ -4,7 +4,9 @@ For each completed tender buyback: buy ~Rs 2L at the LAST CUM-ENTITLEMENT CLOSE 
 the session before the record date, which is itself the ex-date; T+2 era: two sessions
 before — `buyback.last_buy_close`), capture the buyback premium on the guaranteed-accepted
 (entitlement) portion, sell the residual ~1 month after close. Reports gross,
-full-acceptance, and after-tax (the Oct-2024 dividend-tax regime) returns.
+full-acceptance, and after-tax returns: under each event's own regime, under today's rule
+(capital gains on the net gain, buybacks paid from 1 Apr 2026 — slab-free), and under the
+Oct-2024 to Mar-2026 deemed-dividend rule by slab (history).
 
 Until 2026-09-24 the entry was the record-day close — an ex-entitlement price nobody can
 tender from; stocks drop a median ~2.5% that day, which the old table booked as premium.
@@ -21,13 +23,13 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner.validation import exclude_results, run  # noqa: E402
 from scanner.pricestore import get_closes  # noqa: E402
-from scanner.buyback import arb_return, after_tax_return, last_buy_close  # noqa: E402
+from scanner.buyback import arb_return, after_tax_return, last_buy_close, tax_regime  # noqa: E402
 from scanner.pointintime import mcap_bucket_at  # noqa: E402
 
 RESIDUAL_LAG = 21          # trading days after close to sell the residual
-TAX_CUTOVER = pd.Timestamp("2024-10-01")
 SLAB = 0.30
-LOW_SLABS = (0.20, 0.05, 0.0)   # the post-Oct-2024 verdict depends on the slab
+DIVIDEND_SLABS = (0.30, 0.20, 0.05, 0.0)   # the Oct-2024 to Mar-2026 rule depended on the slab
+TODAY = "post_apr2026"                      # capital gains on the net gain, slab-free
 PREMIUM_BOUNDS = (-0.5, 1.5)   # outside = stale/mis-matched price, not a real offer (as edge fn)
 DB_FROM = pd.Timestamp("2020-02-01")   # first month safely inside the cloud price store
 
@@ -85,7 +87,7 @@ def main(args) -> dict | None:
         if not PREMIUM_BOUNDS[0] <= bp / entry - 1 <= PREMIUM_BOUNDS[1]:
             dropped.append((r["symbol"], round(bp / entry - 1, 2)))
             continue
-        regime = "post_oct2024" if r["record_date"] >= TAX_CUTOVER else "pre_oct2024"
+        regime = tax_regime(r["record_date"], r["close_date"])
         recs.append({
             "symbol": r["symbol"],
             "record_date": r["record_date"],
@@ -100,13 +102,12 @@ def main(args) -> dict | None:
             "gross_floor": arb_return(entry, bp, post, ent),
             "gross_full": arb_return(entry, bp, post, min(ent * 3, 1.0)),
             "aftertax_floor": after_tax_return(entry, bp, post, ent, regime=regime, slab=SLAB),
-            "aftertax_now": after_tax_return(entry, bp, post, ent, regime="post_oct2024", slab=SLAB),
-            "aftertax_full_now": after_tax_return(entry, bp, post, min(ent * 3, 1.0),
-                                                  regime="post_oct2024", slab=SLAB),
-            # today's rules at 3x entitlement for lower slabs (the verdict is slab-conditional)
-            **{f"aftertax_full_now_{int(sl * 100)}": after_tax_return(
+            "aftertax_now": after_tax_return(entry, bp, post, ent, regime=TODAY),
+            "aftertax_full_now": after_tax_return(entry, bp, post, min(ent * 3, 1.0), regime=TODAY),
+            # the Oct-2024 to Mar-2026 deemed-dividend rule at 3x entitlement, by slab (history)
+            **{f"aftertax_full_div_{int(sl * 100)}": after_tax_return(
                 entry, bp, post, min(ent * 3, 1.0), regime="post_oct2024", slab=sl)
-               for sl in LOW_SLABS},
+               for sl in DIVIDEND_SLABS},
         })
     if dropped:
         print(f"Dropped {len(dropped)} implausible premiums: {dropped}")
@@ -130,19 +131,22 @@ def main(args) -> dict | None:
     show("GROSS return (entitlement floor)", "gross_floor")
     show("GROSS return (3x entitlement)", "gross_full")
     show("AFTER-TAX (regime of the day)", "aftertax_floor")
-    show("AFTER-TAX (today's rules, 30% slab)", "aftertax_now")
-    show("AFTER-TAX today's rules @ 3x entitl.", "aftertax_full_now")
-    for sl in LOW_SLABS:
-        show(f"  ... same at a {int(sl * 100)}% slab", f"aftertax_full_now_{int(sl * 100)}")
+    show("AFTER-TAX today's rule (cap. gains)", "aftertax_now")
+    show("AFTER-TAX today's rule @ 3x entitl.", "aftertax_full_now")
+    print("\n  -- Oct-2024 to Mar-2026 rule (deemed dividend) @ 3x entitlement, by slab --")
+    for sl in DIVIDEND_SLABS:
+        show(f"  {int(sl * 100)}% slab", f"aftertax_full_div_{int(sl * 100)}")
     print("\n  -- by tax regime (gross floor) --")
     show("pre-Oct-2024 events", "gross_floor", d[d.regime == "pre_oct2024"])
-    show("post-Oct-2024 events", "gross_floor", d[d.regime == "post_oct2024"])
+    show("Oct-2024 to Mar-2026 events", "gross_floor", d[d.regime == "post_oct2024"])
+    show("Apr-2026 on events", "gross_floor", d[d.regime == "post_apr2026"])
     print("\n  -- gross floor, by market cap AS OF the record date (the acceptance prior's buckets) --")
     for b in ("small", "small_mid", "mid", "large", "unknown"):
         show(b, "gross_floor", d[d.mcap_bucket == b])
     print("\n  -- after-tax floor, by regime --")
     show("pre-Oct-2024 (tax-free buyback)", "aftertax_floor", d[d.regime == "pre_oct2024"])
-    show("post-Oct-2024 (dividend-taxed)", "aftertax_floor", d[d.regime == "post_oct2024"])
+    show("Oct-2024 to Mar-2026 (dividend-taxed)", "aftertax_floor", d[d.regime == "post_oct2024"])
+    show("Apr-2026 on (capital gains)", "aftertax_floor", d[d.regime == "post_apr2026"])
     return {"results": d}
 
 
