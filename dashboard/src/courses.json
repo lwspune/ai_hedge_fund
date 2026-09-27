@@ -359,7 +359,7 @@
           "Try 20 random ideas and about one will look significant at the usual 5% level, by luck. The finance literature did this at scale: 300+ published 'factors', many probably false (Harvey, Liu & Zhu, 2016). Their fix is simple. A new idea should clear t > 3, not t > 2.",
           "Tries hide inside a single idea too. Every parameter you tweaked, every subgroup you checked, every holding period you compared is a try. The best of 50 variants will look good even if all 50 are worthless. The deflated Sharpe ratio (Bailey & López de Prado, 2014) corrects the best result for how many you tried, how long the record is, and fat tails.",
           "Practical defences, in order of value. Write down the test before running it: window, universe, cut. Keep a log of every variant you ran, including the failures. Demand the result hold in every era. And be most suspicious of the result you want to be true.",
-          "This platform has tested 21 signals. By chance about one should look good. Two actionable edges is probably more than luck, but not by much. That's why the positives get re-checked and the nulls don't."
+          "This platform has tested 21 signals. By chance about one should look good. Two edges survived for a while; a tax change has since cut the buyback edge to thin, leaving one small one. That's why the positives get re-checked and the nulls don't."
         ],
         "india": [],
         "tryIt": {
@@ -636,7 +636,7 @@
         ],
         "lesson": [
           "A backtest is a forecast; the live book is the measurement. Record every trade the day you place it: the signal, the expected return at entry, the size, the fill, and later the outcome. Here that is python -m scanner.track (tender, then outcome), and python -m scanner.calibrate compares realised buyback acceptance with the model's prior.",
-          "Review monthly, on a fixed day. Compare live results with the backtest's range, not its average. Ten live tenders will scatter; the question is whether they sit inside what the study said to expect. Check the data too: the freshness checks exist because the primary signal once went silently blind for nine months.",
+          "Review monthly, on a fixed day. Compare live results with the backtest's range, not its average. Ten live tenders will scatter; the question is whether they sit inside what the study said to expect. Check the data too: the freshness checks exist because the buyback signal once went silently blind for nine months.",
           "Decide the retirement rule while the edge is still working. For example: retire or re-test if the live median over the last N trades falls below the backtest's lower bound, if a rule or tax change alters the economics, or if the barrier weakens (more competitors, or a rule change that lets institutions in). Edges decay; the IPO lottery did.",
           "Keep the tax records as you go: the broker's capital-gains statement, buyback acceptance letters, contract notes. After a Budget or SEBI change, re-run the affected verdicts before the next trade. The Apr-2026 buyback tax change is the worked example."
         ],
@@ -650,7 +650,7 @@
             "Write a one-page monthly review template: trades this month, live vs backtest range, data freshness, rule changes, keep / watch / retire.",
             "Write the retirement rule for buyback_arb in one sentence, with a number in it."
           ],
-          "deliverable": "A live ledger with at least one tracked tender, a monthly review template, and a written retirement rule for the primary signal."
+          "deliverable": "A live ledger with at least one tracked tender, a monthly review template, and a written retire-or-promote rule for the buyback signal."
         },
         "check": [
           { "q": "Your first 5 live tenders all returned less than the backtest median. Retire the edge?", "a": "Not yet. Five trades scatter widely. Check whether they fall outside the backtest's range, and whether costs, taxes or acceptance changed." },

@@ -1,6 +1,6 @@
 # CONCLUSIONS — Indian Market Inefficiency Validations
 
-**Status: active platform. Eleven signals validated. Two actionable edges (buyback tender, rights-entitlement discount); one real but unshortable effect.**
+**Status: active platform. Twenty-two signals validated. One actionable edge (rights-entitlement discount, small); the buyback tender is thin after the Finance Act 2026 tax change; two real but unshortable effects.**
 
 The question that started this: *are there real, past-tested inefficiencies in Indian
 markets exploitable for quick gains?* We tested four, with honest event studies and
@@ -38,7 +38,7 @@ follower can't act. The classifier works (placebo prop-buys are toxic, −6% ove
 the institutional signal itself carries no follower edge.
 *Evidence:* `evidence/smart_money_deals/2026-09-24` (the raw 2024-25 deals the study used) · sha 4f552e3 (laptop baseline).
 
-### 3. Buyback small-shareholder tender arb — CONDITIONAL EDGE (the keeper)
+### 3. Buyback small-shareholder tender arb — THIN (watch; was conditional edge until the 2026 tax change)
 101 tender buybacks (record dates Dec-2022 → Jul-2026, incl. the 2026 tenders recovered by the
 chittorgarh format fix), ₹2L, **unadjusted closes** (cloud price store), **entry at the last
 cum-entitlement close** (the session before the record date — see the 2026-09-24 correction
@@ -83,7 +83,9 @@ Reading: blind tendering still loses ~2%; a well-chosen high-acceptance tender e
 tax for any account — better than the old rule at a 20-30% slab, far worse than at ≤5%. That is
 the size the old tables called "thin at 20%". The edge is now purely a **selection** problem
 (which tenders reach high acceptance), which the realized-acceptance data below is starting to
-answer. The Oct-2024 to Mar-2026 slab rows stay in the report as history. Payment date is proxied
+answer. **Verdict: downgraded to THIN / watch (2026-09-27)** until realized acceptance shows
+high-acceptance tenders can be picked before the record date. The Oct-2024 to Mar-2026 slab rows stay
+in the report as history. Payment date is proxied
 from the tender close + 7 days (`buyback.tax_regime`); chittorgarh gives no payment date.
 
 *Realized acceptance (2026-09-24):* the post-buyback public announcements each company files on NSE
@@ -645,9 +647,9 @@ holder history stays as data (company page, a lens on who owns what), not a scre
 - **Kite Connect is not needed** for an EOD scanner; the free stack does the job.
 
 ## The tally (2026-09-27)
-Twenty-two signals validated: 2 actionable (`buyback_arb` conditional edge — narrow after the
-2026-09-24 cum-date correction, `rights_re` conditional watch), 2 real-but-unshortable lenses
-(`lockin_expiry`, `demerger_listing`), 3 thin (`merger_arb`, `ofs_retail`, `ipo_listing`), 15 null
+Twenty-two signals validated: 1 actionable (`rights_re` conditional watch), 2 real-but-unshortable
+lenses (`lockin_expiry`, `demerger_listing`), 4 thin (`buyback_arb` — downgraded 2026-09-27 after the
+Finance Act 2026 tax change, `merger_arb`, `ofs_retail`, `ipo_listing`), 15 null
 (mean_reversion, smart_money_deals, open_offer_arb, index_rebalance, fno_ban, promoter_buying,
 order_wins, turn_of_month, promoter_sells, pref_lockin, rating_change, ipo_unlock, consolidation,
 customer_momentum, investor_skill).

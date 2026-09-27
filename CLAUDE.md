@@ -13,13 +13,14 @@ user (Vilas). India-first, NSE.
 ## The discipline (the whole point — read this first)
 **Validate before you trust. Never trade a signal we haven't measured.** Every signal
 in the platform carries a hard-won **verdict**, and the runner prints it as a banner so a
-falsified signal is never read as edge. Twenty-two signals validated this way; two actionable edges
-(buyback tender; rights-entitlement discount), plus one real-but-unshortable effect (anchor unlocks). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
+falsified signal is never read as edge. Twenty-two signals validated this way; one actionable edge
+(rights-entitlement discount, small) — the buyback tender was downgraded to thin / watch after the
+Finance Act 2026 tax change — plus real-but-unshortable effects (anchor unlocks, demerger children). See `CONCLUSIONS.md` for the evidence; `CANDIDATE_SIGNALS.md` is the backlog
 of untested ideas, ordered by the thesis.
 
 | Signal | Type | Verdict | Role |
 |---|---|---|---|
-| `buyback_arb` | structural | **conditional edge (narrow)** | **primary (selected high-acceptance tenders only: ~+2.4% median after tax under the Apr-2026 capital-gains rule; blind −2.3%)** |
+| `buyback_arb` | structural | **thin** | watch (downgraded 2026-09-27: ~+2.4% median after tax on high-acceptance tenders under the Apr-2026 capital-gains rule, blind −2.3%; alerts still fire) |
 | `merger_arb` | spread | thin | watch |
 | `mean_reversion` | drift | **null** | lens (informational only) |
 | `smart_money_deals` | drift | **null** | lens (informational only) |
@@ -43,7 +44,8 @@ of untested ideas, ordered by the thesis.
 | `investor_skill` | drift | **null** | documented (walk-forward: top-ranked investors' new ≥ 1% SHP stakes −8.6% median vs NIFTY 500 at 12 months vs −7.4% all entrants, t_cl −0.4; no persistence, ρ 0.03; 13.5k entries 2022-26) |
 
 **The through-line:** edge survives only where a *structural barrier excludes competitors*
-(the buyback 15% small-shareholder reservation institutions are legally barred from). A
+(the buyback 15% small-shareholder reservation institutions are legally barred from — though a tax
+change can shrink even that to thin, as Finance Act 2026 did). A
 *publicly pre-announced* forced flow (index rebalancing) is arbitraged away just like a
 drift signal — being structural isn't enough if everyone can see and front-run it.
 Efficiently-priced spreads (merger arb) get competed to ~risk-free.
@@ -492,7 +494,11 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   capital gains on the net gain (slab-free), not deemed dividend. Re-run (n=101): high-acceptance 3× **+2.4%**
   median after tax, floor −2.3%; the ≤5%-slab route (+8-9%) is gone. `buyback.tax_regime` picks the regime
   (payment proxied as tender close + 7 d). *Reason:* found while fact-checking the course; the live scan was
-  computing 2026 tenders under the retired rule. Verdict label kept pending the owner's call.
+  computing 2026 tenders under the retired rule.
+- **2026-09-27** — `buyback_arb` downgraded **conditional / primary → thin / watch** (owner's call). *Reason:*
+  +2.4% median after tax on well-chosen tenders is the size the old tables called thin, and choosing them
+  in advance isn't proven yet; re-promote only if realized acceptance (`scanner.calibrate`) shows
+  high-acceptance tenders can be picked before the record date. Alerts and the daily scan continue.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
