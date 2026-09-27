@@ -240,6 +240,27 @@ the `prices` row floor (it doesn't — the floor is per-day).
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
+### ~~`parse_shp_xbrl` reads pre-Oct-2025 SHP filings 100x too high (and misses MF %)~~ — **DONE 2026-09-27** (unit read per filing from the whole-pattern row; 2020/2022 member aliases; 2020 DII = Institutions − FPI − FVCI; old "pledged or otherwise encumbered" not stored as pledge, only its `false` → 0; fixtures `shp_2020_taxonomy.xml` / `shp_2022_taxonomy.xml`; live check 4 companies × 3 taxonomies = master promoter %)
+
+**Learning (investor_skill, 2026-09-26):** the SHP XBRL taxonomy changed units. Filings on the 2025-10-31
+taxonomy carry fractions (0.7448 = 74.48%); the 2020-09-30 and 2022-09-30 taxonomies carry percent
+(74.99 = 74.99%). `parse_shp_xbrl` always multiplies by 100, so an old filing reads promoter 7499%, public
+2501%, small-holder 361%, FPI 796%, pledge likewise; and the old taxonomy's MF member
+(`MutualFundsOrUti…`) is not in `_PCT_MEMBERS`, so `mf_pct` is None. Verified on 13 companies × 3
+taxonomies (scratch run). The new holder parser avoids it by computing % = shares / total shares.
+**Impact today:** small — `shareholding` holds 4,465 rows, all 2025+ except ~34, and those 34 read
+sane (they were revised filings on the new taxonomy). **The trap:** `backfill.yml what=shareholding
+from=2020-01-01` would write thousands of 100x rows, and `buyback.estimate_entitlement` reads
+`small_holder_pct` (only the latest quarter, so live buyback math is safe today). **360:** scope = two
+lines in `_pct` (unit from the total-shares context: ≈100 → percent, ≈1 → fraction) + one member alias;
+blast radius = `shareholding` rows written from then on + the dashboard shareholding chart;
+does-it-apply = yes, reproduced; risk = low, reversible (re-run the backfill); cost ≈ 30 min with a
+2021-taxonomy fixture test. **Recommendation: do**, before anyone runs the shareholding backfill; add a
+freshness/sanity rule `promoter_pct <= 100`. *(At fix time: the live table already had `check (… between 0 and
+100)` on every % column, so the backfill would have failed its batches, not stored 100x rows — no new rule
+needed. The 2020 taxonomy also lacked small-holder / DII / FPI under the new member names, and pledge was a
+different quantity — both handled.)*
+
 ### ~~`extract_kpis.py --limit 1500` silently gets 1000 (PostgREST row cap)~~ — **DONE 2026-09-26** (`db.select_all(..., max_rows=)` stops paging at the limit; both extractors use it; tests `test_extract_kpis.py`, `test_db.py`; live work list 1500)
 
 **Learning (credit-ratings backfill, 2026-09-26):** a single `db.select(..., limit=N)` returns at
