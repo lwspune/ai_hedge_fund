@@ -8,7 +8,8 @@ link to the SHP XBRL. The XBRL carries what the master lacks:
   * MF / DII / FPI shares; the number of shareholders;
   * promoter pledge, both as a share of the promoter holding (the figure screener quotes) and
     as a share of all shares.
-Percentages are stored in 0-100 units (the XBRL carries fractions). Contexts are resolved by
+Percentages are stored in 0-100 units (the 2025-10 taxonomy carries fractions, older ones percent;
+the unit is read per filing). Contexts are resolved by
 their dimension member, not their id, so a renamed context id degrades to None, never garbage.
 Verified 2026-09-24 against IndusInd Bank (pledge 42.78% of promoter holding, 6.45% of total).
 """
@@ -27,21 +28,25 @@ _HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit
             "Referer": "https://www.nseindia.com/companies-listing/corporate-filings-shareholding-pattern"}
 _QUARTER_ENDS = ("-03-31", "-06-30", "-09-30", "-12-31")
 
-# category member -> stored field; ShareholdingAsAPercentageOfTotalNumberOfShares under each
+# stored field -> category members across taxonomies (2025-10-31, 2022-09-30, 2020-09-30; first found
+# wins); ShareholdingAsAPercentageOfTotalNumberOfShares under each
+_SMALL = ("ResidentIndividualShareholdersHoldingNominalShareCapitalUpToRsTwoLakhMember",
+          "IndividualShareholdersHoldingNominalShareCapitalUpToRsTwoLakhMember")
 _PCT_MEMBERS = {
-    "ShareholdingOfPromoterAndPromoterGroupMember": "promoter_pct",
-    "PublicShareholdingMember": "public_pct",
-    "ResidentIndividualShareholdersHoldingNominalShareCapitalUpToRsTwoLakhMember": "small_holder_pct",
-    "MutualFundsOrUTIMember": "mf_pct",
-    "InstitutionsDomesticMember": "dii_pct",
-    "InstitutionsForeignMember": "fpi_pct",
+    "promoter_pct": ("ShareholdingOfPromoterAndPromoterGroupMember",),
+    "public_pct": ("PublicShareholdingMember",),
+    "small_holder_pct": _SMALL,
+    "mf_pct": ("MutualFundsOrUTIMember", "MutualFundsOrUtiMember"),
+    "dii_pct": ("InstitutionsDomesticMember",),
+    "fpi_pct": ("InstitutionsForeignMember", "InstitutionsForeignPortfolioInvestorMember"),
 }
-_COUNT_MEMBERS = {
-    "ShareholdingPatternMember": "n_shareholders",
-    "ResidentIndividualShareholdersHoldingNominalShareCapitalUpToRsTwoLakhMember": "n_small_holders",
-}
+_COUNT_MEMBERS = {"n_shareholders": ("ShareholdingPatternMember",), "n_small_holders": _SMALL}
+_PCT_TAG = "ShareholdingAsAPercentageOfTotalNumberOfShares"
 _PLEDGE_TAG = "EncumberedSharesHeldAsPercentageOfTotalNumberOfShares"
 _PLEDGE_FLAG = "WhetherAnySharesHeldByPromotersAreEncumberedUnderPledged"
+# pre-2025-10 filings report "pledged or otherwise encumbered" — not the pledge alone, so only its
+# 'nothing encumbered' answer (pledge = 0) is used
+_OLD_ENCUMBRANCE_FLAG = "WhetherAnySharesHeldByPromotersArePledgeOrOtherwiseEncumbered"
 FIELDS = ("promoter_pct", "public_pct", "small_holder_pct", "mf_pct", "dii_pct", "fpi_pct",
           "pledge_pct_of_promoter", "pledge_pct_of_total", "n_shareholders", "n_small_holders")
 
@@ -103,28 +108,59 @@ def _fact(xml: str, tag: str, ctx_ids: list[str]) -> str | None:
     return None
 
 
-def _pct(s) -> float | None:
-    v = _num(s)
-    return None if v is None else round(v * 100, 2)
+def _unit_scale(xml: str, ctx: dict) -> float | None:
+    """Multiplier to 0-100 units, read off the whole-pattern row: 1 (fraction, 2025-10 taxonomy) -> 100,
+    100 (percent, older taxonomies) -> 1; anything else -> None (unknown unit, no percentages)."""
+    total = _num(_fact(xml, _PCT_TAG, ctx.get("ShareholdingPatternMember", [])))
+    if total is not None and abs(total - 1) < 0.01:
+        return 100.0
+    if total is not None and abs(total - 100) < 1:
+        return 1.0
+    return None
+
+
+def _first(xml: str, tag: str, ctx: dict, members: tuple) -> str | None:
+    for m in members:
+        if m in ctx:
+            return _fact(xml, tag, ctx[m])
+    return None
+
+
+def _flag_false(xml: str, tag: str) -> bool:
+    flag = re.search(rf"<in-bse-shp:{tag}\s[^>]*>([^<]*)<", xml)
+    return bool(flag) and flag.group(1).strip().lower() == "false"
 
 
 def parse_shp_xbrl(xml: str) -> dict:
     """The FIELDS above from an SHP XBRL; every field None when the taxonomy isn't recognised.
-    Pledge: the promoter-context value; 0.0 when the filing flags 'no pledge'; None when it
-    flags a pledge but the value can't be read (unknown, not zero)."""
+    Percentages are scaled by the unit the whole-pattern row reveals (fraction or percent); an
+    unknown unit gives no percentages. The 2020 taxonomy has no domestic/foreign institution split:
+    DII = Institutions - FPI - FVCI. Pledge: the promoter-context value (2025-10 taxonomy only); 0.0
+    when the filing flags 'no pledge' (or, before that, 'nothing encumbered'); None when it flags a
+    pledge but the value can't be read (unknown, not zero)."""
     ctx = _member_contexts(xml)
     out: dict = {f: None for f in FIELDS}
-    for member, field in _PCT_MEMBERS.items():
-        out[field] = _pct(_fact(xml, "ShareholdingAsAPercentageOfTotalNumberOfShares", ctx.get(member, [])))
-    for member, field in _COUNT_MEMBERS.items():
-        v = _num(_fact(xml, "NumberOfShareholders", ctx.get(member, [])))
+    scale = _unit_scale(xml, ctx)
+
+    def pct(v) -> float | None:
+        v = _num(v)
+        return None if v is None or scale is None else round(v * scale, 2)
+
+    for field, members in _PCT_MEMBERS.items():
+        out[field] = pct(_first(xml, _PCT_TAG, ctx, members))
+    if out["dii_pct"] is None and out["fpi_pct"] is not None:
+        inst = pct(_first(xml, _PCT_TAG, ctx, ("InstitutionsMember",)))
+        fvci = pct(_first(xml, _PCT_TAG, ctx, ("ForeignVentureCapitalInvestorsMember",))) or 0.0
+        if inst is not None:
+            out["dii_pct"] = round(inst - out["fpi_pct"] - fvci, 2)
+    for field, members in _COUNT_MEMBERS.items():
+        v = _num(_first(xml, "NumberOfShareholders", ctx, members))
         out[field] = int(v) if v is not None else None
     promo = ctx.get("ShareholdingOfPromoterAndPromoterGroupMember", [])
-    out["pledge_pct_of_promoter"] = _pct(_fact(xml, _PLEDGE_TAG, promo))
-    out["pledge_pct_of_total"] = _pct(_fact(xml, _PLEDGE_TAG, ctx.get("ShareholdingPatternMember", [])))
+    out["pledge_pct_of_promoter"] = pct(_fact(xml, _PLEDGE_TAG, promo))
+    out["pledge_pct_of_total"] = pct(_fact(xml, _PLEDGE_TAG, ctx.get("ShareholdingPatternMember", [])))
     if out["pledge_pct_of_promoter"] is None:
-        flag = re.search(rf"<in-bse-shp:{_PLEDGE_FLAG}[^>]*>([^<]*)<", xml)
-        if flag and flag.group(1).strip().lower() == "false":
+        if _flag_false(xml, _PLEDGE_FLAG) or _flag_false(xml, _OLD_ENCUMBRANCE_FLAG):
             out["pledge_pct_of_promoter"] = 0.0
             if out["pledge_pct_of_total"] is None:
                 out["pledge_pct_of_total"] = 0.0

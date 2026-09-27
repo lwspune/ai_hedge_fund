@@ -2,7 +2,7 @@
 
 The small-shareholder (nominal capital <= Rs 2 lakh) percentage is the denominator of the buyback
 15% reservation; the promoter pledge % feeds backlog signal #8. Percentages are stored in 0-100
-units (the XBRL carries fractions)."""
+units (the 2025-10 XBRL carries fractions, older taxonomies percent)."""
 from pathlib import Path
 
 from scanner.shareholding import (
@@ -58,6 +58,51 @@ def test_parse_shp_xbrl_pledge_absent_is_zero_when_flag_is_false_else_none():
                             ">false</in-bse-shp:WhetherAnySharesHeldByPromotersAreEncumberedUnderPledged>")
     assert parse_shp_xbrl(clean)["pledge_pct_of_promoter"] == 0.0
     assert parse_shp_xbrl(no_tags)["pledge_pct_of_promoter"] is None   # flagged pledged, value unreadable
+
+
+def test_parse_shp_xbrl_2022_taxonomy_is_already_in_percent_units():
+    # in-bse-shp-2022-09-30 (filings to Oct-2025) carries 16.49, not 0.1649; its MF member is spelt `Uti`
+    d = parse_shp_xbrl((FIX / "shp_2022_taxonomy.xml").read_text(encoding="utf-8"))
+    assert d["promoter_pct"] == 16.49 and d["public_pct"] == 83.51
+    assert d["small_holder_pct"] == 5.7
+    assert d["mf_pct"] == 15.22
+    assert d["dii_pct"] == 26.71 and d["fpi_pct"] == 42.33
+    assert d["n_shareholders"] == 364290 and d["n_small_holders"] == 348424
+
+
+def test_parse_shp_xbrl_2020_taxonomy_maps_old_category_names():
+    # in-bse-shp-2020-09-30: small holders have no "Resident" prefix; Institutions includes FPIs, so
+    # DII = Institutions - FPI - FVCI
+    d = parse_shp_xbrl((FIX / "shp_2020_taxonomy.xml").read_text(encoding="utf-8"))
+    assert d["promoter_pct"] == 16.54 and d["public_pct"] == 83.46
+    assert d["small_holder_pct"] == 5.99 and d["n_small_holders"] == 384847
+    assert d["mf_pct"] == 9.81
+    assert d["fpi_pct"] == 52.05
+    assert d["dii_pct"] == 17.74
+
+
+def test_parse_shp_xbrl_old_taxonomy_encumbrance_is_not_stored_as_pledge():
+    # before Oct-2025 the column is "pledged OR otherwise encumbered" (IndusInd 2023: 100%, vs 50.86% pledged
+    # in 2025) — a different quantity, so None; 0.0 only when the filing says nothing is encumbered
+    xml = (FIX / "shp_2022_taxonomy.xml").read_text(encoding="utf-8")
+    d = parse_shp_xbrl(xml)
+    assert d["pledge_pct_of_promoter"] is None and d["pledge_pct_of_total"] is None
+    clean = xml.replace('<in-bse-shp:WhetherAnySharesHeldByPromotersArePledgeOrOtherwiseEncumbered contextRef="OneI">true',
+                        '<in-bse-shp:WhetherAnySharesHeldByPromotersArePledgeOrOtherwiseEncumbered contextRef="OneI">false')
+    assert clean != xml
+    d0 = parse_shp_xbrl(clean)
+    assert d0["pledge_pct_of_promoter"] == 0.0 and d0["pledge_pct_of_total"] == 0.0
+
+
+def test_parse_shp_xbrl_unknown_unit_gives_no_percentages():
+    # the whole-pattern row is 100 (percent) or 1 (fraction); without it the unit is a guess -> None
+    xml = (FIX / "shp_2022_taxonomy.xml").read_text(encoding="utf-8")
+    no_total = xml.replace('contextRef="ShareholdingPatternI" unitRef="pure" decimals="INF">100<',
+                           'contextRef="ShareholdingPatternI" unitRef="pure" decimals="INF"><')
+    assert no_total != xml
+    d = parse_shp_xbrl(no_total)
+    assert d["promoter_pct"] is None and d["small_holder_pct"] is None
+    assert d["n_shareholders"] == 364290          # counts don't depend on the unit
 
 
 def test_parse_shp_xbrl_unknown_taxonomy_returns_nones_not_garbage():
