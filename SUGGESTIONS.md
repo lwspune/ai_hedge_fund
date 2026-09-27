@@ -237,7 +237,7 @@ the `prices` row floor (it doesn't — the floor is per-day).
 
 ## 2026-09-27 (Learnings page)
 
-### Top bar overflows at phone width (every page)
+### ~~Top bar overflows at phone width (every page)~~ — **DONE 2026-09-27** (≤ 640 px the nav scrolls sideways; measured page scroll width 415 → 375 px on a 375 px viewport, Signals / Learnings / Courses / company)
 
 At 390 px the top bar (nav + company search + freshness dot) is wider than the screen, so every page
 scrolls sideways and the search box and freshness dot sit off-screen. Seen on Signals before the
@@ -254,6 +254,32 @@ next" with a pointer to `CANDIDATE_SIGNALS.md`. Docs only.
 
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
+
+### `buyback_arb` taxes 2026 tenders under the retired deemed-dividend rule (Finance Act 2026)
+
+**Learning (course research, 2026-09-27):** for any buyback on or after **1 Apr 2026**, a non-promoter's
+proceeds are taxed as **capital gains** (buyback price − cost; STCG 20% under 12 months), not as a deemed
+dividend at slab rate with the cost as a capital loss (the Oct-2024 rule). Promoters pay extra (22% / 30%
+effective). Source: Vinod Kothari Consultants, Feb 2026; Finance Act 2026.
+
+**360.**
+- *Scope:* `buyback.after_tax_return` has only `pre_oct2024` / `post_oct2024`; `expected_after_tax` picks
+  `post_oct2024` for every record date ≥ 2024-10-01, so the live scan's `exp_return` for every 2026 tender
+  is computed under the wrong law. Also CONCLUSIONS §3's tax-slab tables, the catalog verdict text
+  ("actionable only from a ≤5%-slab account"), `signalLabels.js`, the Learnings / course copy, and the
+  Telegram alert text if it quotes a slab.
+- *Blast radius:* the primary signal's verdict. Under the new rule the arb gain on the accepted shares is
+  taxed at a flat 20% and the unaccepted remainder's loss is a normal short-term loss — no slab
+  dependence. The "≤5% slab only" condition may simply disappear (both better for high-slab accounts and
+  worse for ≤5%-slab ones than before). Nothing breaks; the numbers shown are wrong.
+- *Does it really apply?* Yes for live tenders (record dates since Apr 2026). The historical study
+  (2020 → Mar 2026) is right to use the old regimes for past events; only the forward-looking verdict and
+  live `exp_return` need the third regime. Open point: whether "on or after 1 Apr 2026" keys on the offer,
+  record or payment date — check the Act's text before coding the cut-over.
+- *Risk / reversibility:* low. A third regime `post_apr2026` + cut-over date, tests first; revert by
+  reverting the commit. Re-run §3 on Actions to restate the after-tax table per regime.
+- *Cost:* ~half a day incl. tests, re-validation and verdict text.
+- *Recommendation:* **do**, soon: it is the one signal we act on, and alerts fire on it.
 
 ### ~~`parse_shp_xbrl` reads pre-Oct-2025 SHP filings 100x too high (and misses MF %)~~ — **DONE 2026-09-27** (unit read per filing from the whole-pattern row; 2020/2022 member aliases; 2020 DII = Institutions − FPI − FVCI; old "pledged or otherwise encumbered" not stored as pledge, only its `false` → 0; fixtures `shp_2020_taxonomy.xml` / `shp_2022_taxonomy.xml`; live check 4 companies × 3 taxonomies = master promoter %)
 

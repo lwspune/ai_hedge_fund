@@ -110,6 +110,16 @@
     "signals": []
   },
   {
+    "id": "rules-move",
+    "section": "method",
+    "title": "Re-check the rules after every Budget and SEBI change",
+    "body": "Taxes and market rules shift under a signal. Buyback proceeds went from tax-free to deemed dividend (Oct 2024) to capital gains (Apr 2026); F&O STT rose in Apr 2026; F&O stocks got a closing auction in Aug 2026. A verdict computed under old rules can quietly go wrong.",
+    "why": "Every rule and rate a verdict depends on needs an 'as of' date and a source, and a re-check after each Budget (February) and major SEBI circular.",
+    "learned": "2026-09-27",
+    "source": "Course research 2026-09-27; Finance Act 2026",
+    "signals": ["buyback_arb"]
+  },
+  {
     "id": "sharpe-ratio",
     "section": "concepts",
     "title": "Sharpe ratio: return per unit of bumpiness",
