@@ -6,7 +6,7 @@ import pytest
 
 from scanner.buyback import (
     parse_entitlement, parse_symbol, arb_return, after_tax_return,
-    estimate_acceptance, expected_after_tax, parse_issue_size,
+    estimate_acceptance, expected_after_tax, parse_issue_size, tax_regime,
     mcap_bucket, calibrate_from_outcomes,
 )
 
@@ -103,6 +103,43 @@ def test_expected_after_tax_picks_regime_by_record_date():
     pre = expected_after_tax(1000, 1400, 0.5, record_date="2024-06-28", slab=0.30)
     post = expected_after_tax(1000, 1400, 0.5, record_date="2025-06-28", slab=0.30)
     assert post < pre  # Oct-2024 dividend tax makes the post-period worse
+
+
+@pytest.mark.parametrize("record, close, want", [
+    ("2024-06-28", "2024-07-10", "pre_oct2024"),
+    ("2025-06-28", "2025-07-10", "post_oct2024"),
+    # Finance Act 2026 keys on the payment date (>= 2026-04-01); payment follows the close by days
+    ("2026-03-02", "2026-03-10", "post_oct2024"),
+    ("2026-03-12", "2026-03-25", "post_apr2026"),
+    # no close date yet (before the letter of offer): the record date plus a tender's usual span
+    ("2026-03-05", None, "post_oct2024"),
+    ("2026-03-20", None, "post_apr2026"),
+    ("2026-09-25", None, "post_apr2026"),
+    (None, None, "post_apr2026"),
+])
+def test_tax_regime_by_record_and_payment_date(record, close, want):
+    assert tax_regime(record, close) == want
+
+
+def test_apr2026_taxes_the_net_gain_at_stcg_whatever_the_slab():
+    args = dict(entry_price=1000, buyback_price=1400, post_price=1000, accept_frac=0.20, cost_bps=0)
+    gross = arb_return(**args)
+    for slab in (0.0, 0.05, 0.30):
+        assert after_tax_return(**args, regime="post_apr2026", slab=slab) == pytest.approx(gross * 0.8)
+
+
+def test_apr2026_loss_is_untaxed_and_earns_no_offset():
+    args = dict(entry_price=1000, buyback_price=1050, post_price=900, accept_frac=0.10)
+    gross = arb_return(**args)
+    assert gross < 0
+    assert after_tax_return(**args, regime="post_apr2026") == pytest.approx(gross)
+
+
+def test_expected_after_tax_uses_capital_gains_for_2026_tenders():
+    old_rule = expected_after_tax(1000, 1400, 0.5, record_date="2025-06-28", slab=0.30)
+    new_rule = expected_after_tax(1000, 1400, 0.5, record_date="2026-09-25", slab=0.30)
+    assert new_rule > old_rule
+    assert new_rule == pytest.approx(after_tax_return(1000, 1400, 1000, 0.5, regime="post_apr2026"))
 
 
 # --- NSE symbol parsing (quotes are backslash-escaped in the raw HTML) -------

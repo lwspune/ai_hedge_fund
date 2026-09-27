@@ -2,8 +2,9 @@
 
 The edge is structural: SEBI reserves 15% of every tender buyback for small
 shareholders (holdings <= Rs 2 lakh), a pool institutions cannot touch. We model
-the *guaranteed* acceptance (the entitlement ratio) as a conservative floor, and
-the Oct-2024 tax change (buyback proceeds now taxed as dividend) as an overlay.
+the *guaranteed* acceptance (the entitlement ratio) as a conservative floor, and the tax
+regime of the day as an overlay: tax-free proceeds (to Sep-2024), deemed dividend at slab rate
+(Oct-2024 to Mar-2026), capital gains on the net gain (paid on or after 1 Apr 2026, Finance Act 2026).
 """
 from __future__ import annotations
 
@@ -13,6 +14,28 @@ import re
 import pandas as pd
 
 STCG_RATE = 0.20  # short-term capital gains (post Jul 2024)
+
+# Tax regime cut-overs. Oct-2024 (deemed dividend) is keyed on the record date as before. Finance
+# Act 2026 applies to buybacks *paid* on or after 1 Apr 2026; chittorgarh gives no payment date,
+# so payment is proxied from the tender close (settlement follows it by a few working days) or,
+# before the letter of offer, from the record date plus a tender's usual span.
+DIVIDEND_TAX_FROM = pd.Timestamp("2024-10-01")
+CAPITAL_GAINS_FROM = pd.Timestamp("2026-04-01")
+PAYMENT_AFTER_CLOSE_DAYS = 7
+PAYMENT_AFTER_RECORD_DAYS = 21
+
+
+def tax_regime(record_date, close_date=None) -> str:
+    """'pre_oct2024' | 'post_oct2024' | 'post_apr2026' for a buyback; unknown dates -> today's rule."""
+    if record_date is None or pd.isna(record_date):
+        return "post_apr2026"
+    rd = pd.Timestamp(record_date)
+    if rd < DIVIDEND_TAX_FROM:
+        return "pre_oct2024"
+    paid = (pd.Timestamp(close_date) + pd.Timedelta(days=PAYMENT_AFTER_CLOSE_DAYS)
+            if close_date is not None and not pd.isna(close_date)
+            else rd + pd.Timedelta(days=PAYMENT_AFTER_RECORD_DAYS))
+    return "post_apr2026" if paid >= CAPITAL_GAINS_FROM else "post_oct2024"
 
 
 # --- pure: parsing + arb math -----------------------------------------------
@@ -89,14 +112,18 @@ def arb_return(entry_price, buyback_price, post_price, accept_frac,
 
 def after_tax_return(entry_price, buyback_price, post_price, accept_frac, regime,
                      slab=0.30, capital=200000, cost_bps=30, stcg_rate=STCG_RATE):
-    """After-tax return under the pre/post Oct-2024 buyback-tax regimes."""
+    """After-tax return under a buyback-tax regime (see `tax_regime`). `slab` matters only for
+    'post_oct2024'. Under 'post_apr2026' the whole position is one short-term trade: STCG on the
+    net gain (accepted + residual, after costs); a net loss is untaxed and no offset is assumed."""
     c = _components(entry_price, accept_frac, capital, cost_bps)
     if c is None:
         return None
     _, accepted, residual, buy_cost = c
     proceeds = accepted * buyback_price + residual * post_price * (1 - cost_bps / 1e4)
     residual_tax = stcg_rate * max(0.0, residual * (post_price - entry_price))
-    if regime == "pre_oct2024":
+    if regime == "post_apr2026":
+        tax = stcg_rate * max(0.0, proceeds - buy_cost)      # capital gains, slab-free
+    elif regime == "pre_oct2024":
         tax = residual_tax                                   # buyback proceeds exempt
     elif regime == "post_oct2024":
         div_tax = slab * (accepted * buyback_price)          # taxed as dividend
@@ -195,15 +222,11 @@ def calibrate_from_outcomes(records) -> dict:
     return {b: {"n": len(v), "acceptance": sum(v) / len(v)} for b, v in acc.items()}
 
 
-def expected_after_tax(price, buyback_price, est_acceptance, record_date, slab=0.30):
-    """After-tax expected return at the estimated acceptance, residual sold flat.
-
-    Tax regime is chosen from the record date (Oct-2024 dividend-tax cutover)."""
-    regime = "pre_oct2024"
-    if record_date is not None and pd.Timestamp(record_date) >= pd.Timestamp("2024-10-01"):
-        regime = "post_oct2024"
+def expected_after_tax(price, buyback_price, est_acceptance, record_date, slab=0.30, close_date=None):
+    """After-tax expected return at the estimated acceptance, residual sold flat, under the tax
+    regime of the buyback's dates (`tax_regime`)."""
     return after_tax_return(price, buyback_price, price, est_acceptance,
-                            regime=regime, slab=slab)
+                            regime=tax_regime(record_date, close_date), slab=slab)
 
 
 # --- scraper ----------------------------------------------------------------
@@ -424,7 +447,8 @@ def enrich_buyback(bb: dict, cur: float, market_cap_cr, small_holder_pct, today,
             bb.get("issue_size_cr"), bb["buyback_price"], market_cap_cr, cur, small_holder_pct),
         entitlement_source=floor_src,
         est_return=arb_return(cur, bb["buyback_price"], cur, floor) if floor is not None else None,
-        exp_return=expected_after_tax(cur, bb["buyback_price"], acc, bb.get("record_date")),
+        exp_return=expected_after_tax(cur, bb["buyback_price"], acc, bb.get("record_date"),
+                                      close_date=bb.get("close_date")),
         is_open=window_open and can_buy,
     )
     return r
