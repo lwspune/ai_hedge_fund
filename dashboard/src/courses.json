@@ -1,0 +1,429 @@
+[
+  {
+    "id": "quant-trading",
+    "title": "Quant trading in India: novice to expert",
+    "summary": "A practical path from how NSE works to validating and running your own edge. Every module ends with something you build or measure, mostly on this platform's own data.",
+    "reviewed": "2026-09-27",
+    "reviewEveryDays": 180,
+    "levels": [
+      { "key": "novice", "title": "Novice", "lede": "How the market works, what a trade really costs, and how to measure a result." },
+      { "key": "intermediate", "title": "Intermediate", "lede": "Testing ideas honestly, so a backtest can't fool you." },
+      { "key": "advanced", "title": "Advanced", "lede": "Strategies, derivatives, sizing and execution." },
+      { "key": "expert", "title": "Expert", "lede": "Running a research process and a live book." }
+    ],
+    "modules": [
+      {
+        "id": "how-nse-works",
+        "level": "novice",
+        "status": "ready",
+        "title": "How NSE works",
+        "minutes": 10,
+        "goals": [
+          "Know what happens between placing an order and owning the shares",
+          "Understand price bands, circuits and settlement, the rules that limit what a strategy can do",
+          "Read a day's bhavcopy, the file every price study here starts from"
+        ],
+        "lesson": [
+          "NSE runs a continuous order book from 9:15 IST. Buy and sell orders are matched by price, then time. Before that, a 9:00–9:15 pre-open auction finds a single opening price. The official close is not the last trade. Since 3 Aug 2026, F&O stocks stop continuous trading at 15:15 and get their closing price from a closing auction (orders pooled, matched at one price by 15:35). All other stocks still trade to 15:30 and close at the volume-weighted average of the last 30 minutes. So a backtest that 'buys at the close' assumes a price you can only reach by joining the auction, or approximate over half an hour.",
+          "Most stocks have a daily price band of 2%, 5%, 10% or 20% from the previous close. Hit it and the stock is 'in circuit': no trades beyond that price for the rest of the day. A strategy that needs to sell a small-cap on bad news may simply not be able to. F&O stocks have no fixed band, only a dynamic one the exchange can widen. There is also a market-wide circuit breaker at 10%, 15% and 20% index moves.",
+          "Trades settle T+1: buy on Monday, the shares reach your demat on Tuesday. This one rule drives a lot here. For a record-date event (buyback, dividend, rights) you must buy one session before the record date, because the record-date purchase settles too late. Optional same-day (T+0) settlement exists for the top 500 stocks, but T+1 is the default.",
+          "Shares trade in series. EQ is normal rolling settlement. BE/BZ is trade-to-trade (every trade must be delivered, no intraday netting), where surveillance-flagged stocks go. SME stocks trade in SM/ST lots. When you pull prices, filter to the series you'd actually trade, or you'll mix in warrants and T2T quotes.",
+          "Every evening NSE publishes the bhavcopy: one CSV with every stock's open, high, low, close, volume, turnover and delivery %. It is unadjusted (a 1:1 bonus shows up as a 50% 'crash') and it is the ground truth this platform's price store is built from."
+        ],
+        "india": [
+          { "text": "Settlement is T+1 for all equities; optional T+0 runs alongside for the top 500 stocks (from 31 Jan 2025).", "asOf": "2026-09-27", "source": "SEBI circular, Dec 2024", "url": "https://www.sebi.gov.in/legal/circulars/dec-2024/enhancement-in-the-scope-of-optional-t-0-rolling-settlement-cycle-in-addition-to-the-existing-t-1-settlement-cycle-in-equity-cash-markets_89443.html" },
+          { "text": "Closing Auction Session for F&O stocks from 3 Aug 2026: continuous trading ends 15:15, order entry 15:20–15:30, closing price set 15:30–15:35. Non-F&O stocks keep the 30-minute VWAP close.", "asOf": "2026-09-27", "source": "Zerodha support — Closing Auction Session", "url": "https://support.zerodha.com/category/trading-and-markets/trading-faqs/general/articles/closing-auction-session" },
+          { "text": "Stock price bands are 2%, 5%, 10% or 20%; F&O stocks use a dynamic band instead.", "asOf": "2026-09-27", "source": "NSE — price bands", "url": "https://www.nseindia.com/static/products-services/equity-market-price-bands" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Download yesterday's bhavcopy: https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_DDMMYYYY.csv (replace the date; weekdays only).",
+            "Open it in Excel or pandas. Filter SERIES = EQ. Count the rows.",
+            "Find the 10 stocks with the highest DELIV_PER (delivery %) among those with turnover above ₹10 crore.",
+            "Pick one stock that hit its upper band that day (CLOSE_PRICE = HIGH_PRICE and a large % change) and look up its band."
+          ],
+          "code": [
+            "import pandas as pd",
+            "df = pd.read_csv('sec_bhavdata_full_26092026.csv')",
+            "df.columns = df.columns.str.strip()",
+            "eq = df[df['SERIES'].str.strip() == 'EQ']",
+            "print(len(eq))"
+          ],
+          "deliverable": "A one-page note: how many EQ stocks traded, the top-10 delivery list, and one circuit example with its band."
+        },
+        "check": [
+          { "q": "A stock's record date for a buyback is Thursday. When is the last day you can buy it and still be entitled?", "a": "Wednesday. T+1 settlement means Wednesday's purchase reaches your demat on Thursday; Thursday's purchase settles Friday, too late." },
+          { "q": "Why can a backtest that 'sells at the close on bad news' be impossible to trade in a small-cap?", "a": "The stock may be locked at its lower circuit, with no buyers at any allowed price." }
+        ],
+        "deeper": [
+          { "title": "NSE — equity market price bands", "url": "https://www.nseindia.com/static/products-services/equity-market-price-bands" }
+        ],
+        "learnings": ["cum-date-entry"],
+        "signals": []
+      },
+      {
+        "id": "costs",
+        "level": "novice",
+        "status": "ready",
+        "title": "The real cost of a trade",
+        "minutes": 10,
+        "goals": [
+          "Add up every charge on a delivery and an intraday trade",
+          "Know how each kind of profit is taxed",
+          "Turn costs into a hurdle rate your strategy must beat"
+        ],
+        "lesson": [
+          "Most strategies that look good on paper die here. Costs are small per trade but they repeat on every trade, and tax takes a share of every win. The rule: a strategy's edge must be several times its round-trip cost, or it is noise with a fee attached.",
+          "A ₹1,00,000 delivery round trip (buy, later sell) at a zero-brokerage broker costs roughly: STT 0.1% on each side ₹200, stamp duty 0.015% on the buy ₹15, exchange charges about ₹6, a DP charge of about ₹15–20 on the sell, and GST on the fees. That is about ₹240, or 0.24%, before the bid-ask spread. In a small-cap the spread and your own price impact can add 0.2–1% more.",
+          "Intraday is cheaper per rupee in STT (0.025% on the sell only) but brokerage is charged per order (typically ₹20 or 0.03%, whichever is lower), and you trade far more often. Ten round trips a week at 0.08% each is 0.8% a week, over 40% a year in costs.",
+          "Tax depends on how the profit was made. Delivery shares sold within 12 months: short-term capital gains (STCG) at 20%. Held longer: long-term (LTCG) at 12.5% on gains above ₹1.25 lakh a year. Intraday profits are speculative business income, taxed at your slab rate. F&O profits are non-speculative business income, also at slab rate. Add 4% cess on top.",
+          "This platform assumes 30 basis points (0.30%) per round trip in its studies. That is the delivery cost above plus a modest spread. When a study's median edge is 1%, costs and tax decide the verdict. That is exactly why the buyback verdict depends on the tax treatment."
+        ],
+        "india": [
+          { "text": "STT: delivery 0.1% on buy and sell; intraday 0.025% on sell; futures 0.05% and options 0.15% of premium on sell (F&O raised from 1 Apr 2026).", "asOf": "2026-09-27", "source": "Zerodha support — STT rates", "url": "https://support.zerodha.com/category/account-opening/resident-individual/ri-charges/articles/how-is-the-securities-transaction-tax-stt-calculated" },
+          { "text": "Stamp duty on buys: 0.015% delivery, 0.003% intraday. GST 18% on brokerage + exchange charges.", "asOf": "2026-09-27", "source": "NSE — stamp duty and taxes", "url": "https://www.nseindia.com/static/invest/first-time-investor-stamp-duty-charges-taxes" },
+          { "text": "Listed equity: STCG 20% (≤ 12 months), LTCG 12.5% above ₹1.25 lakh a year (Finance Act 2024, from 23 Jul 2024; unchanged for FY 2026-27).", "asOf": "2026-09-27", "source": "Value Research — LTCG & STCG FY 2026-27", "url": "https://www.valueresearchonline.com/learn/stocks/ltcg-stcg-tax-stock-gains-fy-2026-27/" },
+          { "text": "Buybacks on or after 1 Apr 2026: proceeds are taxed as capital gains (price minus cost) for non-promoters, no longer as deemed dividend at slab rate (Finance Act 2026).", "asOf": "2026-09-27", "source": "Vinod Kothari Consultants, Feb 2026", "url": "https://vinodkothari.com/2026/02/buyback-taxation-rationalised-with-limited-relief-to-promoter-shareholders/" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Find a real contract note from your broker (or use Zerodha's brokerage calculator at zerodha.com/brokerage-calculator).",
+            "For one delivery trade and one intraday trade, list every charge and compute it as a % of trade value.",
+            "Build a small spreadsheet: inputs = trade value, delivery/intraday, trades per month; output = yearly cost as a % of capital.",
+            "Add a tax row: for a strategy earning 12% gross a year, what is left after costs and STCG at 20%?"
+          ],
+          "deliverable": "A cost-and-tax calculator sheet, and your personal hurdle rate: the gross return a strategy must beat before you'd consider it."
+        },
+        "check": [
+          { "q": "A strategy averages +0.3% per trade before costs and holds 3 days. Worth pursuing?", "a": "No. A delivery round trip is ~0.24% plus spread, and the gain is short-term, so 20% tax on what's left. It is roughly break-even at best." },
+          { "q": "Why do F&O profits often end up taxed more than a delivery trade's?", "a": "They're business income at your slab rate (up to 30% + cess), while delivery gains are STCG at a flat 20% or LTCG at 12.5%." }
+        ],
+        "deeper": [
+          { "title": "Zerodha — charges page (all fees in one table)", "url": "https://zerodha.com/charges/" }
+        ],
+        "learnings": [],
+        "signals": ["buyback_arb"]
+      },
+      {
+        "id": "return-and-risk",
+        "level": "novice",
+        "status": "ready",
+        "title": "Return, risk and the right benchmark",
+        "minutes": 10,
+        "goals": [
+          "Measure a strategy with return, volatility, drawdown and Sharpe",
+          "Pick a fair benchmark for Indian equities",
+          "Tell 'beat the market' apart from 'took more risk'"
+        ],
+        "lesson": [
+          "Return alone says little. Two numbers make it meaningful. Volatility is how much the returns swing, the standard deviation. Maximum drawdown is the worst peak-to-trough fall, the number you'll actually feel. A strategy with 20% returns and a 60% drawdown will be abandoned long before it pays.",
+          "The Sharpe ratio combines them: (return − risk-free rate) ÷ volatility. Use the 91-day T-bill yield as the risk-free rate (RBI publishes the weekly auction result). A long-run Sharpe of 0.3–0.5 is about what Indian equities give. Around 1 is good if it is real; 2 or more in a backtest is usually a mistake.",
+          "Compare against the right benchmark. NIFTY 50 is 50 large caps. If your strategy buys mid and small caps, compare it to NIFTY 500, or the small-cap index, or you'll credit yourself with the small-cap premium. Use the total return (TRI) version, which includes dividends. The price index understates the market by about 1–1.5% a year.",
+          "Excess return over the benchmark is what a strategy adds. This platform measures every signal as 'abnormal return': the stock's return minus NIFTY 500's over the same days. A stock that rose 8% while the market rose 7% earned +1%, not +8%."
+        ],
+        "india": [
+          { "text": "Index data (incl. TRI versions) is published by NSE Indices on niftyindices.com; the platform's price store keeps ^NSEI and ^CRSLDX (NIFTY 500).", "asOf": "2026-09-27", "source": "NSE Indices", "url": "https://www.niftyindices.com/" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Pull 5 years of daily closes for one stock you own and for NIFTY 500 (yfinance: 'SYMBOL.NS' and '^CRSLDX').",
+            "Compute for both: annual return, annual volatility (daily std × √252), max drawdown, Sharpe (use 6% risk-free if you don't look it up).",
+            "Compute your stock's excess return over NIFTY 500 per year. In how many of the 5 years did it beat the index?"
+          ],
+          "code": [
+            "import yfinance as yf, numpy as np",
+            "px = yf.download(['TCS.NS', '^CRSLDX'], period='5y')['Close'].dropna()",
+            "r = px.pct_change().dropna()",
+            "vol = r.std() * np.sqrt(252)",
+            "cagr = (px.iloc[-1] / px.iloc[0]) ** (252 / len(px)) - 1",
+            "dd = (px / px.cummax() - 1).min()",
+            "print(cagr, vol, (cagr - 0.06) / vol, dd)"
+          ],
+          "deliverable": "A four-number scorecard (return, volatility, max drawdown, Sharpe) for your stock and the index, side by side."
+        },
+        "check": [
+          { "q": "A small-cap fund returned 25% last year vs NIFTY 50's 15%. Did it add skill?", "a": "Can't tell yet. Compare it to a small-cap index over the same period. If small caps rose 28%, it underperformed." },
+          { "q": "Why use a TRI rather than the price index as the benchmark?", "a": "The TRI includes reinvested dividends. Your strategy collects dividends too, so the price index would flatter you by ~1–1.5% a year." }
+        ],
+        "deeper": [],
+        "learnings": ["sharpe-ratio"],
+        "signals": []
+      },
+      {
+        "id": "market-data",
+        "level": "novice",
+        "status": "ready",
+        "title": "Market data without traps",
+        "minutes": 12,
+        "goals": [
+          "Know which free Indian data sources exist and what each is good for",
+          "Handle splits, bonuses and delistings correctly",
+          "Recognise the three data mistakes that create fake returns"
+        ],
+        "lesson": [
+          "Free sources cover almost everything an end-of-day quant needs. NSE bhavcopy has every stock, unadjusted, with delivery %. Yahoo (yfinance, '.NS') is split-adjusted and convenient for return studies. nselib gives per-symbol unadjusted history, including older and delisted names. screener.in has fundamentals, and NSE's static CSVs cover deals, F&O bans and the company list.",
+          "Trap 1, adjusted vs unadjusted. After a 1:1 bonus the price halves. Adjusted data rescales the past so returns are right. Unadjusted data shows the real traded price. Use adjusted prices for returns. Use unadjusted prices whenever you compare against a nominal rupee price, like a buyback price or a rights issue price. Mixing them once produced a '+1282% buyback premium' here.",
+          "Trap 2, survivorship. Today's stock list excludes every company that went bust or delisted. Backtest on it and you only ever pick survivors, so returns look better than anything you could have traded. Keep delisted symbols (this platform never deletes them; they're marked delisted).",
+          "Trap 3, bad rows. Warrants listed under a similar symbol, stale quotes on non-trading days, and a holiday file served under the wrong date all happen. Guard against them: reject impossible moves, check the date inside the file, and filter series. Never show a number you haven't sanity-checked."
+        ],
+        "india": [
+          { "text": "NSE bhavcopy archive: nsearchives.nseindia.com/products/content/sec_bhavdata_full_DDMMYYYY.csv (all symbols, unadjusted). On a holiday NSE may serve the previous session's file under the holiday's name, so check its DATE1 column.", "asOf": "2026-09-27", "source": "Platform data notes (CLAUDE.md)" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Pick a stock that had a bonus or split in the last 3 years (look up its corporate actions on NSE).",
+            "Plot its unadjusted closes (this platform: get_closes(sym, start, end, source='db')) and its yfinance closes on one chart. Find the jump.",
+            "Compute the 1-year return from both series. Which is right, and by how much is the other wrong?",
+            "Bonus: find one symbol that delisted since 2022 in the companies table (status = delisted) and note what a survivor-only backtest would have missed."
+          ],
+          "code": [
+            "from scanner.pricestore import get_closes",
+            "raw = get_closes('SYMBOL', '2023-01-01', '2026-09-26', source='db')",
+            "adj = get_closes('SYMBOL', '2023-01-01', '2026-09-26', source='yf')"
+          ],
+          "deliverable": "A chart of adjusted vs unadjusted prices around one corporate action, with the return error written on it."
+        },
+        "check": [
+          { "q": "You want the premium of a ₹500 buyback over the pre-announcement price. Adjusted or unadjusted closes?", "a": "Unadjusted. The ₹500 is a nominal price; adjusted history may have been rescaled by a later split or bonus." },
+          { "q": "Why does a backtest on today's NIFTY 500 members overstate returns?", "a": "Survivorship: it only holds stocks that did well enough to still be in the index today." }
+        ],
+        "deeper": [],
+        "learnings": ["adjusted-vs-unadjusted", "no-silent-bad-data", "reproduce-before-trust"],
+        "signals": []
+      },
+      {
+        "id": "python-minimum",
+        "level": "novice",
+        "status": "ready",
+        "title": "Python for market data: the minimum",
+        "minutes": 15,
+        "goals": [
+          "Load, clean and align price series with pandas",
+          "Compute returns over trading days, not calendar days",
+          "Write a function you can test"
+        ],
+        "lesson": [
+          "You need a small slice of Python. That is pandas for tables and time series, numpy for maths, and pytest to check your functions. Skip machine-learning libraries for now. Every result in this platform so far came from pandas plus careful thinking.",
+          "The core objects are a Series of closes indexed by date, and a DataFrame of many stocks. Three operations cover most work: pct_change() for returns, shift(n) to look n rows back or ahead (and to create lookahead bugs if you shift the wrong way), and reindex/asof to align two series on the same dates.",
+          "Count in trading days. '+20 days' means 20 sessions, about one month, not 20 calendar days. With a date-indexed Series, the position of the event date via index.searchsorted(date) and then iloc[pos + 20] gives you the 20th session after it. That is exactly how scanner/eventstudy.py does it.",
+          "Write every calculation as a small function and test it on a hand-made example where you know the answer. A 5-row Series where you can compute the return by hand catches most off-by-one errors. This platform's rule: tests first, then code."
+        ],
+        "india": [],
+        "tryIt": {
+          "steps": [
+            "Write fwd_return(closes, date, n): the return from the first session on or after date to the nth session after it.",
+            "Test it with pytest on a hand-made Series of 6 prices (including a missing weekend) where you know the answer.",
+            "Compare your function with scanner/eventstudy.py forward_abnormal_return and note one thing it handles that yours doesn't."
+          ],
+          "code": [
+            "import pandas as pd",
+            "def fwd_return(closes, date, n):",
+            "    pos = closes.index.searchsorted(pd.Timestamp(date))",
+            "    if pos + n >= len(closes):",
+            "        return None",
+            "    return closes.iloc[pos + n] / closes.iloc[pos] - 1"
+          ],
+          "deliverable": "A tested fwd_return function and a one-line note on how the platform's version differs (benchmark, entry lag, missing data)."
+        },
+        "check": [
+          { "q": "closes.shift(-1) at row t holds which price?", "a": "Tomorrow's close. Using it as a signal input at time t is lookahead, since you can't know tomorrow's price today." },
+          { "q": "Why test with a hand-made Series instead of real data?", "a": "You know the right answer exactly, so any mismatch is a bug, not market noise." }
+        ],
+        "deeper": [
+          { "title": "Python for Data Analysis (Wes McKinney) — free online edition", "url": "https://wesmckinney.com/book/" }
+        ],
+        "learnings": [],
+        "signals": []
+      },
+      {
+        "id": "honest-backtesting",
+        "level": "intermediate",
+        "status": "ready",
+        "title": "Backtesting without fooling yourself",
+        "minutes": 12,
+        "goals": [
+          "Spot lookahead, survivorship and cost-free backtests",
+          "Use only what was known on each date",
+          "Know why a good-looking backtest is the start of the work, not the end"
+        ],
+        "lesson": [
+          "A backtest answers one question: had I followed this rule, with the information I had on each day, what would I have earned after costs? Every bug breaks one of those three parts: the rule, the information, or the costs.",
+          "Lookahead uses information from the future. Obvious cases are shift in the wrong direction, or entering at the close of the day the signal was published after the close. Subtle cases are sneakier. Filtering stocks by today's market cap uses the future, because the stocks that grew were small back then. Using restated financials is another: companies revise past numbers. Using the index's current members is a third.",
+          "Point-in-time data fixes this: the value as it was known on the date. This platform keeps market-cap history and index-membership intervals for exactly this reason (pointintime.mcap_bucket_at).",
+          "Entry price matters more than people think. For a record-date event, the record-day close is already ex-entitlement. The buyback study originally entered there and overstated returns until it was moved to the last cum-entitlement close.",
+          "Finally, results that look too good usually are. When a backtest surprises you positively, hunt for the bug before you celebrate. A null result is robust to most biases, because they all inflate. A positive one may be the bias itself."
+        ],
+        "india": [
+          { "text": "Board-meeting and results dates (NSE, 2020→) let you exclude results-day windows so a signal isn't just earnings news; every validate script here takes --exclude-results-window N.", "asOf": "2026-09-27", "source": "Platform (scanner/trading_calendar.py, WP6)" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Pick the simplest rule you can: buy NIFTY 500 stocks that closed at a 52-week high, hold 20 sessions.",
+            "Backtest it twice: once with today's NIFTY 500 list, once with point-in-time membership (index_membership table).",
+            "Add the 0.30% round-trip cost. Compare the two versions' median returns vs NIFTY 500.",
+            "Write down which bias the gap between them measures."
+          ],
+          "deliverable": "A two-row table (survivor list vs point-in-time) showing how much of the backtest return was bias."
+        },
+        "check": [
+          { "q": "A signal uses quarterly results filed after 15:30. You enter at that day's close. Problem?", "a": "Yes, lookahead. The information arrived after the close, so the earliest honest entry is the next session." },
+          { "q": "Why does sorting stocks by today's market cap bias a 2021 backtest?", "a": "Today's cap reflects 2021–26 performance. The 'large caps' you pick include stocks that were small in 2021 and grew." }
+        ],
+        "deeper": [
+          { "title": "Marcos López de Prado — Advances in Financial Machine Learning, ch. 11–12 (backtesting)" }
+        ],
+        "learnings": ["point-in-time", "nulls-safe-positives-scrutinised", "cum-date-entry"],
+        "signals": ["buyback_arb"]
+      },
+      {
+        "id": "event-study",
+        "level": "intermediate",
+        "status": "ready",
+        "title": "The event study, step by step",
+        "minutes": 15,
+        "goals": [
+          "Run the platform's main test on a real signal",
+          "Read abnormal returns, medians, t-stats and a placebo",
+          "Know when an event study is the wrong tool"
+        ],
+        "lesson": [
+          "An event study asks: after events of type X, do stocks move differently from the market? It needs four things. A list of events with dates. Prices. A benchmark. And fixed windows, such as −1 to +2 sessions, or +5, +20 and +60.",
+          "For each event, compute the abnormal return, which is the stock's return minus the benchmark's over the same window. Then summarise across events: the median (robust to one crazy winner), the mean, the % positive, and a t-stat for whether the mean is different from zero. scanner.eventstudy does exactly this with forward_abnormal_return and summarize.",
+          "The key step is the control. Run the same calculation on placebo dates: the same stocks on random days, or a year earlier. If the placebo shows the same +1%, your 'effect' is just how those stocks behave, not the event. customer_momentum looked positive until its placebo matched it.",
+          "Event studies suit things that happen on a date: buybacks, unlocks, index changes, filings. They are the wrong tool for a premium (value, low-volatility), which can lose for years and still be real. That needs long-run portfolio tests instead (the Advanced level)."
+        ],
+        "india": [],
+        "tryIt": {
+          "steps": [
+            "Read scripts/validate_turn_of_month.py end to end, the simplest study in the repo.",
+            "Run it on GitHub Actions: gh workflow run validate.yml -f script=validate_turn_of_month.py (never the laptop).",
+            "Open the run log. Find n, the mean daily return in the turn-of-month window vs other days, and the t-stat, by era.",
+            "Explain in two sentences why the verdict is null even though one era looked positive."
+          ],
+          "deliverable": "Your own one-paragraph verdict on turn-of-month, citing n, effect size, t-stat and the era split, then compare it to CONCLUSIONS.md §12."
+        },
+        "check": [
+          { "q": "Why report the median as well as the mean?", "a": "A few huge winners can drag the mean up while the typical event loses. The median shows the typical outcome." },
+          { "q": "Your event shows +1.2% over 20 days; the same stocks on random dates show +1.0%. What's the effect?", "a": "About +0.2%, almost nothing. The rest is how those stocks drift anyway." }
+        ],
+        "deeper": [],
+        "learnings": ["validate-before-trust"],
+        "signals": ["turn_of_month", "customer_momentum"]
+      },
+      {
+        "id": "statistics",
+        "level": "intermediate",
+        "status": "ready",
+        "title": "Statistics that actually matter",
+        "minutes": 12,
+        "goals": [
+          "Read a t-stat and know what it can't tell you",
+          "Handle events that share dates (clustering)",
+          "Split results by era before trusting them"
+        ],
+        "lesson": [
+          "Market returns are mostly noise. A t-stat measures how far the average effect is from zero, in units of its own uncertainty. Roughly, |t| above 2 means an effect this size would be rare by chance. It doesn't say the effect is big enough to trade, or that it will continue.",
+          "Events that happen on the same day aren't independent. Fifty stocks added to an index in the same review all feel the same market shock. Treating them as 50 separate observations overstates your t-stat. A cluster-robust t groups them by date (summarize(..., clusters=...)) and is often much smaller.",
+          "Split by era. Markets change: regulation, participants, liquidity. A result driven by 2021–22 alone is a regime artefact, not an edge. The index-rebalance deletion bounce and promoter buying both looked significant pooled and vanished when split by year.",
+          "Pre-register the split. Decide before looking which cut the mechanism predicts (for example, 'the effect should be bigger in small caps'). Checking many cuts after the fact and reporting the one that works is the multiple-testing problem of the next module in disguise."
+        ],
+        "india": [],
+        "tryIt": {
+          "steps": [
+            "Open CONCLUSIONS.md §5 (index rebalance) and §10 (promoter buying).",
+            "For each, note the pooled result and the era-split result.",
+            "Take any validate script's per-event output and recompute the t-stat with and without clusters (group by event date or week)."
+          ],
+          "deliverable": "A table: signal, pooled t, clustered t, and the best and worst era, for two signals. Mark which one you'd have wrongly trusted."
+        },
+        "check": [
+          { "q": "Pooled t = 3.1 across 2020–26, but 2024–26 alone is negative. Trade it?", "a": "No. The effect has decayed or was a regime artefact. It must hold in every era." },
+          { "q": "Why does clustering usually lower the t-stat?", "a": "Events sharing a date share a market shock, so you have fewer truly independent observations than rows." }
+        ],
+        "deeper": [],
+        "learnings": ["segment-before-trust"],
+        "signals": ["index_rebalance", "promoter_buying"]
+      },
+      {
+        "id": "overfitting",
+        "level": "intermediate",
+        "status": "ready",
+        "title": "Multiple testing and overfitting",
+        "minutes": 12,
+        "goals": [
+          "Count your tries, including hidden ones",
+          "Apply the t > 3 bar and the deflated Sharpe idea",
+          "Protect yourself before a test, not after"
+        ],
+        "lesson": [
+          "Try 20 random ideas and about one will look significant at the usual 5% level, by luck. The finance literature did this at scale: 300+ published 'factors', many probably false (Harvey, Liu & Zhu, 2016). Their fix is simple. A new idea should clear t > 3, not t > 2.",
+          "Tries hide inside a single idea too. Every parameter you tweaked, every subgroup you checked, every holding period you compared is a try. The best of 50 variants will look good even if all 50 are worthless. The deflated Sharpe ratio (Bailey & López de Prado, 2014) corrects the best result for how many you tried, how long the record is, and fat tails.",
+          "Practical defences, in order of value. Write down the test before running it: window, universe, cut. Keep a log of every variant you ran, including the failures. Demand the result hold in every era. And be most suspicious of the result you want to be true.",
+          "This platform has tested 21 signals. By chance about one should look good. Two actionable edges is probably more than luck, but not by much. That's why the positives get re-checked and the nulls don't."
+        ],
+        "india": [],
+        "tryIt": {
+          "steps": [
+            "List every variant this platform's buyback study reported: tax slabs, acceptance scenarios, entry dates.",
+            "Count them. That is N, the number of tries behind the headline number.",
+            "For the ≤5%-slab result, ask: was this cut chosen before or after seeing the data? Write down your answer and why."
+          ],
+          "deliverable": "A 'tries ledger' for buyback_arb: every variant, its result, and whether it was pre-specified. This is your template for every future study."
+        },
+        "check": [
+          { "q": "You tested 10 holding periods and report the best one's t = 2.4. Convincing?", "a": "No. With 10 tries the best will often clear 2 by chance. It needs t > 3, or holding up across periods and eras." },
+          { "q": "Which is safer from overfitting: a null result or a positive one?", "a": "The null. Overfitting and most biases inflate results, so a null survives them while a positive might be one." }
+        ],
+        "deeper": [
+          { "title": "Harvey, Liu & Zhu — …and the Cross-Section of Expected Returns (Review of Financial Studies, 2016)" },
+          { "title": "Bailey & López de Prado — The Deflated Sharpe Ratio (Journal of Portfolio Management, 2014)" }
+        ],
+        "learnings": ["multiple-testing", "deflated-sharpe"],
+        "signals": ["buyback_arb"]
+      },
+      {
+        "id": "where-edge-comes-from",
+        "level": "intermediate",
+        "status": "ready",
+        "title": "Where edge comes from",
+        "minutes": 12,
+        "goals": [
+          "Classify any idea as structural, spread, drift or premium",
+          "Ask the one question that predicts most outcomes: who is excluded?",
+          "Screen a new idea in five minutes before spending a week on it"
+        ],
+        "lesson": [
+          "Every trade has someone on the other side. If an idea is obvious, public and open to everyone, big players with better data and lower costs take it first. Edge lives where something keeps them out: a law, a size limit, a cost, or plain neglect.",
+          "Structural ideas come from a rule that forces a flow or reserves an allocation. The buyback small-shareholder quota is the best example: institutions are legally barred from it. Spread ideas are two prices tied by a contract, such as a rights entitlement vs the stock. Drift ideas assume the market is slow to absorb public news; these have all been null here. Premium ideas are compensated risks like value or low-volatility.",
+          "The five-minute screen. (1) Who is forced to trade, or who is excluded? (2) Is the event public in advance, and to whom? (3) Can you actually trade it: shortable, liquid, at your size? (4) Is there reachable free data to test it? (5) Has a close cousin already been tested here? Most ideas die at question 1 or 5.",
+          "A barrier cuts both ways. Anchor unlocks and demerger listings show real dips because they can't be shorted, and for the same reason you can't profit from them. Those become avoid rules, not trades."
+        ],
+        "india": [
+          { "text": "The buyback 15% reservation for small shareholders (holding ≤ ₹2 lakh on the record date) is set by the SEBI Buy-back Regulations.", "asOf": "2026-09-27", "source": "SEBI (Buy-back of Securities) Regulations, 2018" }
+        ],
+        "tryIt": {
+          "steps": [
+            "Open CANDIDATE_SIGNALS.md and pick three untested ideas.",
+            "Run each through the five-minute screen and write one line per question.",
+            "Rank them and pick the one you'd test first. This becomes your capstone candidate."
+          ],
+          "deliverable": "Three screened ideas with a ranked recommendation and the reason, the input to the capstone module."
+        },
+        "check": [
+          { "q": "Index funds must buy stocks added to NIFTY 50. Why was front-running it null?", "a": "The change is announced about four weeks ahead to everyone. It's a forced flow, but no one is excluded from trading ahead of it." },
+          { "q": "Why is the anchor-unlock dip an avoid rule rather than a trade?", "a": "New listings aren't in F&O and can't be shorted, which is what protects the dip from arbitrage and also stops you capturing it." }
+        ],
+        "deeper": [],
+        "learnings": ["barrier-thesis", "known-flow-not-enough", "unshortable-lens", "four-signal-types"],
+        "signals": ["buyback_arb", "rights_re", "lockin_expiry"]
+      },
+      { "id": "factors-india", "level": "advanced", "status": "planned", "title": "Factors in India: momentum, quality, low-vol and the ETFs that sell them" },
+      { "id": "derivatives", "level": "advanced", "status": "planned", "title": "Derivatives without the hype: SEBI's F&O rules and why most retail traders lose" },
+      { "id": "sizing", "level": "advanced", "status": "planned", "title": "Position sizing and capacity: Kelly for a ₹2 lakh slab" },
+      { "id": "execution", "level": "advanced", "status": "planned", "title": "Execution: SEBI's retail algo framework, broker APIs and slippage" },
+      { "id": "research-process", "level": "expert", "status": "planned", "title": "The research process: pre-registration, evidence and a live track record" },
+      { "id": "live-book", "level": "expert", "status": "planned", "title": "Running a live book: tracking, reviewing and retiring edges" },
+      { "id": "capstone", "level": "expert", "status": "planned", "title": "Capstone: validate a new signal end to end" }
+    ]
+  }
+]

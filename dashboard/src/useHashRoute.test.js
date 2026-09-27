@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { companyHref, dataHref, parseHash } from './useHashRoute'
+import { companyHref, courseHref, dataHref, parseHash } from './useHashRoute'
 
 describe('parseHash', () => {
   it.each([
@@ -10,6 +10,12 @@ describe('parseHash', () => {
     ['#/signals', { page: 'signals' }],
     ['#/learnings', { page: 'learnings' }],
     ['#/learnings/extra', { page: 'desk' }],
+    ['#/courses', { page: 'courses' }],
+    ['#/courses/quant-trading', { page: 'courses', course: 'quant-trading' }],
+    ['#/courses/quant-trading/costs', { page: 'courses', course: 'quant-trading', module: 'costs' }],
+    ['#/courses/Bad_Id', { page: 'courses' }],
+    ['#/courses/quant-trading/<x>', { page: 'courses', course: 'quant-trading' }],
+    ['#/courses/a/b/c', { page: 'desk' }],
     ['#/data', { page: 'data', tab: 'deals' }],
     ['#/data/deals', { page: 'data', tab: 'deals' }],
     ['#/data/buybacks', { page: 'data', tab: 'buybacks' }],
@@ -46,5 +52,7 @@ describe('hrefs', () => {
     expect(parseHash(companyHref('M&M', 'filings'))).toEqual({ page: 'company', symbol: 'M&M', tab: 'filings' })
     expect(companyHref('TCS')).toBe('#/company/TCS')
     expect(dataHref('scans')).toBe('#/data/scans')
+    expect(courseHref('quant-trading')).toBe('#/courses/quant-trading')
+    expect(parseHash(courseHref('quant-trading', 'costs'))).toEqual({ page: 'courses', course: 'quant-trading', module: 'costs' })
   })
 })

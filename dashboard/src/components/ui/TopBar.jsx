@@ -5,6 +5,7 @@ const NAV = [
   ['desk', 'Desk', '#/'],
   ['signals', 'Signals', '#/signals'],
   ['learnings', 'Learnings', '#/learnings'],
+  ['courses', 'Courses', '#/courses'],
   ['data', 'Data', '#/data'],
 ]
 

@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { configured } from './supabaseClient'
 import useHashRoute from './useHashRoute'
 import useLoad from './lib/useLoad'
@@ -8,7 +9,10 @@ import CompanyPage from './components/CompanyPage'
 import Desk from './views/Desk'
 import Signals from './views/Signals'
 import Data from './views/Data'
-import Learnings from './views/Learnings'
+
+// Text-heavy pages load on first visit, keeping the main bundle small.
+const Learnings = lazy(() => import('./views/Learnings'))
+const Courses = lazy(() => import('./views/Courses'))
 
 function Shell() {
   const route = useHashRoute()
@@ -22,7 +26,8 @@ function Shell() {
       <main id="main" className={route.page === 'company' ? 'main-bleed' : 'content'} tabIndex={-1}>
         {route.page === 'company' ? <CompanyPage symbol={route.symbol} tab={route.tab} />
           : route.page === 'signals' ? <Signals />
-          : route.page === 'learnings' ? <Learnings />
+          : route.page === 'learnings' ? <Suspense fallback={null}><Learnings /></Suspense>
+          : route.page === 'courses' ? <Suspense fallback={null}><Courses course={route.course} module={route.module} /></Suspense>
           : route.page === 'data' ? <Data tab={route.tab} />
           : <Desk freshness={freshness} />}
       </main>

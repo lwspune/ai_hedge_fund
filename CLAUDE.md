@@ -94,7 +94,10 @@ Efficiently-priced spreads (merger arb) get competed to ~risk-free.
   (verdict table, expandable summary + latest published evidence path + recent runs), **Learnings**
   `#/learnings` (cross-signal lessons: thesis / method / concepts / data / declined; content in
   `src/learnings.json`, a test checks every entry's fields and signal names — **add an entry whenever a
-  session produces a new lesson**), **Data** `#/data/deals|buybacks|positions|scans`
+  session produces a new lesson**), **Courses** `#/courses[/:course[/:module]]` (practical
+  lessons, content in `src/courses.json`; every India rule/rate carries an `asOf` + source and the course
+  flags itself for re-check `reviewEveryDays` after `reviewed`; modules `ready` | `planned`; "done" ticks
+  in localStorage), **Data** `#/data/deals|buybacks|positions|scans`
   (filterable; Refresh buttons call the edge functions), **Company** `#/company/:symbol/:tab`
   (sticky header; overview/financials/events/filings/deals tabs, each fetches only its data).
   Design tokens in `src/styles/tokens.css`, shared components in `src/components/ui/`, all

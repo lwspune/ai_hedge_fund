@@ -5,9 +5,11 @@ import { useEffect, useRef, useState } from 'react'
 //   #/                       -> { page: 'desk' }
 //   #/signals                -> { page: 'signals' }
 //   #/learnings              -> { page: 'learnings' }
+//   #/courses[/:course[/:module]] -> { page: 'courses', course, module } (bad slugs are dropped)
 //   #/data[/tab]             -> { page: 'data', tab }
 //   #/company/:symbol[/tab]  -> { page: 'company', symbol, tab }
 const SYMBOL = /^[A-Z0-9&.-]{1,20}$/
+const SLUG = /^[a-z0-9-]{1,60}$/
 
 export const DATA_TABS = ['deals', 'buybacks', 'positions', 'scans']
 export const COMPANY_TABS = ['overview', 'financials', 'events', 'filings', 'deals']
@@ -27,6 +29,10 @@ export function parseHash(hash) {
   const [page, a, b] = parts
   if (page === 'signals' && parts.length === 1) return { page: 'signals' }
   if (page === 'learnings' && parts.length === 1) return { page: 'learnings' }
+  if (page === 'courses' && parts.length <= 3) {
+    if (!SLUG.test(a || '')) return { page: 'courses' }
+    return SLUG.test(b || '') ? { page: 'courses', course: a, module: b } : { page: 'courses', course: a }
+  }
   if (page === 'data' && parts.length <= 2) return { page: 'data', tab: pickTab(a, DATA_TABS) }
   if (page === 'company' && a && parts.length <= 3) {
     const symbol = decode(a)?.toUpperCase()
@@ -40,6 +46,8 @@ export const companyHref = (symbol, tab) =>
 
 export const dataHref = (tab) => `#/data/${tab}`
 
+export const courseHref = (course, module) => `#/courses/${course}${module ? `/${module}` : ''}`
+
 export default function useHashRoute() {
   const [route, setRoute] = useState(() => parseHash(window.location.hash))
   const prev = useRef(route)
@@ -47,6 +55,7 @@ export default function useHashRoute() {
     const onChange = () => {
       const next = parseHash(window.location.hash)
       const moved = next.page !== prev.current.page || next.symbol !== prev.current.symbol
+        || next.course !== prev.current.course || next.module !== prev.current.module
       prev.current = next
       setRoute(next)
       if (moved) window.scrollTo(0, 0)
