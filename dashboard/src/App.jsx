@@ -8,6 +8,7 @@ import CompanyPage from './components/CompanyPage'
 import Desk from './views/Desk'
 import Signals from './views/Signals'
 import Data from './views/Data'
+import Learnings from './views/Learnings'
 
 function Shell() {
   const route = useHashRoute()
@@ -21,6 +22,7 @@ function Shell() {
       <main id="main" className={route.page === 'company' ? 'main-bleed' : 'content'} tabIndex={-1}>
         {route.page === 'company' ? <CompanyPage symbol={route.symbol} tab={route.tab} />
           : route.page === 'signals' ? <Signals />
+          : route.page === 'learnings' ? <Learnings />
           : route.page === 'data' ? <Data tab={route.tab} />
           : <Desk freshness={freshness} />}
       </main>

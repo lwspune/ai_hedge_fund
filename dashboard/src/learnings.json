@@ -1,0 +1,242 @@
+[
+  {
+    "id": "barrier-thesis",
+    "section": "thesis",
+    "title": "Edge survives where something keeps competitors out",
+    "body": "Across 21 tested signals, the ones that held up have a barrier: the buyback 15% reservation that institutions are legally barred from, or rights entitlements that institutions ignore. Signals anyone can see and trade (public news, chart patterns, pre-announced index changes) get arbitraged to nothing after costs.",
+    "why": "It tells you where to look next: a new idea is promising when you can name who is excluded from the other side of the trade.",
+    "learned": "2026-06-24",
+    "source": "CONCLUSIONS.md — meta-thesis; decisions log 2026-06-24",
+    "signals": ["buyback_arb", "rights_re", "index_rebalance"]
+  },
+  {
+    "id": "known-flow-not-enough",
+    "section": "thesis",
+    "title": "A forced flow is not enough if everyone can see it coming",
+    "body": "Index funds must buy stocks added to NIFTY indices, but the change is announced about four weeks ahead. Front-running it was null (n=151): the flow is real, yet others trade it before a follower can.",
+    "why": "Being structural is not a free pass. The barrier must exclude competitors, not just exist.",
+    "learned": "2026-06-24",
+    "source": "CONCLUSIONS.md §5",
+    "signals": ["index_rebalance"]
+  },
+  {
+    "id": "unshortable-lens",
+    "section": "thesis",
+    "title": "The barrier that shuts out arbitrageurs often shuts you out too",
+    "body": "Anchor lock-in unlocks and newly listed demerger children show real, repeatable dips. But the stocks aren't in F&O and can't be shorted, which is exactly why the dip survives. Retail can't short them either.",
+    "why": "These become avoid/exit rules (don't buy into an unlock or a child's first week), not trades.",
+    "learned": "2026-09-24",
+    "source": "CONCLUSIONS.md §6, §16",
+    "signals": ["lockin_expiry", "demerger_listing"]
+  },
+  {
+    "id": "four-signal-types",
+    "section": "thesis",
+    "title": "Four kinds of idea, each judged by its own bar",
+    "body": "Structural (a rule forces a flow or reserves an allocation), spread (two prices tied by a contract converge), drift (slow digestion of public news) and premium (a paid-for risk like value or low-vol). A barrier is a finding about where edge lived, not a precondition; measured net return after costs is what counts.",
+    "why": "A premium can lose for years and still be real, so an event study would wrongly reject it; drift ideas need controls and must hold in every era.",
+    "learned": "2026-09-26",
+    "source": "CLAUDE.md — signal types; decisions log 2026-09-26",
+    "signals": []
+  },
+  {
+    "id": "barrier-gets-crowded",
+    "section": "thesis",
+    "title": "Even a barrier that lets retail in gets competed down",
+    "body": "The IPO retail quota is a genuine reservation, but as listing pops became famous more retail money chased each issue, so allotment odds fell. Expected value per application dropped from about +1.6% pooled to about ₹34 in 2025-26.",
+    "why": "An edge inside a barrier can still decay when the whole retail crowd is on the same side of it. Re-measure the kept edges over time.",
+    "learned": "2026-09-26",
+    "source": "CONCLUSIONS.md §18",
+    "signals": ["ipo_listing"]
+  },
+  {
+    "id": "validate-before-trust",
+    "section": "method",
+    "title": "Never trade a signal that hasn't been measured",
+    "body": "Every signal goes through the event-study harness first and carries its verdict everywhere it is shown. Falsified signals stay visible as lenses so they are never mistaken for edge.",
+    "why": "This is the whole point of the platform. The earlier Google-Sheets strategy project ended with a negative result for lack of it.",
+    "learned": "2026-06-23",
+    "source": "CLAUDE.md — the discipline",
+    "signals": []
+  },
+  {
+    "id": "segment-before-trust",
+    "section": "method",
+    "title": "A pooled positive must survive a mechanism cut and an era cut",
+    "body": "Before trusting a significant result, split it by a cut chosen in advance that the mechanism predicts, and by time period. The index-rebalance deletion rebound looked real pooled, but it came entirely from 2021-22.",
+    "why": "Choosing the cut before looking is what stops a subgroup from being one more lucky try.",
+    "learned": "2026-06-24",
+    "source": "CONCLUSIONS.md §5",
+    "signals": ["index_rebalance", "demerger_listing"]
+  },
+  {
+    "id": "reproduce-before-trust",
+    "section": "method",
+    "title": "Check the inputs before believing the output",
+    "body": "Verify the exact formula and data a result is built on before reporting it. Adjusted Yahoo prices once produced a +1282% 'buyback premium'. A clean result on wrong inputs is worse than no result.",
+    "why": "That is why price lookups must name their source: premiums against a nominal price use unadjusted closes only.",
+    "learned": "2026-09-24",
+    "source": "Decisions log 2026-09-24 (get_closes source required)",
+    "signals": ["buyback_arb"]
+  },
+  {
+    "id": "nulls-safe-positives-scrutinised",
+    "section": "method",
+    "title": "Nulls are robust; positives need the scrutiny",
+    "body": "Most backtest biases (lookahead, wrong entry price, survivorship) make results look better than they are. A signal that fails despite them is solidly null. A positive might be the bias itself.",
+    "why": "Correction effort goes to the signals we'd act on. The buyback re-check narrowed its verdict to low-tax-slab accounts only.",
+    "learned": "2026-09-24",
+    "source": "Backtest review 2026-09-24",
+    "signals": ["buyback_arb"]
+  },
+  {
+    "id": "cum-date-entry",
+    "section": "method",
+    "title": "Price a record-date trade at the last session you can still buy",
+    "body": "Under T+1 settlement you must buy one session before the record date. The record-day close is already ex-entitlement (median −2.7% that day), so using it flattered the buyback study.",
+    "why": "Any study built around a record date (buybacks, rights, dividends, bonuses) must use the last cum-entitlement close.",
+    "learned": "2026-09-24",
+    "source": "Backtest review 2026-09-24",
+    "signals": ["buyback_arb"]
+  },
+  {
+    "id": "point-in-time",
+    "section": "method",
+    "title": "Use what was known on the event date, not today",
+    "body": "Market-cap buckets, index membership and fundamentals must be as of the event date. Today's market cap tells you which stocks later grew, which is lookahead.",
+    "why": "Any cut by size or index in a study uses the point-in-time helpers, never today's snapshot.",
+    "learned": "2026-09-24",
+    "source": "Data-infra spec WP5",
+    "signals": []
+  },
+  {
+    "id": "sharpe-ratio",
+    "section": "concepts",
+    "title": "Sharpe ratio: return per unit of bumpiness",
+    "body": "Sharpe = (return − risk-free rate) ÷ volatility. Two strategies earning 16% when FDs pay 6%: one swinging 10% a year has Sharpe 1.0, one swinging 30% has 0.33. Rough scale per year: below 0 worse than an FD; 0.3–0.5 about the market; around 1 good; 2 or more in a backtest usually means overfitting or a bug.",
+    "why": "It treats upside and downside swings alike and hides rare blow-ups. For one-off event trades like buyback tenders, median return per trade after tax and the loss rate say more.",
+    "learned": "2026-09-27",
+    "source": "Conversation 2026-09-27",
+    "signals": []
+  },
+  {
+    "id": "multiple-testing",
+    "section": "concepts",
+    "title": "Test enough ideas and some will win by luck",
+    "body": "Harvey, Liu & Zhu (2016) counted 300+ published return 'factors', each accepted at t > 2, about a 5% fluke rate. With that many researchers trying, flukes get published. Their answer: a new factor should clear t > 3.0, and many published ones are probably false.",
+    "why": "With 21 signals tested, about one looks significant by chance. Two actionable edges is probably more than luck, but not by a huge margin.",
+    "learned": "2026-09-27",
+    "source": "Harvey, Liu & Zhu, “…and the Cross-Section of Expected Returns”, Review of Financial Studies, 2016",
+    "signals": ["buyback_arb", "rights_re"]
+  },
+  {
+    "id": "deflated-sharpe",
+    "section": "concepts",
+    "title": "Deflated Sharpe: correct the best backtest for how many you tried",
+    "body": "Even if every variant you try has zero skill, the best of N will show a positive Sharpe, and it grows with N. Bailey & López de Prado turn the best Sharpe into the probability it is really above zero, given the number of tries, how much they differed, the length of the record, and fat tails or skew.",
+    "why": "Every cut is a hidden try: the buyback verdict moved through tax slabs (30% → 20% → ≤5%). Before trusting it, count every variant looked at.",
+    "learned": "2026-09-27",
+    "source": "Bailey & López de Prado, “The Deflated Sharpe Ratio”, Journal of Portfolio Management, 2014",
+    "signals": ["buyback_arb"]
+  },
+  {
+    "id": "what-quant-to-learn",
+    "section": "concepts",
+    "title": "Which quant skills are worth learning here",
+    "body": "Worth it: multiple testing, position sizing for a small-capacity edge (Kelly, fractional Kelly), long-run Sharpe/drawdown tests for premium signals, and transaction-cost modelling. Skip: stochastic calculus, derivatives pricing, ML price prediction, generic algo-trading courses.",
+    "why": "A standard curriculum trains you for markets with no barrier, which our own evidence says are competed away.",
+    "learned": "2026-09-27",
+    "source": "Conversation 2026-09-27",
+    "signals": []
+  },
+  {
+    "id": "no-silent-bad-data",
+    "section": "data",
+    "title": "Guard every scrape; never surface bad data",
+    "body": "We hit warrant series mis-picked as equity, delisted-ticker garbage and 246% 'premiums'. Every scrape and price path gets sanity guards that reject implausible values instead of showing them.",
+    "why": "One bad row that looks like an opportunity is more dangerous than a missing one.",
+    "learned": "2026-06-24",
+    "source": "CLAUDE.md — conventions",
+    "signals": []
+  },
+  {
+    "id": "silent-blindness",
+    "section": "data",
+    "title": "'Newest row is recent' is not a freshness check",
+    "body": "The primary signal was blind for nine months when chittorgarh changed its 2026 wording. Scans kept running and the latest-row check stayed green while zero tenders were parsed.",
+    "why": "Freshness now checks age, row volumes, ratios, the buyback frontier and DB size, and a test forces every dated table to have a rule.",
+    "learned": "2026-09-24",
+    "source": "Decisions log 2026-09-24 (freshness)",
+    "signals": ["buyback_arb"]
+  },
+  {
+    "id": "cloud-not-laptop",
+    "section": "data",
+    "title": "The laptop must never be a dependency",
+    "body": "Every source we use (NSE static CSVs, NSE JSON with a Referer, nselib, screener, chittorgarh) answers from GitHub Actions runners, so every refresh, scan and validation runs there and data lives in Supabase. BSE's API only answers residential IPs, so it stays out.",
+    "why": "A source that only works from home can't feed a scheduled job, so ideas that need it are parked.",
+    "learned": "2026-09-24",
+    "source": "Decisions log 2026-09-24",
+    "signals": []
+  },
+  {
+    "id": "adjusted-vs-unadjusted",
+    "section": "data",
+    "title": "Adjusted prices for returns, unadjusted for premiums",
+    "body": "Split-adjusted (Yahoo) closes are fine for return studies, but a premium against a nominal price (buyback price, rights issue price) must use the unadjusted close that traded that day.",
+    "why": "Mixing them produced absurd premiums once. Price lookups now require the source to be named.",
+    "learned": "2026-09-24",
+    "source": "Decisions log 2026-09-24",
+    "signals": ["buyback_arb", "rights_re"]
+  },
+  {
+    "id": "declined-options",
+    "section": "declined",
+    "title": "Options strategies",
+    "body": "An option strategy is a payoff shape, not a barrier: nobody is excluded from NSE options, the premium is a competed tail-risk premium, one lot (~₹15 lakh) is about 7× the ₹2 lakh buyback slab, and fresh listings aren't in F&O, so puts can't short the unshortable lenses.",
+    "why": "One falsification test stays on the backlog: results-day implied vol vs the realised move.",
+    "learned": "2026-09-24",
+    "source": "Decisions log 2026-09-24",
+    "signals": []
+  },
+  {
+    "id": "declined-drift-rerun",
+    "section": "declined",
+    "title": "Re-testing falsified drift ideas",
+    "body": "Following smart money, promoter buying, order wins, rating changes and chart breakouts were all null. Each is public information priced on the day.",
+    "why": "A falsified idea is re-tested only with a new, named mechanism, never because it 'should' work.",
+    "learned": "2026-09-26",
+    "source": "CONCLUSIONS.md — tally",
+    "signals": ["smart_money_deals", "promoter_buying", "order_wins", "rating_change", "consolidation"]
+  },
+  {
+    "id": "declined-kite",
+    "section": "declined",
+    "title": "Kite Connect for data",
+    "body": "An end-of-day scanner is fully served by the free stack. Kite adds a daily TOTP login and ₹500/month for nothing we need. Trades stay manual through Kite itself.",
+    "why": "Revisit only if a signal ever needs intraday data.",
+    "learned": "2026-06-24",
+    "source": "Decisions log 2026-06-24",
+    "signals": []
+  },
+  {
+    "id": "declined-delisting",
+    "section": "declined",
+    "title": "Delisting reverse book-building",
+    "body": "A plausible structural idea, but offers and outcomes have no reachable free source: chittorgarh has none, BSE returns 403 from runners, and NSE is gated.",
+    "why": "Parked, not falsified. It comes back only as a manual-curation project.",
+    "learned": "2026-09-24",
+    "source": "CONCLUSIONS.md §9",
+    "signals": []
+  },
+  {
+    "id": "declined-agent-frameworks",
+    "section": "declined",
+    "title": "LLM agent / ML trading frameworks",
+    "body": "The popular GitHub projects (TradingAgents, ai-hedge-fund, qlib) are US-focused drift machines, and every honest Indian factor backtest found there reaches our null. We took their data sources, not their strategies.",
+    "why": "The useful output of that review was four new NSE feeds, not a model.",
+    "learned": "2026-09-24",
+    "source": "docs/GITHUB_PROJECT_REVIEW.md",
+    "signals": []
+  }
+]

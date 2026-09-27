@@ -8,6 +8,8 @@ describe('parseHash', () => {
     ['#/', { page: 'desk' }],
     ['#/nope', { page: 'desk' }],
     ['#/signals', { page: 'signals' }],
+    ['#/learnings', { page: 'learnings' }],
+    ['#/learnings/extra', { page: 'desk' }],
     ['#/data', { page: 'data', tab: 'deals' }],
     ['#/data/deals', { page: 'data', tab: 'deals' }],
     ['#/data/buybacks', { page: 'data', tab: 'buybacks' }],

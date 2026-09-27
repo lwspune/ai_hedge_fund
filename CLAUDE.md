@@ -91,7 +91,10 @@ Efficiently-priced spreads (merger arb) get competed to ~risk-free.
 - **Dashboard (P3)** — `dashboard/` (Vite + React + supabase-js, read-only, hash-routed, no
   router/UI kit). Views: **Desk** `#/` (freshness strip · Act: open buybacks from the latest scan's
   `payload.is_open` + rights entitlements · Avoid: anchor unlocks, 14 d), **Signals** `#/signals`
-  (verdict table, expandable summary + latest published evidence path + recent runs), **Data** `#/data/deals|buybacks|positions|scans`
+  (verdict table, expandable summary + latest published evidence path + recent runs), **Learnings**
+  `#/learnings` (cross-signal lessons: thesis / method / concepts / data / declined; content in
+  `src/learnings.json`, a test checks every entry's fields and signal names — **add an entry whenever a
+  session produces a new lesson**), **Data** `#/data/deals|buybacks|positions|scans`
   (filterable; Refresh buttons call the edge functions), **Company** `#/company/:symbol/:tab`
   (sticky header; overview/financials/events/filings/deals tabs, each fetches only its data).
   Design tokens in `src/styles/tokens.css`, shared components in `src/components/ui/`, all

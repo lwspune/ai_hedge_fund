@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 // Vercel deploy keeps working.
 //   #/                       -> { page: 'desk' }
 //   #/signals                -> { page: 'signals' }
+//   #/learnings              -> { page: 'learnings' }
 //   #/data[/tab]             -> { page: 'data', tab }
 //   #/company/:symbol[/tab]  -> { page: 'company', symbol, tab }
 const SYMBOL = /^[A-Z0-9&.-]{1,20}$/
@@ -25,6 +26,7 @@ export function parseHash(hash) {
   const parts = (hash || '').replace(/^#\/?/, '').split('/').filter(Boolean)
   const [page, a, b] = parts
   if (page === 'signals' && parts.length === 1) return { page: 'signals' }
+  if (page === 'learnings' && parts.length === 1) return { page: 'learnings' }
   if (page === 'data' && parts.length <= 2) return { page: 'data', tab: pickTab(a, DATA_TABS) }
   if (page === 'company' && a && parts.length <= 3) {
     const symbol = decode(a)?.toUpperCase()
