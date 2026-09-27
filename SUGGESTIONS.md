@@ -235,6 +235,21 @@ the `prices` row floor (it doesn't — the floor is per-day).
 
 ---
 
+## 2026-09-27 (Learnings page)
+
+### Top bar overflows at phone width (every page)
+
+At 390 px the top bar (nav + company search + freshness dot) is wider than the screen, so every page
+scrolls sideways and the search box and freshness dot sit off-screen. Seen on Signals before the
+Learnings link was added (headless Edge, 390×700); the 2026-09-26 company-page overflow is probably
+the same cause. Fix: collapse the search to an icon button below ~640 px, or let the nav scroll.
+
+### CONCLUSIONS.md header and "Open / next" are stale
+
+The status line still says "Eleven signals validated" (the tally below says 21), and "Open / next"
+lists P2 / P3, both built on 2026-06-24. Rewrite the header to the current tally and replace "Open /
+next" with a pointer to `CANDIDATE_SIGNALS.md`. Docs only.
+
 ## Backfill ledger
 
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
