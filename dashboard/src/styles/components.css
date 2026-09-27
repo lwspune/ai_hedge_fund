@@ -312,7 +312,11 @@ main:focus { outline: none; }
 
 @media (max-width: 640px) {
   .topbar-inner { gap: var(--s3); }
-  .topnav { gap: var(--s3); }
+  /* six links don't fit a phone: the nav scrolls sideways instead of widening the page */
+  .topnav { gap: var(--s3); flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .topnav::-webkit-scrollbar { display: none; }
+  .topnav a { flex: none; white-space: nowrap; }
+  .topbar-spacer { display: none; }
   .wordmark { font-size: var(--fs-small); }
 }
 
