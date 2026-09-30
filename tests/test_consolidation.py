@@ -83,3 +83,12 @@ def test_scan_now_keeps_to_the_company_universe():
     # a liquid-fund ETF sits in a sub-1% range forever: not a company, not a consolidation
     panel = {"LIQUIDBEES": _frame([1000.0 + 0.01 * i for i in range(60)], spread=0.001), "RANGE": _frame(_base(60))}
     assert {r["symbol"] for r in scan_now(panel, universe={"RANGE"})} == {"RANGE"}
+
+
+def test_scan_ignores_the_panel_series_column():
+    """bar_panel gained a text `series` column (market regime); the scan reads named columns only."""
+    from scanner.consolidation import scan_now
+    df = _frame(_base() + [110.0])
+    plain = scan_now({"ABC": df})
+    tagged = scan_now({"ABC": df.assign(series="EQ")})
+    assert plain == tagged and len(plain) == 1

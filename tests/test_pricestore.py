@@ -241,7 +241,11 @@ def test_bar_panel_reads_each_month_once_and_prefers_eq(monkeypatch):
     assert calls == ["2026-08", "2026-09"]
     assert sorted(p) == ["AAA", "BBB"]                          # government securities (GS) are not stocks
     assert list(p["AAA"]["close"]) == [10.0, 11.0]              # EQ over BE on the same day; BE the next
-    assert list(p["AAA"].columns) == ["open", "high", "low", "close", "volume", "turnover_lakh", "delivery_pct"]
+    assert list(p["AAA"].columns) == ["open", "high", "low", "close", "volume", "turnover_lakh", "delivery_pct",
+                                      "series"]
+    assert list(p["AAA"]["series"]) == ["EQ", "BE"]            # the kept print's series (regime drops SME)
+    assert list(p["BBB"]["series"]) == ["SM"]
+    assert p["AAA"]["close"].dtype == "float64"
 
 
 # --- split / bonus / consolidation adjustment of unadjusted closes (long-horizon return studies) ---
