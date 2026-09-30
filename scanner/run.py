@@ -44,7 +44,8 @@ def _save_buyback(rows, stats=None) -> None:
                           "est_floor": r.get("est_return"), "exp_return": r.get("exp_return"),
                           "is_open": r.get("is_open"), "buyback_price": r["buyback_price"],
                           "cur_price": r["cur_price"], "record_date": db._iso(r["record_date"]),
-                          "close_date": db._iso(r["close_date"])}}
+                          "close_date": db._iso(r["close_date"]),
+                          "last_buy_date": db._iso(r.get("last_buy_date"))}}
              for r in rows]
     # raises on failure: a swallowed save is a silent gap the scheduled run must surface
     if rows:

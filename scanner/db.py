@@ -50,6 +50,17 @@ def _check(r: requests.Response) -> None:
 
 
 def _iso(v):
+    """Date/datetime -> ISO string for PostgREST; a missing date (None, NaN, pandas NaT) -> None,
+    never the string 'NaT' (Postgres rejects it with 22007)."""
+    if v is None:
+        return None
+    if not isinstance(v, str):
+        try:
+            import pandas as pd
+            if pd.isna(v):
+                return None
+        except (TypeError, ValueError):
+            pass
     return v.isoformat() if hasattr(v, "isoformat") and not isinstance(v, str) else v
 
 

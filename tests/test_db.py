@@ -44,6 +44,26 @@ def test_iso_passthrough_for_str():
     assert db._iso(date(2024, 6, 28)) == "2024-06-28"
 
 
+def test_iso_maps_missing_dates_to_null():
+    """A tender before its letter of offer carries pandas NaT for record/close date; the RPC
+    must receive SQL NULL, not the string 'NaT' (Postgres 22007 — broke every daily run
+    2026-09-24 → 09-29)."""
+    import pandas as pd
+    assert db._iso(pd.NaT) is None
+    assert db._iso(float("nan")) is None
+    assert db._iso(None) is None
+    assert db._iso(pd.Timestamp("2026-09-25")) == "2026-09-25T00:00:00"
+
+
+def test_buyback_row_with_unpublished_dates_is_open_and_null_dated():
+    import pandas as pd
+    bb = {"id": 241, "symbol": "VRLLOG", "buyback_price": 320.0,
+          "record_date": pd.NaT, "close_date": pd.NaT, "entitlement_small": None}
+    r = db.buyback_row(bb, today=date(2026, 9, 30))
+    assert r["record_date"] is None and r["close_date"] is None
+    assert r["status"] == "open"
+
+
 def test_headers_have_auth_and_prefer():
     h = db._headers("KEY123", "return=representation")
     assert h["apikey"] == "KEY123"

@@ -248,5 +248,15 @@
     "learned": "2026-09-24",
     "source": "docs/GITHUB_PROJECT_REVIEW.md",
     "signals": []
+  },
+  {
+    "id": "missing-value-at-the-boundary",
+    "section": "data",
+    "title": "Test every parser's 'missing' value at the database boundary",
+    "body": "Keeping a tender before its letter of offer (2026-09-24) let a pandas NaT record date reach the Supabase RPC as the string 'NaT'. Every scheduled daily run failed at the buyback save for six days; the VRL Logistics tender never reached the Desk or Telegram, and the alert step reported '0 new' because it read the last successful scan.",
+    "why": "Tests covered dated rows only. The value a parser emits when a field is absent is the one that reaches the boundary first in production, and a downstream step that reads 'the latest saved row' looks healthy while its upstream is broken.",
+    "learned": "2026-09-30",
+    "source": "scanner/db.py _iso; tests/test_run_save.py",
+    "signals": ["buyback_arb"]
   }
 ]
