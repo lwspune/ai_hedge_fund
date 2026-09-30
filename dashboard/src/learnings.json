@@ -268,5 +268,25 @@
     "learned": "2026-09-30",
     "source": "CONCLUSIONS.md section 3 (selection by offer premium); scripts/validate_buyback_selection.py",
     "signals": ["buyback_arb"]
+  },
+  {
+    "id": "risk-is-measurement-not-alpha",
+    "section": "method",
+    "title": "Risk is measurement, not alpha",
+    "body": "The risk lens (volatility, beta vs NIFTY 500, drawdown, worst day / week, days to exit Rs 5 lakh) sits next to every Act and Avoid row and on the company Risk tab. It carries no verdict, never enters the signal catalog and has no composite score: raw numbers plus percentile ranks only.",
+    "why": "A lens describes a security; it does not predict a return. A combined 'risk score' would be an invented gradient (the flat-45% acceptance prior taught that) and would quietly become a ranking nobody validated.",
+    "learned": "2026-09-30",
+    "source": "docs/RISK_LENS_SPEC.md; scanner/risk.py",
+    "signals": []
+  },
+  {
+    "id": "an-adjuster-only-guards-the-actions-it-knows",
+    "section": "data",
+    "title": "A corporate-action guard only guards the actions it is told about",
+    "body": "The first risk run showed -65% to -80% one-session 'falls' (VMARCIND, SHANKARA, INDIAGLYCO, ALLCARGO) on about 2% of symbols: bonuses, splits and demergers missing from corporate_events, mostly SME boards. The adjuster verified every recorded action and let these through. A move outside every NSE price band (max 20%) is a missing action, not a trade, so the lens now blanks those symbols (price_break).",
+    "why": "Check the prices for breaks as well as the recorded events. A missing record is silent, and a -75% 'worst day' reads as risk, not as a data error.",
+    "learned": "2026-09-30",
+    "source": "scanner/risk.py price_break; SUGGESTIONS.md Backfill ledger",
+    "signals": []
   }
 ]

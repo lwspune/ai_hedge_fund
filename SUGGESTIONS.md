@@ -250,10 +250,82 @@ The status line still says "Eleven signals validated" (the tally below says 21),
 lists P2 / P3, both built on 2026-06-24. Rewrite the header to the current tally and replace "Open /
 next" with a pointer to `CANDIDATE_SIGNALS.md`. Docs only.
 
+## 2026-09-30 (Risk lens v1 built — v2 backlog, docs/RISK_LENS_SPEC.md §1)
+
+Out of scope for v1 by design; each is a separate piece of work. Measurements, not signals — none
+of them may become a ranking.
+
+### Backfill the price-store hole 2026-09-01 → 09-09 (and index 2026-01-01)
+
+**Found building the risk lens:** seven trading sessions (Sep 1-4, 7-9) are missing from the bucket
+month `bhav/2026-09.parquet`, from `daily_prices` and from `index_prices`; `index_prices ^CRSLDX` also
+lacks 2026-01-01. Every consumer reads a move across the hole as one session (the risk lens flags a
+>30% "day" as `price_break`; the consolidation scan's 40-session ranges straddle it).
+**How to apply:** `gh workflow run backfill.yml -f what=prices -f from=2026-09-01 -f to=2026-09-09`
+(and the index day), then re-run `refresh_risk.py`. `refresh_risk.py` prints a WARN listing the
+missing sessions until it is filled.
+
+### Basket / candidate-list risk
+
+Concentration of the Act list by industry, cap bucket (`pointintime.mcap_bucket_at`) and shared
+event week. Reads `risk_metrics` + `companies`; no new data.
+
+### Stress test / scenario repricing
+
+Reprice a basket over the worst historical NIFTY 500 weeks since 2020 using each name's beta and
+realised moves. Needs the basket first.
+
+### Market regime view
+
+Index drawdown, breadth (share of the universe above its 200-DMA from `bar_panel`), volatility
+regime. A Desk strip, not a signal.
+
+### Industry-relative beta and correlation
+
+Needs sector index closes; `index_prices` holds only ^NSEI and ^CRSLDX. Add the niftyindices sector
+series to the index loader first.
+
+### Implied volatility (F&O bhavcopy)
+
+Shares the F&O bhavcopy ingestion with backlog #24 (results-day IV vs realised move).
+
+### Risk history
+
+A time series of the metrics (bucket parquet per month, not a table — the DB budget). Lets the
+Risk tab show "vol now vs its own past".
+
 ## Backfill ledger
 
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
+
+### `pricestore.adjust_for_actions` rejects a split and a bonus on the same ex-date — **awaiting go-ahead**
+
+**Learning (risk lens, 2026-09-30):** each action is checked against the observed jump on its own,
+so a combined split + bonus (AHCL, BESTAGRO, BHARATRAS, DELPHIFX, FCL, NAZARA, RNBDENIMS, SILVERTUC —
+8 of 3,157 in the first run) fails both checks and returns None. **360:** scope — one function, used
+by every study that spans an action and by the risk lens · blast radius — studies would *gain* events
+they now drop; no number that exists today changes sign · really applies — yes, these are real
+combined actions · risk — low, reversible; the guard stays (compare the product of same-date factors
+to the jump) · cost — ~20 lines + tests · **recommendation: do** (then re-run any study whose n
+changes).
+
+### `check_freshness.py` can't see holes inside a table — **awaiting go-ahead**
+
+**Learning:** the 2026-09-01..09 price hole passed every freshness rule (the newest row is fresh,
+the 2-day floor is full). **360:** scope — one new rule (trading days in the last ~60 with no
+`index_prices` / `daily_prices` rows) · blast radius — the daily run fails until the backfill above is
+done · really applies — yes; the loader already guards "newest", not "complete" · risk — low ·
+cost — small · **recommendation: do, after the backfill** (else it fails every run meanwhile).
+
+### Studies assume every split / bonus / demerger is in `corporate_events` — **defer**
+
+**Learning:** ~2% of symbols show a one-session move outside every NSE price band with no recorded
+action (mostly SME boards, demerger parents); the risk lens blanks them (`price_break`).
+`adjust_for_actions` only guards actions it is told about. **360:** scope — validation scripts on
+`source="db"` closes across long windows · really applies — weakly: studies use medians over short
+windows and most exclude SME, so a few fake jumps barely move a median; the lever is the same
+`price_break` test as a drop rule · **recommendation: defer**; apply when a study is next re-run.
 
 ### ~~`estimate_acceptance` ignores the offer premium — the strongest pre-record predictor of acceptance~~ — **DONE 2026-09-30** (owner go-ahead: `PREMIUM_BAND_ACCEPTANCE` 100 / 83 / 38 / 33 / 12% is the live prior whenever the premium is known; flat 45% + size nudge kept only as the no-price fallback; `scanner.calibrate` prints realized vs prior by band — 101 tenders reproduce it; verdict unchanged, thin / watch)
 

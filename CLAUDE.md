@@ -102,7 +102,7 @@ Efficiently-priced spreads (merger arb) get competed to ~risk-free.
   flags itself for re-check `reviewEveryDays` after `reviewed`; modules `ready` | `planned`; "done" ticks
   in localStorage), **Data** `#/data/deals|buybacks|positions|scans`
   (filterable; Refresh buttons call the edge functions), **Company** `#/company/:symbol/:tab`
-  (sticky header; overview/financials/events/filings/deals tabs, each fetches only its data).
+  (sticky header; overview/financials/events/risk/filings/deals tabs, each fetches only its data).
   Design tokens in `src/styles/tokens.css`, shared components in `src/components/ui/`, all
   formatting via `src/lib/format.js` (IST, en-IN). Spec: `docs/DASHBOARD_REDESIGN_SPEC.md`.
   `signals.json` generated from `catalog.py` via `scripts/emit_signals_json.py`; display copy in
@@ -220,6 +220,18 @@ Efficiently-priced spreads (merger arb) get competed to ~risk-free.
     filings: ~97% of text filings that state a rating are read; grades 40/40 + 22/22 on audit; known
     slips are secondary fields (an outlook written "The Outlook remains Stable", a short-term row
     taking the long-term verb). Dashboard: header "Credit rating" stat + Events-tab history.
+  - **Risk lens (2026-09-30, `docs/RISK_LENS_SPEC.md`)** — measurements, **not a signal** (no verdict, not
+    in the catalog, no composite score). `scanner/risk.py` (pure: vol 1y/3m, beta / corr / idio vol vs
+    NIFTY 500, max / current drawdown, worst day / week, trailing returns, ADV, days to exit ₹5 lakh at 10%
+    participation, delivery %, percentile ranks) → `risk_metrics` (one row per listed symbol, overwritten
+    daily; `as_of` = the symbol's last print) via `scripts/refresh_risk.py` (daily after prices; one
+    `bar_panel` pass over the 400-day window, ~30 s). Closes are corporate-action-adjusted; flags
+    `action_unverified` (a recorded action the prices don't show) and **`price_break`** (a one-session move
+    beyond −30% / +43% after adjustment, or a demerger in the window — a missing action, not a trade) blank
+    the price metrics; also `short_history`, `sparse` (beta nulled), `illiquid`, `sme`, `asm`, `gsm`. The run
+    fails on < 1,500 rows, > 20% blanked rows or a stale benchmark, and WARNs on sessions missing from the
+    store. Dashboard: company **Risk** tab, header "1y vol" stat, a risk chip on every Desk Act / Avoid row
+    (`src/lib/risk.js`; a test checks every Python flag has a label).
 
 ## Data sources (free, proven)
 **Every source below works from datacenter IPs** — verified from a GitHub Actions runner
@@ -262,13 +274,13 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (762 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (817 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
 `scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
 **Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):
-`refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, IPOs +
+`refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, risk lens, IPOs +
 120-day re-check + GMP, rights, board meetings/results, band changes, ASM/GSM snapshot, PIT insider
 filings, preferential issues, filings + KPIs + credit ratings, 10-day deals refill, buyback + rights scans, Telegram alerts) and
 `refresh-weekly` (Sun 10:00 IST: trading calendar, price prune, company master + index membership,
@@ -291,7 +303,7 @@ actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_pr
 `scripts/extract_ratings.py [--limit N] [--since D]` · `scripts/refresh_gmp.py [--since D]` · `scripts/refresh_ipo_bids.py` · `scripts/refresh_filings.py --ratings-only --from --to` ·
 `scripts/refresh_shareholding.py [--symbols] [--per-symbol N] [--xbrl-limit N]` · `scripts/refresh_insider.py
 [--from --to | --all]` · `scripts/refresh_surveillance.py` · `scripts/refresh_prefissues.py [--from --to]` ·
-`scripts/rebuild_snapshot_history.py` (no re-scrape) · `scripts/refresh_buyback_results.py [--all]
+`scripts/rebuild_snapshot_history.py` (no re-scrape) · `scripts/refresh_risk.py [--symbols A,B] [--print]` · `scripts/refresh_buyback_results.py [--all]
 [--retry-manual]` · `scripts/refresh_ofs.py [--from 1]` · `python -m scanner.calibrate` ·
 `python -m scanner.track results|result`. Validations: `scripts/validate_*.py
 [--exclude-results-window N] [--publish]`.
@@ -515,6 +527,13 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   45% (owner's call). *Reason:* the premium over the last cum close is known before the record date and
   predicts acceptance (Spearman −0.62, n=97) where the flat prior scored +0.07. Ranking accuracy only —
   acceptance × premium is flat across bands, so the verdict stays thin / watch (CONCLUSIONS §3).
+
+- **2026-09-30** — **Risk lens v1**: risk analytics are *measurements surfaced next to candidates*, not a catalog
+  signal; no composite score (raw numbers + percentile ranks); benchmark NIFTY 500; days-to-exit constant ₹5 lakh
+  at 10% participation; no history table in v1. *Reason:* the first Aladdin pillar reachable without a position
+  book; a score would be an invented gradient. Added beyond the spec: **`price_break`** blanks symbols whose
+  prices jump outside every NSE band with no recorded action (~2% of the universe, mostly SME) — the recorded-
+  action guard alone would have published −75% "worst days".
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
