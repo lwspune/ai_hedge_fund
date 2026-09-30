@@ -97,7 +97,9 @@ Efficiently-priced spreads (merger arb) get competed to ~risk-free.
   (verdict table, expandable summary + latest published evidence path + recent runs), **Learnings**
   `#/learnings` (cross-signal lessons: thesis / method / concepts / data / declined; content in
   `src/learnings.json`, a test checks every entry's fields and signal names — **add an entry whenever a
-  session produces a new lesson**), **Courses** `#/courses[/:course[/:module]]` (practical
+  session produces a new lesson**), **Market** `#/market` (market regime: three small-multiple line
+  charts since 2020 with a shared keyboard crosshair + the last 20 sessions; a one-line regime strip also
+  sits on the Desk), **Courses** `#/courses[/:course[/:module]]` (practical
   lessons, content in `src/courses.json`; every India rule/rate carries an `asOf` + source and the course
   flags itself for re-check `reviewEveryDays` after `reviewed`; modules `ready` | `planned`; "done" ticks
   in localStorage), **Data** `#/data/deals|buybacks|positions|scans`
@@ -232,6 +234,18 @@ Efficiently-priced spreads (merger arb) get competed to ~risk-free.
     fails on < 1,500 rows, > 20% blanked rows or a stale benchmark, and WARNs on sessions missing from the
     store. Dashboard: company **Risk** tab, header "1y vol" stat, a risk chip on every Desk Act / Avoid row
     (`src/lib/risk.js`; a test checks every Python flag has a label).
+  - **Market regime (2026-09-30, `docs/REGIME_VIEW_SPEC.md`)** — measurements with history, **not a signal**
+    (no risk-on/off label, no score, never gates an alert). `scanner/regime.py` → `market_regime` (one row per
+    trading day, 2020 →): NIFTY 500 / NIFTY 50 drawdown from the high since 2020, 1m / 3m returns, 20-session
+    vol + its **expanding, point-in-time** percentile; breadth (share above 50 / 200-DMA, 52-week highs / lows,
+    advancers) over liquid (≥ ₹1 cr/day) **regularly traded** (≥ 80% of the last 250 sessions) mainboard stocks
+    on break-aware adjusted closes (`adjust_segments`: an unconfirmed action, a > 30% day or a demerger keeps
+    the stock out for 250 prints, counted in `n_excluded`); a > 20-session gap (suspension) restarts a stock's
+    history. `scripts/refresh_regime.py` daily rewrites the last 10 sessions from a 520-day panel — provably
+    identical to the full rebuild (`--from 2020-01-01`, `backfill.yml what=regime`, ~1-4 min, 2.2 GB peak).
+    `bar_panel` carries a `series` column; `refresh_prices.py --indices-only` (`backfill.yml what=indices`)
+    loads index history; Yahoo misses special sessions (Muhurat, Budget Saturdays) — those closes came from
+    NSE `content/indices/ind_close_all_DDMMYYYY.csv`, checked against the neighbouring close + change.
 
 ## Data sources (free, proven)
 **Every source below works from datacenter IPs** — verified from a GitHub Actions runner
@@ -274,13 +288,13 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (820 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (850 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
 `scripts/validate_index_rebalance.py [--nifty50]`, `scripts/segment_index_rebalance.py`.
 **Scheduled refresh runs on GitHub Actions — no laptop needed** (`.github/workflows/`):
-`refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, risk lens, IPOs +
+`refresh-daily` (weekdays 20:30 IST: corporate actions, F&O bans, **bhavcopy prices**, risk lens, market regime, IPOs +
 120-day re-check + GMP, rights, board meetings/results, band changes, ASM/GSM snapshot, PIT insider
 filings, preferential issues, filings + KPIs + credit ratings, 10-day deals refill, buyback + rights scans, Telegram alerts) and
 `refresh-weekly` (Sun 10:00 IST: trading calendar, price prune, company master + index membership,
@@ -293,7 +307,7 @@ the run on any **age** rule (calendar or trading days), **row-volume floor**, **
 pages and parsed 0 tenders — the 2026 format change), or **DB size** (warn 300 MB, fail 400 MB via
 RPC `db_size_bytes`). A test forces every dated table in `db/schema.sql` to carry a rule.
 **CI** (`ci.yml`): pytest + dashboard lint/build on every push.
-On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|orphans|shareholding|insider|pref-issues|credit-ratings|ipos|ipo-gmp|ipo-bids`,
+On demand (Actions, never the laptop): `backfill.yml` (`what=board-meetings|prices|indices|regime|orphans|shareholding|insider|pref-issues|credit-ratings|ipos|ipo-gmp|ipo-bids`,
 `from`/`to`) · `validate.yml` (`script=validate_*.py`, `args`; publishes evidence) ·
 `probe-sources.yml`. Manual: `gh workflow run refresh-daily.yml`.
 Individual loaders: `scripts/refresh_companies.py` · `scripts/refresh_events.py
@@ -303,7 +317,7 @@ actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_pr
 `scripts/extract_ratings.py [--limit N] [--since D]` · `scripts/refresh_gmp.py [--since D]` · `scripts/refresh_ipo_bids.py` · `scripts/refresh_filings.py --ratings-only --from --to` ·
 `scripts/refresh_shareholding.py [--symbols] [--per-symbol N] [--xbrl-limit N]` · `scripts/refresh_insider.py
 [--from --to | --all]` · `scripts/refresh_surveillance.py` · `scripts/refresh_prefissues.py [--from --to]` ·
-`scripts/rebuild_snapshot_history.py` (no re-scrape) · `scripts/refresh_risk.py [--symbols A,B] [--print]` · `scripts/refresh_buyback_results.py [--all]
+`scripts/rebuild_snapshot_history.py` (no re-scrape) · `scripts/refresh_risk.py [--symbols A,B] [--print]` · `scripts/refresh_regime.py [--from D] [--print]` · `scripts/refresh_buyback_results.py [--all]
 [--retry-manual]` · `scripts/refresh_ofs.py [--from 1]` · `python -m scanner.calibrate` ·
 `python -m scanner.track results|result`. Validations: `scripts/validate_*.py
 [--exclude-results-window N] [--publish]`.
@@ -537,6 +551,13 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
 - **2026-09-30** — Freshness gains a **hole** rule; `adjust_for_actions` multiplies same-date factors (split + bonus
   together). *Reason:* a 7-session price hole (2026-09-01..09) passed every age and floor rule because the newest
   row was fresh — "newest" is not "complete"; and a combined action is one jump, not two.
+- **2026-09-30** — **Market regime v1**: market-wide measurements with history (a tiny table, unlike the risk
+  lens), breadth over liquid, regularly traded mainboard stocks with break-aware adjustment, no label / score /
+  alert gating; the two Desk warn marks (−10% drawdown, 90th-pct vol) are display conventions. Found while
+  building: a daily incremental window silently disagreed with the full rebuild for suspended and
+  intermittently traded stocks — fixed by segmenting at > 20-session gaps, requiring ≥ 80% session coverage and
+  a 520-day panel, and pinned by a full-vs-window test. *Reason:* an incremental job must be provably the same
+  computation as its rebuild, or history and today disagree without anyone seeing it.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

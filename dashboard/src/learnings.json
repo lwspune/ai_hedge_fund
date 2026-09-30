@@ -288,5 +288,15 @@
     "learned": "2026-09-30",
     "source": "scanner/risk.py price_break; SUGGESTIONS.md Backfill ledger",
     "signals": []
+  },
+  {
+    "id": "an-incremental-job-must-equal-its-rebuild",
+    "section": "method",
+    "title": "An incremental daily job must compute exactly what its full rebuild computes",
+    "body": "The market regime rewrites its last 10 days from a short price window; the history comes from a full 2020 rebuild. The two disagreed for seven stocks: suspended names whose 200-day average spanned the suspension in the long run, and intermittently traded names whose 250 prints reached past the short window. Segmenting at suspensions, requiring regular trading and a longer window made them identical, and a test now checks a full series against its tail.",
+    "why": "The seam between history and today is invisible on a chart. Test the daily window against the rebuild, not each on its own.",
+    "learned": "2026-09-30",
+    "source": "scanner/regime.py stock_states; tests/test_regime.py test_daily_window_agrees_*",
+    "signals": []
   }
 ]

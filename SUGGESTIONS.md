@@ -294,10 +294,38 @@ Shares the F&O bhavcopy ingestion with backlog #24 (results-day IV vs realised m
 A time series of the metrics (bucket parquet per month, not a table — the DB budget). Lets the
 Risk tab show "vol now vs its own past".
 
+## 2026-09-30 (Market regime v1 built — v2 backlog, docs/REGIME_VIEW_SPEC.md §1)
+
+### Sector breadth / rotation
+
+Needs sector index closes (niftyindices sector series) in `index_prices`; then breadth per sector and a
+rotation view. `index_prices` holds ^NSEI and ^CRSLDX only.
+
+### Breadth by cap bucket
+
+Large / mid / small breadth via `pointintime.mcap_bucket_at` as of each date — heavy per date; cache the
+bucket per stock per quarter first.
+
+### FII / DII flows, India VIX, NSE advance-decline
+
+New sources (NSE participant-wise OI / FII-DII provisional data, VIX history); probe runner reachability first.
+
 ## Backfill ledger
 
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
+
+### `refresh_prices.refresh_indices` trusts Yahoo alone — it misses special sessions — **awaiting go-ahead**
+
+**Learning (market regime, 2026-09-30):** Yahoo had no NIFTY 500 close for 13 NSE sessions since 2020 (Muhurat
+2020-11-14 / 2023-11-12, Budget 2020-02-01 / 2025-02-01 / 2026-02-01, the 2024 Saturday DR sessions, several
+1 Jan / 26 Dec days) and NIFTY 50 for 7. All were filled by hand from NSE `content/indices/ind_close_all_DDMMYYYY.csv`
+(each checked: previous stored close + NSE's change = NSE's close). **360:** scope — `refresh_indices` (daily +
+backfills) · blast radius — only fills days that are missing; Yahoo stays primary · really applies — yes, the
+freshness hole rule will now fail the run on the next such session and someone fills it by hand · risk — low
+(the archive is static, proven reachable; keep the neighbour check as the guard) · cost — ~30 lines + a parser
+test on a fixture · **recommendation: do** — after Yahoo, fetch the NSE file for every bhavcopy session in the
+window without an index row.
 
 ### ~~`pricestore.adjust_for_actions` rejects a split and a bonus on the same ex-date~~ — **DONE 2026-09-30** (owner go-ahead: same-date factors multiply, the guard checks the product; all 8 symbols now verified; `validate_investor_skill.py` may gain a few events on its next re-run — verdict null either way)
 
