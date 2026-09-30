@@ -1,6 +1,6 @@
 """Scheduled infra refresh — run by GitHub Actions (.github/workflows/refresh-*.yml).
 
-    python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, surveillance, insider, pref issues, filings + KPIs + ratings, deals refill, buybacks
+    python scripts/scheduled_refresh.py daily    # weekdays 20:30 IST: events, prices, risk lens, surveillance, insider, pref issues, filings + KPIs + ratings, deals refill, buybacks
     python scripts/scheduled_refresh.py weekly   # Sunday: trading calendar, company master, fundamentals, shareholding, holders
 
 Runs each step as a subprocess so one failure doesn't stop the rest, streams output to the
@@ -22,6 +22,7 @@ def steps(mode: str, today: date) -> list[list[str]]:
     if mode == "daily":
         return [["refresh_events.py", "actions"], ["refresh_events.py", "fo-ban"],
                 ["refresh_prices.py"],  # before the scans: they read today's close from daily_prices
+                ["refresh_risk.py"],    # risk lens: today's close, before the scans (docs/RISK_LENS_SPEC.md)
                 ["refresh_events.py", "ipos"], ["refresh_gmp.py"], ["refresh_events.py", "rights"],
                 ["refresh_events.py", "board-meetings"], ["refresh_events.py", "bands"],
                 ["refresh_surveillance.py"], ["refresh_insider.py"], ["refresh_prefissues.py"],

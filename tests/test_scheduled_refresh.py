@@ -17,6 +17,9 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     px = s.index(["refresh_prices.py"])                     # cloud price store (WP3)
     assert s.index(["refresh_events.py", "fo-ban"]) < px < s.index(["-m", "scanner.run", "buyback_arb", "--save"])
     assert px < s.index(["-m", "scanner.run", "rights_re", "--save"])   # scans read today's closes
+    rk = s.index(["refresh_risk.py"])                        # risk lens reads today's close
+    first_scan = min(i for i, st in enumerate(s) if st[:2] == ["-m", "scanner.run"])
+    assert px < rk < first_scan
     assert ["refresh_filings.py"] in s
     assert ["refresh_surveillance.py"] in s              # daily ASM/GSM snapshot (history only exists if captured)
     assert ["refresh_insider.py"] in s                   # PIT disclosures (forward feed)

@@ -69,6 +69,7 @@ TRADING_QUERIES = {
     "prices": ("daily_prices", "trade_date", {}, 1),
     "index_prices": ("index_prices", "trade_date", {}, 1),
     "surveillance": ("surveillance_daily", "as_of", {}, 1),   # a snapshot every trading day
+    "risk_metrics": ("risk_metrics", "as_of", {}, 1),         # rewritten every trading day (refresh_risk.py)
 }
 TRADING_RULES = {name: q[3] for name, q in TRADING_QUERIES.items()}
 
@@ -100,6 +101,8 @@ FLOORS = {
     # the daily 45-day window re-touches ~140 rows; NSE filters that window on the filing's latest
     # status date, so submission_date undercounts recent weeks and is not a usable floor column
     "pref_issues": {"table": "pref_issues", "col": "updated_at", "filters": {}, "days": 2, "min": 40},
+    # one row per listed symbol with prints in the 400-day window (~2,400); the loader fails < 1,500 too
+    "risk_metrics": {"table": "risk_metrics", "col": None, "filters": {}, "days": None, "min": 1500},
 }
 
 

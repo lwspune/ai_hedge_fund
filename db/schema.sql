@@ -863,3 +863,33 @@ create policy "anon read ipo_gmp" on ipo_gmp for select to anon using (true);
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('holders', 'holders', false, 5242880)
 on conflict (id) do nothing;
+
+-- ============================================================================
+-- Risk lens v1 (docs/RISK_LENS_SPEC.md): one row per listed symbol, overwritten daily by
+-- scripts/refresh_risk.py. Measurements, not a signal — no verdict, no composite score.
+-- Ratios are fractions (0.32 = 32%); as_of = the symbol's last session in the 400-day window.
+-- ============================================================================
+create table if not exists risk_metrics (
+  symbol           text primary key references companies(symbol) on update cascade,
+  as_of            date not null,                      -- last session in the window
+  sessions         integer not null check (sessions >= 0),
+  vol_1y           real check (vol_1y is null or vol_1y >= 0),
+  vol_3m           real check (vol_3m is null or vol_3m >= 0),
+  beta_1y          real,
+  corr_1y          real check (corr_1y is null or corr_1y between -1 and 1),
+  idio_vol_1y      real check (idio_vol_1y is null or idio_vol_1y >= 0),
+  max_dd_1y        real check (max_dd_1y is null or (max_dd_1y <= 0 and max_dd_1y >= -1)),
+  dd_now           real check (dd_now is null or (dd_now <= 0 and dd_now >= -1)),
+  worst_day_1y     real check (worst_day_1y is null or worst_day_1y >= -1),
+  worst_week_1y    real check (worst_week_1y is null or worst_week_1y >= -1),
+  ret_1m           real, ret_3m real, ret_1y real,
+  adv_20_cr        real check (adv_20_cr is null or adv_20_cr >= 0),
+  days_to_exit_5l  integer check (days_to_exit_5l is null or days_to_exit_5l >= 1),
+  delivery_pct_20  real check (delivery_pct_20 is null or delivery_pct_20 between 0 and 100),
+  vol_rank         real check (vol_rank is null or vol_rank between 0 and 100),
+  liq_rank         real check (liq_rank is null or liq_rank between 0 and 100),
+  flags            text[] not null default '{}',
+  updated_at       timestamptz not null default now()
+);
+alter table risk_metrics enable row level security;
+create policy "anon read risk_metrics" on risk_metrics for select to anon using (true);

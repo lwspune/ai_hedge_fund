@@ -30,6 +30,13 @@ def test_rules_cover_the_scheduled_tables():
     assert "calendar_ahead" in FLOORS          # trading_calendar must extend past today
 
 
+def test_risk_metrics_rules():
+    from scripts.check_freshness import TRADING_RULES
+    assert TRADING_RULES["risk_metrics"] == 1                     # rewritten every trading day
+    f = FLOORS["risk_metrics"]
+    assert f["table"] == "risk_metrics" and f["days"] is None and f["min"] == 1500
+
+
 def test_too_thin_flags_windows_under_their_floor():
     floors = {"deals": 40, "filings": 300, "companies": 2500}
     counts = {"deals": 39, "filings": 300, "companies": None}
