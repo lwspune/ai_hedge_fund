@@ -453,6 +453,33 @@ def discover_buybacks(start_id: int, max_gap: int = 12, hard_cap: int = 120, ses
     return out
 
 
+def recheck_open(start_id: int, session=None) -> list[dict]:
+    """Stored tenders still marked 'open' whose id sits below the upward probe's start. The probe
+    begins 3 ids under the highest stored buyback, so a newer offer pushes an older, still-open
+    tender out of the scan (VRL Logistics, 2026-09-30). Never fails the scan: [] on any error."""
+    try:
+        from scanner import db
+        rows = db.select("buybacks", {"select": "chittorgarh_id", "status": "eq.open",
+                                      "chittorgarh_id": f"lt.{start_id}", "order": "chittorgarh_id"})
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        try:
+            bb = fetch_buyback(r["chittorgarh_id"], session)
+        except Exception:
+            bb = None
+        if bb and bb.get("symbol") and bb.get("buyback_price"):
+            out.append(bb)
+    return out
+
+
+def merge_discovered(probed: list[dict], rechecked: list[dict]) -> list[dict]:
+    """Probe results first, then re-checked open tenders not already seen (one row per id)."""
+    seen = {b["id"] for b in probed}
+    return probed + [b for b in rechecked if b["id"] not in seen]
+
+
 def latest_small_holder(symbol: str) -> dict:
     """Newest `shareholding` row's small-holder % for the entitlement estimate ({} if none /
     unreachable — the scan must not fail on a missing feature)."""
@@ -531,8 +558,14 @@ def scan_current_buybacks(start_id=None, max_gap=12, hard_cap=120, session=None,
         start_id = _default_start_id()
     today = pd.Timestamp(date.today())
 
+    import requests
+    session = session or requests.Session()
+    probed = discover_buybacks(start_id, max_gap, hard_cap, session, stats)
+    rechecked = recheck_open(start_id, session)
+    if stats is not None:   # kept apart from pages_seen / tender_parsed, which gate the frontier check
+        stats["rechecked_open"] = len(rechecked)
     out = []
-    for bb in discover_buybacks(start_id, max_gap, hard_cap, session, stats):
+    for bb in merge_discovered(probed, rechecked):
         try:
             # unadjusted last close from the cloud store: the premium is vs a nominal rupee price
             px = get_closes(bb["symbol"], today - pd.Timedelta(days=15), today, source="db")

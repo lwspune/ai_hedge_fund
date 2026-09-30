@@ -300,7 +300,7 @@ actions|fo-ban|ipos|rights|holidays|board-meetings|bands` · `scripts/refresh_pr
 Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5lib · pytest ·
 Supabase (raw PostgREST, no ORM/SDK) · React + Vite + supabase-js (dashboard). P0–P3 built +
 deployed (https://ai-hedge-fund-fawn.vercel.app/). `buyback_arb` now self-discovers current
-buybacks (upward id probe from `db.max_buyback_id`) + ranks by an acceptance-estimation model
+buybacks (upward id probe from `db.max_buyback_id`, plus a re-fetch of stored `open` tenders below the probe start) + ranks by an acceptance-estimation model
 (`estimate_acceptance`: premium-band prior since 2026-09-30 → after-tax `exp_return`). Next: re-check
 the band medians with `python -m scanner.calibrate` as `buyback_results` grows.
 

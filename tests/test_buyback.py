@@ -608,3 +608,52 @@ def test_calibrate_by_premium_band_reports_medians():
     assert out["<=5%"] == {"n": 3, "acceptance": pytest.approx(0.9)}
     assert out["20-40%"] == {"n": 1, "acceptance": pytest.approx(0.2)}
     assert "10-20%" not in out
+
+
+# --- still-open tenders below the probe start (2026-09-30) -------------------------------------
+
+def test_recheck_open_refetches_stored_open_tenders_below_the_probe_start(monkeypatch):
+    """The upward probe starts 3 ids below the highest stored buyback. When TCI (a higher id)
+    was stored, the still-open VRL Logistics tender (id 241) fell out of the scan and would have
+    left the Desk's Act panel while its window was open. Stored rows with status 'open' below
+    the start are re-fetched every scan."""
+    from scanner import buyback, db
+    seen = {}
+
+    def fake_select(table, params):
+        seen["params"] = params
+        return [{"chittorgarh_id": 241}, {"chittorgarh_id": 248}]
+
+    monkeypatch.setattr(db, "select", fake_select)
+    monkeypatch.setattr(buyback, "fetch_buyback",
+                        lambda bid, s: {"id": bid, "symbol": {241: "VRLLOG", 248: "GLOBALPET"}[bid],
+                                        "buyback_price": 320.0, "entitlement_small": None,
+                                        "issue_type": "tender"})
+    got = buyback.recheck_open(start_id=249, session=object())
+    assert [b["symbol"] for b in got] == ["VRLLOG", "GLOBALPET"]
+    assert seen["params"]["status"] == "eq.open"
+    assert seen["params"]["chittorgarh_id"] == "lt.249"
+
+
+def test_recheck_open_skips_pages_that_no_longer_parse(monkeypatch):
+    from scanner import buyback, db
+    monkeypatch.setattr(db, "select", lambda t, p: [{"chittorgarh_id": 241}])
+    monkeypatch.setattr(buyback, "fetch_buyback", lambda bid, s: None)
+    assert buyback.recheck_open(start_id=249, session=object()) == []
+
+
+def test_recheck_open_never_fails_the_scan(monkeypatch):
+    from scanner import buyback, db
+
+    def boom(*a, **k):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(db, "select", boom)
+    assert buyback.recheck_open(start_id=249, session=object()) == []
+
+
+def test_merge_discovered_keeps_one_row_per_id():
+    from scanner.buyback import merge_discovered
+    probed = [{"id": 250, "symbol": "TCI"}, {"id": 248, "symbol": "GLOBALPET"}]
+    rechecked = [{"id": 241, "symbol": "VRLLOG"}, {"id": 248, "symbol": "GLOBALPET"}]
+    assert [b["id"] for b in merge_discovered(probed, rechecked)] == [250, 248, 241]
