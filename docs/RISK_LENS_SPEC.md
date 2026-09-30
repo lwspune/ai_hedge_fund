@@ -303,3 +303,5 @@ a label fails the test, the `signalLabels` pattern; `fmtDaysToExit`).
   sme 572, short_history 433, asm 228, sparse 187, price_break 64, gsm 64, action_unverified 8.
 - After the price-hole backfill and that fix (same evening): action_unverified 0, price_break 36, no
   missing sessions in the window.
+- First population on Actions (refresh-daily run 36739845402, 2026-09-30): 3,157 rows upserted; step time
+  **41 s on the runner** (panel read 27 s); `check_freshness.py` passed with the new risk and hole rules.
