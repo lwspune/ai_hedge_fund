@@ -2,11 +2,13 @@ import { supabase } from '../supabaseClient'
 import useLoad from '../lib/useLoad'
 import useEdgeRefresh, { describeBuybackRefresh } from '../lib/useEdgeRefresh'
 import { latestScan } from '../lib/queries'
+import { withRisk } from '../lib/risk'
 import { fmtDate, fmtDateTime, fmtInr, fmtPct, fmtRelative } from '../lib/format'
 import { signalHeadline } from '../lib/signalLabels'
 import Section from './ui/Section'
 import DataTable from './ui/DataTable'
 import SymbolLink from './ui/SymbolLink'
+import RiskChip from './ui/RiskChip'
 import Button from './ui/Button'
 import { StatusBadge } from './ui/Badge'
 import { ErrorNote } from './ui/States'
@@ -29,7 +31,7 @@ async function loadOpenBuybacks() {
   if (bb.error) throw bb.error
   const bySym = {}
   for (const b of bb.data || []) bySym[b.symbol] ??= b
-  return { runAt, rows: open.map((r) => ({ ...r, buyback: bySym[r.symbol] })) }
+  return { runAt, rows: await withRisk(open.map((r) => ({ ...r, buyback: bySym[r.symbol] }))) }
 }
 
 const p = (r) => r.payload
@@ -61,6 +63,7 @@ const COLUMNS = [
   },
   { key: 'close_date', header: 'Closes', nowrap: true, render: (r) => fmtDate(p(r).close_date) },
   { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.buyback?.status} /> },
+  { key: 'risk', header: 'Risk', nowrap: true, title: '1-year volatility · days to exit ₹5 lakh at 10% of daily turnover. Not a signal.', render: (r) => <RiskChip symbol={r.symbol} risk={r.risk} /> },
 ]
 
 export default function OpenBuybacks() {
@@ -74,7 +77,7 @@ export default function OpenBuybacks() {
              action={<Button busy={r.busy} onClick={r.refresh}
                              aria-label="Refresh buybacks from chittorgarh">Refresh</Button>}>
       {r.error && <ErrorNote what="new buybacks" message={r.error} />}
-      {loading && !data ? <Loading label="Loading open buybacks"><SkeletonTable rows={3} cols={10} /></Loading>
+      {loading && !data ? <Loading label="Loading open buybacks"><SkeletonTable rows={3} cols={11} /></Loading>
         : error ? <ErrorNote what="open buybacks" message={error} />
         : <DataTable dense caption="Open buybacks" columns={COLUMNS} rows={data.rows} rowKey={(x) => x.id}
                      emptyText="No open tender buybacks."

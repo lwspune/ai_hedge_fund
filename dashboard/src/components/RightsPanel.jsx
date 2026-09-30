@@ -1,10 +1,12 @@
 import useLoad from '../lib/useLoad'
 import { latestScan } from '../lib/queries'
+import { withRisk } from '../lib/risk'
 import { fmtDate, fmtDateTime, fmtInr, fmtLakh, fmtPct, fmtRelative } from '../lib/format'
 import { signalHeadline } from '../lib/signalLabels'
 import Section from './ui/Section'
 import DataTable from './ui/DataTable'
 import SymbolLink from './ui/SymbolLink'
+import RiskChip from './ui/RiskChip'
 import { Badge } from './ui/Badge'
 import { ErrorNote } from './ui/States'
 import { Loading, SkeletonTable } from './ui/Skeleton'
@@ -35,18 +37,24 @@ const COLUMNS = [
   { key: 're_last_day', header: 'RE last day', nowrap: true, render: (r) => withRelative(r.payload.re_last_day) },
   { key: 'issue_close', header: 'Apply by', nowrap: true, render: (r) => fmtDate(r.payload.issue_close) },
   { key: 'action', header: 'Action', render: (r) => <ActionBadge action={r.payload.action} /> },
+  { key: 'risk', header: 'Risk', nowrap: true, title: '1-year volatility · days to exit ₹5 lakh at 10% of daily turnover. Not a signal.', render: (r) => <RiskChip symbol={r.symbol} risk={r.risk} /> },
 ]
+
+async function loadRights() {
+  const scan = await latestScan('rights_re')
+  return { ...scan, rows: await withRisk(scan.rows) }
+}
 
 // rights_re: entitlements trading now, from the latest daily scan. Positive gap = RE cheaper
 // than (stock − issue price).
 export default function RightsPanel() {
-  const { loading, error, data } = useLoad(() => latestScan('rights_re'), [])
+  const { loading, error, data } = useLoad(loadRights, [])
   return (
     <Section id="rights" title="Rights entitlements trading" level={3}
              meta={data?.runAt ? `as of ${fmtDateTime(data.runAt)}` : null}
              info={`${signalHeadline('rights_re')}. Only worth it if you want the stock anyway.`}
              infoHref="#/signals">
-      {loading ? <Loading label="Loading rights entitlements"><SkeletonTable rows={3} cols={8} /></Loading>
+      {loading ? <Loading label="Loading rights entitlements"><SkeletonTable rows={3} cols={9} /></Loading>
         : error ? <ErrorNote what="rights entitlements" message={error} />
         : <DataTable dense caption="Rights entitlements trading" columns={COLUMNS} rows={data.rows}
                      rowKey={(r) => r.id} emptyText="No rights entitlements trading right now." />}

@@ -298,3 +298,13 @@ def test_format_table_handles_blanks_and_flags():
              "adv_20_cr": 120.0, "days_to_exit_5l": 1, "flags": []}]
     out = format_table(rows)
     assert "ABC" in out and "action_unverified" in out and "XYZ" in out and "25" in out
+
+
+def test_every_flag_has_a_dashboard_label():
+    """The dashboard's FLAG_LABEL (src/lib/risk.js) must cover every flag the loader writes."""
+    import re
+    from pathlib import Path
+    js = (Path(__file__).resolve().parent.parent / "dashboard" / "src" / "lib" / "risk.js").read_text(encoding="utf-8")
+    block = re.search(r"const FLAG_LABEL = \{(.*?)\n\}", js, re.S).group(1)
+    labelled = set(re.findall(r"^\s*(\w+):", block, re.M))
+    assert labelled == set(risk.FLAGS)

@@ -12,7 +12,7 @@ const SYMBOL = /^[A-Z0-9&.-]{1,20}$/
 const SLUG = /^[a-z0-9-]{1,60}$/
 
 export const DATA_TABS = ['deals', 'buybacks', 'positions', 'scans']
-export const COMPANY_TABS = ['overview', 'financials', 'events', 'filings', 'deals']
+export const COMPANY_TABS = ['overview', 'financials', 'events', 'risk', 'filings', 'deals']
 
 const pickTab = (tab, tabs) => (tabs.includes(tab) ? tab : tabs[0])
 

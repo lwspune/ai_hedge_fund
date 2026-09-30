@@ -5,6 +5,7 @@ import { toggle } from '../lib/filters'
 import { todayIso } from '../lib/format'
 import { COMPANY_TABS, companyHref } from '../useHashRoute'
 import CompanyHeader from './company/CompanyHeader'
+import RiskTab from './company/RiskTab'
 import {
   CompanyDeals, CreditRatings, EventsTable, FilingKpis, FilingsTable, Financials, SignalActivity, Snapshot, UpcomingEvents,
 } from './company/CompanySections'
@@ -23,16 +24,18 @@ const all = async (queries) => {
 
 // Header: identity + snapshot (the Financials tab reads its history too) + tab counts.
 async function loadHeader(symbol) {
-  const [co, snap, fil, deals, ratings] = await all([
+  const [co, snap, fil, deals, ratings, risk] = await all([
     supabase.from('companies').select('*').eq('symbol', symbol).maybeSingle(),
     supabase.from('company_snapshot').select('*').eq('symbol', symbol).maybeSingle(),
     supabase.from('filings').select('seq_id', { count: 'exact', head: true }).eq('symbol', symbol),
     supabase.from('market_deals').select('id', { count: 'exact', head: true }).eq('symbol', symbol),
     supabase.from('current_credit_ratings').select('agency,scale,term,rating,outlook,watch,disclosed_at')
       .eq('symbol', symbol),
+    supabase.from('risk_metrics').select('vol_1y,beta_1y').eq('symbol', symbol).maybeSingle(),
   ])
   return {
     company: co.data, snap: snap.data, filings: fil.count ?? 0, deals: deals.count ?? 0, ratings: ratings.data || [],
+    risk: risk.data,
   }
 }
 
@@ -121,7 +124,9 @@ function DealsTab({ symbol }) {
   return <CompanyDeals deals={data} />
 }
 
-const TAB_LABEL = { overview: 'Overview', financials: 'Financials', events: 'Events', filings: 'Filings', deals: 'Deals' }
+const TAB_LABEL = {
+  overview: 'Overview', financials: 'Financials', events: 'Events', risk: 'Risk', filings: 'Filings', deals: 'Deals',
+}
 
 export default function CompanyPage({ symbol, tab }) {
   const head = useLoad(() => loadHeader(symbol), [symbol])
@@ -137,7 +142,7 @@ export default function CompanyPage({ symbol, tab }) {
     )
   }
   if (head.error) return <div className="content"><ErrorNote what={symbol} message={head.error} /></div>
-  const { company: c, snap, filings, deals, ratings } = head.data
+  const { company: c, snap, filings, deals, ratings, risk } = head.data
   if (!c) {
     return (
       <div className="content">
@@ -155,7 +160,7 @@ export default function CompanyPage({ symbol, tab }) {
     <>
       <div className="co-sticky">
         <div className="co-inner">
-          <CompanyHeader company={c} snap={snap} ratings={ratings}>
+          <CompanyHeader company={c} snap={snap} ratings={ratings} risk={risk}>
             <Tabs label={`${c.name || c.symbol} sections`} tabs={tabs} active={tab} />
           </CompanyHeader>
         </div>
@@ -163,6 +168,7 @@ export default function CompanyPage({ symbol, tab }) {
       <div className="content co-body" key={symbol}>
         {tab === 'financials' ? <Financials history={snap?.history} />
           : tab === 'events' ? <EventsTab symbol={symbol} />
+          : tab === 'risk' ? <RiskTab symbol={symbol} />
           : tab === 'filings' ? <FilingsTab symbol={symbol} />
           : tab === 'deals' ? <DealsTab symbol={symbol} />
           : <OverviewTab symbol={symbol} snap={snap} />}

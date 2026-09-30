@@ -26,6 +26,7 @@ describe('parseHash', () => {
     ['#/company/TCS/overview', { page: 'company', symbol: 'TCS', tab: 'overview' }],
     ['#/company/TCS/financials', { page: 'company', symbol: 'TCS', tab: 'financials' }],
     ['#/company/TCS/events', { page: 'company', symbol: 'TCS', tab: 'events' }],
+    ['#/company/TCS/risk', { page: 'company', symbol: 'TCS', tab: 'risk' }],
     ['#/company/TCS/filings', { page: 'company', symbol: 'TCS', tab: 'filings' }],
     ['#/company/TCS/deals', { page: 'company', symbol: 'TCS', tab: 'deals' }],
     ['#/company/TCS/bogus', { page: 'company', symbol: 'TCS', tab: 'overview' }],
@@ -51,6 +52,7 @@ describe('hrefs', () => {
   it('round-trips through parseHash', () => {
     expect(parseHash(companyHref('M&M', 'filings'))).toEqual({ page: 'company', symbol: 'M&M', tab: 'filings' })
     expect(companyHref('TCS')).toBe('#/company/TCS')
+    expect(companyHref('TCS', 'risk')).toBe('#/company/TCS/risk')
     expect(dataHref('scans')).toBe('#/data/scans')
     expect(courseHref('quant-trading')).toBe('#/courses/quant-trading')
     expect(parseHash(courseHref('quant-trading', 'costs'))).toEqual({ page: 'courses', course: 'quant-trading', module: 'costs' })

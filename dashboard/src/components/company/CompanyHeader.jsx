@@ -1,4 +1,4 @@
-import { fmtCrValue, fmtDate, fmtInr, fmtNum, fmtPctPts } from '../../lib/format'
+import { fmtCrValue, fmtDate, fmtInr, fmtNum, fmtPct, fmtPctPts } from '../../lib/format'
 import { headlineRating, ratingGrade } from '../../lib/ratings'
 import { Badge } from '../ui/Badge'
 import { Stat } from '../ui/Stat'
@@ -14,8 +14,16 @@ function RatingStat({ cr }) {
   )
 }
 
+// Risk lens headline: 1-year volatility with beta vs NIFTY 500. Omitted when there is no risk row.
+function RiskStat({ risk }) {
+  return (
+    <Stat label="1y vol" value={fmtPct(risk.vol_1y, 0)} sub={risk.beta_1y == null ? undefined : `β ${fmtNum(risk.beta_1y, 2)}`}
+          title="Annualised volatility over the last 250 sessions; β against NIFTY 500. See the Risk tab." />
+  )
+}
+
 // Company identity + four headline stats. `children` (the tab bar) renders inside the header.
-export default function CompanyHeader({ company: c, snap: s, ratings, children }) {
+export default function CompanyHeader({ company: c, snap: s, ratings, risk, children }) {
   const cr = headlineRating(ratings)
   const taxonomy = [...new Set([s?.sector, s?.industry, s?.basic_industry].filter(Boolean))].join(' › ')
     || c.industry
@@ -49,9 +57,13 @@ export default function CompanyHeader({ company: c, snap: s, ratings, children }
             <Stat label="P/E" value={fmtNum(s.pe, 1)} />
             <Stat label="ROCE" value={fmtPctPts(s.roce)} />
             {cr && <RatingStat cr={cr} />}
+            {risk && <RiskStat risk={risk} />}
           </dl>
-        ) : cr ? (
-          <dl className="co-stats" aria-label="Headline figures"><RatingStat cr={cr} /></dl>
+        ) : cr || risk ? (
+          <dl className="co-stats" aria-label="Headline figures">
+            {cr && <RatingStat cr={cr} />}
+            {risk && <RiskStat risk={risk} />}
+          </dl>
         ) : <p className="co-stats-none">Fundamentals not fetched yet</p>}
       </div>
       {children}

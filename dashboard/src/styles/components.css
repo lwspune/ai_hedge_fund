@@ -59,6 +59,10 @@
 .badge-neg { color: var(--neg); background: var(--neg-bg); }
 .badge-neutral { color: var(--text-2); background: var(--neutral-bg); }
 .badges { display: flex; flex-wrap: wrap; gap: var(--s1); }
+/* risk lens: Desk chip (a link to the company Risk tab) + the blanked-metrics note */
+.risk-chip { text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.risk-chip:hover { text-decoration: underline; }
+.risk-note { margin: var(--s3) 0 0; max-width: 70ch; font-size: var(--fs-small); color: var(--text-2); }
 
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
 .chip {
