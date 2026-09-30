@@ -905,3 +905,28 @@ as $$
 $$;
 revoke execute on function public.price_dates(date) from public, anon, authenticated;
 grant execute on function public.price_dates(date) to service_role;
+
+-- ============================================================================
+-- Market regime v1 (docs/REGIME_VIEW_SPEC.md): one row per trading day, 2020 ->, written by
+-- scripts/refresh_regime.py. Measurements, not a signal: no verdict, no risk-on / risk-off label.
+-- Shares are fractions; breadth = liquid mainboard stocks as of each date, break-aware adjustment.
+-- ============================================================================
+create table if not exists market_regime (
+  trade_date     date primary key,
+  n500_close     real check (n500_close is null or n500_close > 0),
+  n500_dd        real check (n500_dd is null or (n500_dd <= 0 and n500_dd >= -1)),
+  n50_dd         real check (n50_dd is null or (n50_dd <= 0 and n50_dd >= -1)),
+  n500_ret_1m    real, n500_ret_3m real,
+  n500_vol_20    real check (n500_vol_20 is null or n500_vol_20 >= 0),
+  n500_vol_pct   real check (n500_vol_pct is null or n500_vol_pct between 0 and 100),
+  pct_above_200  real check (pct_above_200 is null or pct_above_200 between 0 and 1),
+  pct_above_50   real check (pct_above_50 is null or pct_above_50 between 0 and 1),
+  new_highs      integer check (new_highs is null or new_highs >= 0),
+  new_lows       integer check (new_lows is null or new_lows >= 0),
+  up_share       real check (up_share is null or up_share between 0 and 1),
+  n_universe     integer check (n_universe is null or n_universe >= 0),
+  n_excluded     integer check (n_excluded is null or n_excluded >= 0),
+  updated_at     timestamptz not null default now()
+);
+alter table market_regime enable row level security;
+create policy "anon read market_regime" on market_regime for select to anon using (true);

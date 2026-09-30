@@ -20,6 +20,8 @@ def test_daily_steps_cover_events_and_self_heal_deals():
     rk = s.index(["refresh_risk.py"])                        # risk lens reads today's close
     first_scan = min(i for i, st in enumerate(s) if st[:2] == ["-m", "scanner.run"])
     assert px < rk < first_scan
+    rg = s.index(["refresh_regime.py"])                      # market regime reads today's close too
+    assert rk < rg < first_scan and rg < s.index(["check_freshness.py"])
     assert ["refresh_filings.py"] in s
     assert ["refresh_surveillance.py"] in s              # daily ASM/GSM snapshot (history only exists if captured)
     assert ["refresh_insider.py"] in s                   # PIT disclosures (forward feed)

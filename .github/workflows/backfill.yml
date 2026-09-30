@@ -3,6 +3,8 @@ name: backfill
 #   board-meetings  results + board-meeting dates  (from/to = dates, default 2020-01-01..today)
 #   prices          NSE bhavcopy -> daily_prices + bucket  (from = date; to defaults to the end of
 #                   LAST month, so it never races the daily run's read-modify-write of this month)
+#   indices         index_prices only (Yahoo ^NSEI / ^CRSLDX; from/to default 2020-01-01..2022-07-31) — no bhavcopy
+#   regime          market_regime full rebuild from `from` (default 2020-01-01; docs/REGIME_VIEW_SPEC.md)
 #   orphans         companies rows for symbols seen in filings/deals/events but not the master
 #   shareholding    quarterly SHP XBRL history, 30 quarters/symbol, 20k XBRL per run (from = floor, default 2020-01-01)
 #   insider         PIT disclosures: the whole undated list (~5 months) when no from; else the from..to window
@@ -21,7 +23,7 @@ on:
     inputs:
       what:
         type: choice
-        options: [board-meetings, prices, orphans, shareholding, insider, pref-issues, credit-ratings, ipos, ipo-gmp, ipo-bids, holders]
+        options: [board-meetings, prices, indices, regime, orphans, shareholding, insider, pref-issues, credit-ratings, ipos, ipo-gmp, ipo-bids, holders]
         required: true
       from:
         description: "start date YYYY-MM-DD (board-meetings / prices)"
@@ -59,6 +61,8 @@ jobs:
             board-meetings) python -u scripts/refresh_events.py board-meetings --from "${FROM:-2020-01-01}" --to "${TO:-$(date +%F)}" ;;
             prices)         LAST_MONTH_END="$(date -d "$(date +%Y-%m-01) -1 day" +%F)"
                             python -u scripts/refresh_prices.py --from "${FROM:?from is required}" --to "${TO:-$LAST_MONTH_END}" ;;
+            indices)        python -u scripts/refresh_prices.py --indices-only --from "${FROM:-2020-01-01}" --to "${TO:-2022-07-31}" ;;
+            regime)         python -u scripts/refresh_regime.py --from "${FROM:-2020-01-01}" ;;
             orphans)        python -u scripts/backfill_orphans.py ;;
             shareholding)   python -u scripts/refresh_shareholding.py --per-symbol 30 --xbrl-limit 20000 --floor "${FROM:-2020-01-01}" ;;
             insider)        if [ -n "$FROM" ]; then python -u scripts/refresh_insider.py --from "$FROM" --to "${TO:-$(date +%F)}";

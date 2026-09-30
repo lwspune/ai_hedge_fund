@@ -143,3 +143,10 @@ def test_hole_rules_cover_prices_and_benchmarks():
     from scripts.check_freshness import HOLE_TABLES, HOLE_WINDOW
     assert HOLE_WINDOW == 60
     assert set(HOLE_TABLES) == {"prices", "index_^CRSLDX", "index_^NSEI"}
+
+
+def test_market_regime_rules():
+    from scripts.check_freshness import TRADING_RULES
+    assert TRADING_RULES["market_regime"] == 1
+    f = FLOORS["market_regime"]
+    assert f["table"] == "market_regime" and f["days"] is None and f["min"] == 1400
