@@ -135,3 +135,13 @@ describe('money and quantities', () => {
     expect(fmtNum(-3.5, 1)).toBe('−3.5')
   })
 })
+
+describe('fmtOrdinal', () => {
+  it('suffixes like English', async () => {
+    const { fmtOrdinal } = await import('./format')
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 72, 100].map(fmtOrdinal))
+      .toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '72nd', '100th'])
+    expect(fmtOrdinal(71.6)).toBe('72nd')
+    expect(fmtOrdinal(null)).toBe('—')
+  })
+})

@@ -16,6 +16,8 @@ describe('parseHash', () => {
     ['#/courses/Bad_Id', { page: 'courses' }],
     ['#/courses/quant-trading/<x>', { page: 'courses', course: 'quant-trading' }],
     ['#/courses/a/b/c', { page: 'desk' }],
+    ['#/market', { page: 'market' }],
+    ['#/market/x', { page: 'desk' }],
     ['#/data', { page: 'data', tab: 'deals' }],
     ['#/data/deals', { page: 'data', tab: 'deals' }],
     ['#/data/buybacks', { page: 'data', tab: 'buybacks' }],

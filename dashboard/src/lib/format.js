@@ -147,3 +147,12 @@ export const fmtLakh = (v) => dash(v, (x) => {
 })
 
 export const fmtQty = (v) => fmtNum(v, 0)
+
+// 72 -> '72nd' (percentile ranks: risk lens, market regime). Rounds first.
+export const fmtOrdinal = (v) => dash(v, (x) => {
+  const n = Math.round(num(x))
+  if (Number.isNaN(n)) return DASH
+  const t = n % 100
+  if (t >= 11 && t <= 13) return `${n}th`
+  return `${n}${{ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'}`
+})

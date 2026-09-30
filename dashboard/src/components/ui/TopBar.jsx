@@ -3,6 +3,7 @@ import InfoPopover from './InfoPopover'
 
 const NAV = [
   ['desk', 'Desk', '#/'],
+  ['market', 'Market', '#/market'],
   ['signals', 'Signals', '#/signals'],
   ['learnings', 'Learnings', '#/learnings'],
   ['courses', 'Courses', '#/courses'],

@@ -1,7 +1,7 @@
 // Risk lens (risk_metrics, written daily by scripts/refresh_risk.py). Measurements, not a signal:
 // no verdict and no score — the chips and the Risk tab only describe the security.
 import { supabase } from '../supabaseClient'
-import { fmtNum, fmtPct } from './format'
+import { fmtNum, fmtOrdinal, fmtPct } from './format'
 
 // Every flag scanner/risk.py can write (FLAGS there). tests/test_risk.py checks the two lists match.
 const FLAG_LABEL = {
@@ -25,13 +25,7 @@ export const blanksPriceMetrics = (flags) => (flags || []).some((f) => BLANKING.
 
 export const fmtDaysToExit = (n) => (n == null ? '—' : `${fmtNum(n)} ${n === 1 ? 'day' : 'days'}`)
 
-function ordinal(n) {
-  const t = n % 100
-  if (t >= 11 && t <= 13) return `${n}th`
-  return `${n}${{ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'}`
-}
-
-export const fmtRank = (r) => (r == null ? undefined : `${ordinal(Math.round(r))} pct of market`)
+export const fmtRank = (r) => (r == null ? undefined : `${fmtOrdinal(r)} pct of market`)
 
 // The Desk chip: short visible text, a full sentence for screen readers, flags in the tooltip.
 export function riskChip(symbol, r) {

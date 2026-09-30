@@ -13,6 +13,7 @@ import Data from './views/Data'
 // Text-heavy pages load on first visit, keeping the main bundle small.
 const Learnings = lazy(() => import('./views/Learnings'))
 const Courses = lazy(() => import('./views/Courses'))
+const Market = lazy(() => import('./views/Market'))
 
 function Shell() {
   const route = useHashRoute()
@@ -26,6 +27,7 @@ function Shell() {
       <main id="main" className={route.page === 'company' ? 'main-bleed' : 'content'} tabIndex={-1}>
         {route.page === 'company' ? <CompanyPage symbol={route.symbol} tab={route.tab} />
           : route.page === 'signals' ? <Signals />
+          : route.page === 'market' ? <Suspense fallback={null}><Market /></Suspense>
           : route.page === 'learnings' ? <Suspense fallback={null}><Learnings /></Suspense>
           : route.page === 'courses' ? <Suspense fallback={null}><Courses course={route.course} module={route.module} /></Suspense>
           : route.page === 'data' ? <Data tab={route.tab} />

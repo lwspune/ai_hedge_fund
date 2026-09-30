@@ -1,6 +1,7 @@
 import OpenBuybacks from '../components/OpenBuybacks'
 import RightsPanel from '../components/RightsPanel'
 import UpcomingUnlocks from '../components/UpcomingUnlocks'
+import RegimeStrip from '../components/RegimeStrip'
 
 function StatusStrip({ items }) {
   if (!items) return <p className="status-strip" aria-hidden="true">&nbsp;</p>
@@ -25,6 +26,7 @@ export default function Desk({ freshness }) {
     <>
       <h1 className="sr-only">Desk</h1>
       <StatusStrip items={freshness} />
+      <RegimeStrip />
       <div className="group" role="group" aria-labelledby="act-h">
         <h2 id="act-h" className="group-label">Act</h2>
         <OpenBuybacks />

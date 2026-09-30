@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 // Vercel deploy keeps working.
 //   #/                       -> { page: 'desk' }
 //   #/signals                -> { page: 'signals' }
+//   #/market                 -> { page: 'market' }   (market regime)
 //   #/learnings              -> { page: 'learnings' }
 //   #/courses[/:course[/:module]] -> { page: 'courses', course, module } (bad slugs are dropped)
 //   #/data[/tab]             -> { page: 'data', tab }
@@ -28,6 +29,7 @@ export function parseHash(hash) {
   const parts = (hash || '').replace(/^#\/?/, '').split('/').filter(Boolean)
   const [page, a, b] = parts
   if (page === 'signals' && parts.length === 1) return { page: 'signals' }
+  if (page === 'market' && parts.length === 1) return { page: 'market' }
   if (page === 'learnings' && parts.length === 1) return { page: 'learnings' }
   if (page === 'courses' && parts.length <= 3) {
     if (!SLUG.test(a || '')) return { page: 'courses' }
