@@ -215,6 +215,43 @@ def test_symbol_metrics_flags_sme_surveillance_illiquid():
     assert symbol_metrics("X", _bars(_levered(mkt)), mkt, [], None, set())["flags"] == []
 
 
+PRICE_KEYS = ("vol_1y", "vol_3m", "beta_1y", "corr_1y", "idio_vol_1y", "max_dd_1y", "dd_now",
+              "worst_day_1y", "worst_week_1y", "ret_1m", "ret_3m", "ret_1y")
+
+
+def test_symbol_metrics_price_break_blanks_price_metrics():
+    """A one-session move no NSE price band allows, with no action to explain it, is a missing
+    split / bonus / demerger in corporate_events — never a real -50% day."""
+    mkt = _mkt()
+    stock = _levered(mkt)
+    stock[stock.index >= stock.index[150]] /= 2           # a 1:1 bonus the events table never recorded
+    m = symbol_metrics("ABC", _bars(stock), mkt, [], "SM", set())
+    assert "price_break" in m["flags"] and "action_unverified" not in m["flags"]
+    assert all(m[k] is None for k in PRICE_KEYS)
+    assert m["adv_20_cr"] == pytest.approx(5.0)
+
+
+def test_symbol_metrics_real_crash_is_not_a_break():
+    mkt = _mkt()
+    stock = _levered(mkt)
+    stock[stock.index >= stock.index[150]] *= 0.75        # -25%: an F&O stock can do that
+    m = symbol_metrics("ABC", _bars(stock), mkt, [], "EQ", set())
+    assert "price_break" not in m["flags"]
+    assert m["worst_day_1y"] == pytest.approx(-0.25, abs=0.05)
+
+
+def test_symbol_metrics_demerger_inside_window_is_a_break():
+    mkt = _mkt()
+    stock = _levered(mkt)
+    ex = stock.index[200]
+    stock[stock.index >= ex] *= 0.9                       # the child's value leaves the parent
+    dem = [{"event_type": "demerger", "event_date": ex.date().isoformat(), "details": {}}]
+    m = symbol_metrics("PARENT", _bars(stock), mkt, dem, "EQ", set())
+    assert "price_break" in m["flags"] and all(m[k] is None for k in PRICE_KEYS)
+    old = [{"event_type": "demerger", "event_date": "2020-01-01", "details": {}}]
+    assert "price_break" not in symbol_metrics("P", _bars(stock), mkt, old, "EQ", set())["flags"]
+
+
 def test_symbol_metrics_propagates_a_corrupt_store():
     from scanner.pricestore import BadPriceData
     bad = pd.Series([100.0, 101.0], index=pd.DatetimeIndex(["1970-01-01", "1970-01-02"]))

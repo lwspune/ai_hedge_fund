@@ -26,9 +26,11 @@ PARTICIPATION = 0.10         # share of a day's turnover one can sell without mo
 MIN_SESSIONS_1Y, MIN_SESSIONS_3M, MIN_SESSIONS_LIQ = 120, 60, 10
 SPARSE_COVERAGE = 0.80       # printed on < 80% of the benchmark's sessions = suspended / illiquid
 ILLIQUID_ADV_CR = 1.0        # the consolidation scan's Rs 1 crore/day line
+PRICE_BREAK = 0.30           # a one-session fall >= 30% (or rise >= 43%) is outside every NSE price
+                             # band (max 20%): a split / bonus / demerger missing from corporate_events
 ANN = math.sqrt(252)
 SME_SERIES = ("SM", "ST", "SZ")
-FLAGS = ("short_history", "sparse", "action_unverified", "illiquid", "sme", "asm", "gsm")
+FLAGS = ("short_history", "sparse", "action_unverified", "price_break", "illiquid", "sme", "asm", "gsm")
 
 PRICE_KEYS = ("vol_1y", "vol_3m", "beta_1y", "corr_1y", "idio_vol_1y", "max_dd_1y", "dd_now",
               "worst_day_1y", "worst_week_1y", "ret_1m", "ret_3m", "ret_1y")
@@ -132,13 +134,25 @@ def coverage(stock_dates, mkt_dates) -> float:
     return float(len(m.intersection(s)) / len(m)) if len(m) else 0.0
 
 
+def price_break(adj: pd.Series, actions: list[dict]) -> bool:
+    """True when the adjusted series still holds a discontinuity it can't be trusted across: a
+    one-session move beyond PRICE_BREAK, or a demerger ex-date inside the series (the child's value
+    leaves the parent's price; adjust_for_actions has no factor for it)."""
+    if len(adj) >= 2 and (log_returns(adj).abs() > -math.log(1 - PRICE_BREAK)).any():
+        return True
+    lo, hi = adj.index.min(), adj.index.max()
+    return any(a.get("event_type") == "demerger" and lo < pd.Timestamp(a["event_date"]) <= hi
+               for a in actions)
+
+
 # --- orchestrator -------------------------------------------------------------------
 
 def symbol_metrics(sym: str, bars: pd.DataFrame, mkt_closes: pd.Series, actions: list[dict],
                    series: str | None, surveillance: set[str]) -> dict:
     """One flat dict of every metric + flags for one symbol. `bars`: the window's bars (unadjusted);
     `actions`: its split / bonus / consolidation corporate_events rows; `surveillance`: the list
-    names (asm_lt / asm_st / gsm) it is on today. Never raises on a bad stock — flags it — but a
+    names (asm_lt / asm_st / gsm) it is on today. Price metrics are null when the adjustment can't
+    be verified (`action_unverified`) or a break remains after it (`price_break`). Never raises on a bad stock — flags it — but a
     BadPriceData from clean_series propagates (a corrupt store, not a bad stock)."""
     closes = clean_series(bars["close"])
     last = closes.index.max() if len(closes) else (bars.index.max() if len(bars) else None)
@@ -155,6 +169,9 @@ def symbol_metrics(sym: str, bars: pd.DataFrame, mkt_closes: pd.Series, actions:
     adj = adjust_for_actions(closes, actions) if n >= MIN_SESSIONS_LIQ else None
     if n >= MIN_SESSIONS_LIQ and adj is None:
         flags.add("action_unverified")
+    elif adj is not None and price_break(adj, actions):
+        flags.add("price_break")
+        adj = None
     if adj is not None:
         r = log_returns(adj)
         m.update(trailing_returns(adj))
@@ -228,12 +245,12 @@ def risk_row(m: dict, as_of: date) -> dict:
 
 
 def format_table(rows: list[dict]) -> str:
-    """CLI print: one line per symbol, blanks as '—'."""
+    """CLI print: one line per symbol, blanks as "-"."""
     def pct(v):
-        return "—" if v is None else f"{v * 100:.0f}%"
+        return "-" if v is None else f"{v * 100:.0f}%"
 
     def num(v, spec):
-        return "—" if v is None else format(v, spec)
+        return "-" if v is None else format(v, spec)
 
     head = f"{'symbol':<14}{'vol 1y':>8}{'beta':>7}{'max dd':>8}{'dd now':>8}{'ADV cr':>10}{'exit d':>7}  flags"
     lines = [head, "-" * len(head)]
