@@ -893,3 +893,15 @@ create table if not exists risk_metrics (
 );
 alter table risk_metrics enable row level security;
 create policy "anon read risk_metrics" on risk_metrics for select to anon using (true);
+
+-- Freshness hole rule (scripts/check_freshness.py HOLE_TABLES): the distinct session dates in
+-- daily_prices since p_since. Service role only, like db_size_bytes.
+create or replace function public.price_dates(p_since date)
+returns table (trade_date date)
+language sql stable
+set search_path = public
+as $$
+  select distinct d.trade_date from daily_prices d where d.trade_date >= p_since order by 1
+$$;
+revoke execute on function public.price_dates(date) from public, anon, authenticated;
+grant execute on function public.price_dates(date) to service_role;

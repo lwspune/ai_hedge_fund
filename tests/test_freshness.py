@@ -1,7 +1,7 @@
 """The freshness check: every table's newest row must be within its expected cadence, windows
 must hold a minimum row volume, the buyback frontier must keep advancing, the DB must fit."""
 import re
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from scripts.check_freshness import (FLOORS, RULES, db_size_status, frontier_stuck, stale,
@@ -122,3 +122,24 @@ def test_ratio_rules():
         [("industry_known", 2000 / 3156, 0.95)]
     assert ratio_low({"industry_known": (None, 3156)}, {"industry_known": 0.95})[0][1] is None
     assert "industry_known" in RATIOS
+
+
+def test_holes_lists_missing_trading_days_inside_the_window():
+    """The 2026-09-01..09 price hole passed every age / floor rule: the newest row was fresh."""
+    from scripts.check_freshness import holes
+    hol = frozenset({date(2026, 9, 14)})                       # Ganesh Chaturthi
+    today = date(2026, 9, 30)
+    all_days = {date(2026, 8, 1) + timedelta(days=k) for k in range(61)}
+    present = {d for d in all_days if d.weekday() < 5 and d not in hol}
+    assert holes(present, today, 20, hol) == []
+    gap = {date(2026, 9, d) for d in (1, 2, 3, 4, 7, 8, 9)}
+    assert holes(present - gap, today, 25, hol) == sorted(gap)
+    assert holes(present - gap, today, 10, hol) == []          # outside the window
+    # today not published yet is the age rule's business, not a hole
+    assert holes(present - {today}, today, 20, hol) == []
+
+
+def test_hole_rules_cover_prices_and_benchmarks():
+    from scripts.check_freshness import HOLE_TABLES, HOLE_WINDOW
+    assert HOLE_WINDOW == 60
+    assert set(HOLE_TABLES) == {"prices", "index_^CRSLDX", "index_^NSEI"}

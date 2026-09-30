@@ -7,6 +7,8 @@ the run fails -> GitHub emails:
   age       newest row of each table within its cadence (QUERIES)
   floor     a recent window holds a minimum row volume (FLOORS) — catches a loader that
             writes one row and drops the rest
+  holes     no trading day inside the recent window is missing from the price tables (a backfill
+            gap passes the age and floor rules: the 2026-09-01..09 hole went unseen for weeks)
   frontier  the buyback id frontier keeps advancing, and a scan that sees pages but parses
             none fails (the 2026 chittorgarh format change went unnoticed for nine months)
   db size   Postgres stays inside the 500 MB free tier (warn > 300 MB, fail > 400 MB)
@@ -16,7 +18,7 @@ the run fails -> GitHub emails:
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -106,6 +108,16 @@ FLOORS = {
 }
 
 
+# Holes: every trading day in the last HOLE_WINDOW (today excluded — that is the age rule's job) must
+# have rows. name -> ("rpc", function) for daily_prices (distinct dates), ("index", symbol) otherwise.
+HOLE_WINDOW = 60
+HOLE_TABLES = {
+    "prices": ("rpc", "price_dates"),
+    "index_^CRSLDX": ("index", "^CRSLDX"),
+    "index_^NSEI": ("index", "^NSEI"),
+}
+
+
 # name -> (table, numerator filters, denominator filters, minimum share)
 RATIOS = {
     "industry_known": ("companies", {"status": "eq.listed", "industry": "not.is.null"},
@@ -153,6 +165,17 @@ def too_thin(counts: dict, floors: dict) -> list[tuple]:
     """[(name, n, floor)] for every window whose row count is under its floor (None = failed)."""
     return [(name, counts.get(name), floor) for name, floor in floors.items()
             if counts.get(name) is None or counts[name] < floor]
+
+
+def holes(present: set, today: date, n_trading: int, hol) -> list[date]:
+    """Trading days in the last `n_trading` (up to, not including, today) absent from `present`."""
+    from scanner.trading_calendar import is_trading_day
+    d, out = window_start(today, n_trading, hol), []
+    while d < today:
+        if is_trading_day(d, hol) and d not in present:
+            out.append(d)
+        d += timedelta(days=1)
+    return out
 
 
 def window_start(today: date, n_trading: int, holidays=frozenset()) -> date:
@@ -208,6 +231,21 @@ def _window_count(spec: dict, today: date):
         return None
 
 
+def _present_dates(spec: tuple, since: date) -> set | None:
+    from scanner import db
+    kind, arg = spec
+    try:
+        if kind == "rpc":
+            rows = db.rpc(arg, {"p_since": since.isoformat()})
+        else:
+            rows = db.select_all("index_prices", {"select": "trade_date", "index_symbol": f"eq.{arg}",
+                                                  "trade_date": f"gte.{since}"})
+    except Exception as e:
+        print(f"  hole check failed for {arg}: {e}")
+        return None
+    return {date.fromisoformat(r["trade_date"]) for r in rows}
+
+
 def _last_scan_params() -> dict:
     from scanner import db
     rows = db.select("scan_runs", {"select": "params", "signal_name": "eq.buyback_arb",
@@ -230,6 +268,11 @@ def main():
         print(f"  db_size_bytes failed: {e}")
         size = None
     frontier = frontier_stuck(latest["buyback_frontier"], _last_scan_params(), today)
+    since = window_start(today, HOLE_WINDOW, holidays())
+    gaps = {}
+    for name, spec in HOLE_TABLES.items():
+        present = _present_dates(spec, since)
+        gaps[name] = None if present is None else holes(present, today, HOLE_WINDOW, holidays())
 
     print(f"  {'rule':<20}{'newest':<12}{'max age':>8}")
     for name, d in latest.items():
@@ -251,6 +294,11 @@ def main():
                  too_thin(counts, {n: s["min"] for n, s in FLOORS.items()})]
     failures += [f"RATIO: {n} = {r} < {m}" for n, r, m in
                  ratio_low(ratios, {n: v[3] for n, v in RATIOS.items()})]
+    for name, g in gaps.items():
+        print(f"  holes {name:<14}{'unreadable' if g is None else len(g):>6}  (last {HOLE_WINDOW} trading days)")
+        if g is None or g:
+            failures.append(f"HOLE: {name} " + ("unreadable" if g is None else
+                            f"missing {len(g)} trading days: {', '.join(map(str, g[:10]))}"))
     if frontier:
         failures.append(f"FRONTIER: {frontier}")
     if size_state == "fail":
