@@ -99,6 +99,20 @@ def last_buy_date(record_date, hol):
     return d
 
 
+PREMIUM_BANDS = ((0.05, "<=5%"), (0.10, "5-10%"), (0.20, "10-20%"), (0.40, "20-40%"))
+
+
+def premium_band(premium) -> str | None:
+    """Pre-registered bands of the offer premium over the last cum-entitlement close — the only
+    acceptance predictor known before the record date (scripts/validate_buyback_selection.py)."""
+    if premium is None or pd.isna(premium):
+        return None
+    for hi, label in PREMIUM_BANDS:
+        if premium <= hi:
+            return label
+    return ">40%"
+
+
 def arb_return(entry_price, buyback_price, post_price, accept_frac,
                capital=200000, cost_bps=30):
     """Gross (pre-tax) return of the small-shareholder tender arb."""

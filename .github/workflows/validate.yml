@@ -11,6 +11,7 @@ on:
         options:
           - validate_rights_re.py
           - validate_buyback_arb.py
+          - validate_buyback_selection.py
           - validate_lockin.py
           - validate_fno_ban.py
           - validate_promoter_buys.py

@@ -528,3 +528,28 @@ def test_format_table_marks_estimated_entitlement():
            "est_acceptance": 0.9, "exp_return": 0.05, "is_open": True}
     out = format_buyback_table([row])
     assert "GLOBALPET" in out and "31%~" in out and "OPEN" in out
+
+
+# --- premium band: the pre-record selection rule under test (2026-09-30) -------------------
+
+def test_premium_band_edges_are_pre_registered():
+    from scanner.buyback import premium_band
+    assert premium_band(0.03) == "<=5%"
+    assert premium_band(0.05) == "<=5%"
+    assert premium_band(0.07) == "5-10%"
+    assert premium_band(0.10) == "5-10%"
+    assert premium_band(0.15) == "10-20%"
+    assert premium_band(0.30) == "20-40%"
+    assert premium_band(0.41) == ">40%"
+    assert premium_band(-0.02) == "<=5%"          # trading above the offer: still the low band
+    assert premium_band(None) is None
+
+
+def test_realized_arb_return_uses_the_published_acceptance():
+    """Realized return = the tender arb at the acceptance the response table reported, not the
+    entitlement floor: a 100%-accepted tender earns the full premium on every share."""
+    from scanner.buyback import arb_return
+    full = arb_return(100.0, 105.0, 90.0, 1.0)
+    floor = arb_return(100.0, 105.0, 90.0, 0.1)
+    assert full > floor
+    assert abs(full - (105.0 / (100.0 * 1.003) - 1)) < 1e-9
