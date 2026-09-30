@@ -24,6 +24,9 @@ def _bars(closes: pd.Series, turnover=500.0, series="EQ"):
                          "series": series}, index=closes.index)
 
 
+DAILY_SESSIONS = 355              # ~ LOOKBACK_DAYS = 520 calendar days of sessions
+
+
 def _walk(n, seed=3, level=100.0):
     r = np.random.default_rng(seed).normal(0.0003, 0.01, n - 1)
     return _series(level * np.exp(np.concatenate([[0.0], np.cumsum(r)])))
@@ -36,7 +39,9 @@ def test_constants_pinned():
     assert (regime.DMA_LONG, regime.DMA_SHORT, regime.HIGH_LOW) == (200, 50, 250)
     assert (regime.VOL_WINDOW, regime.VOL_PCT_MIN) == (20, 250)
     assert regime.MAINBOARD == ("EQ", "BE", "BZ")
-    assert regime.LOOKBACK_DAYS == 420 and regime.RECOMPUTE_SESSIONS == 10
+    assert regime.LOOKBACK_DAYS == 520 and regime.RECOMPUTE_SESSIONS == 10
+    assert regime.MAX_GAP_RESET == 20
+    assert (regime.REGULAR_SESSIONS, regime.REGULAR_MIN_PRINTS) == (250, 200)   # printed on >= 80% of sessions
 
 
 # --- index block ------------------------------------------------------------------
@@ -225,3 +230,62 @@ def test_format_table_handles_blanks():
                          "pct_above_200": 0.38, "pct_above_50": None, "new_highs": 12, "new_lows": None,
                          "up_share": 0.6, "n_universe": 1400, "n_excluded": 20}])
     assert "2026-09-30" in out and "38" in out
+
+
+
+# --- suspensions: a long gap starts a new segment ------------------------------------------
+
+def _suspended(pre=300, gap=40, post=260, jump=0.4):
+    """`pre` prints, a `gap`-session suspension, `post` prints resuming at (1 - jump) x the last price."""
+    sessions = pd.bdate_range("2023-01-02", periods=pre + gap + post)
+    a = _walk(pre, seed=11).to_numpy()
+    b = _walk(post, seed=12).to_numpy() / 100 * a[-1] * (1 - jump)
+    idx = sessions[:pre].append(sessions[pre + gap:])
+    return pd.Series(np.concatenate([a, b]), index=idx), sessions
+
+
+def test_a_suspension_restarts_the_print_count():
+    s, sessions = _suspended()
+    st = stock_states(_bars(s), [], sessions=sessions)
+    assert st["eligible"].iloc[299]                            # eligible before the suspension
+    assert not st["eligible"].iloc[300] and not st["excluded"].iloc[300]   # resumption: history restarts
+    assert not st["eligible"].iloc[300 + 198] and st["eligible"].iloc[300 + 199]
+    assert not st["excluded"].any()                            # the jump across the gap is not a break
+
+
+def test_daily_window_agrees_with_the_full_history():
+    """The daily run recomputes the last sessions from a ~285-print panel; the rebuild from 2020. Same answer."""
+    s, sessions = _suspended(pre=500, gap=100, post=230)       # the suspension starts before the daily window
+    full = stock_states(_bars(s), [], sessions=sessions)
+    tail_sessions = sessions[-DAILY_SESSIONS:]
+    short = stock_states(_bars(s[s.index >= tail_sessions[0]]), [], sessions=tail_sessions)
+    cols = ["eligible", "excluded", "above_200", "above_50", "new_high", "new_low"]
+    assert full[cols].iloc[-10:].equals(short[cols].iloc[-10:])
+
+
+
+def _intermittent(every, skip, n_sessions=900, seed=21):
+    """A stock that skips `skip` of every `every` sessions (trade-for-trade / call auction pattern)."""
+    sessions = pd.bdate_range("2023-01-02", periods=n_sessions)
+    keep = [i for i in range(n_sessions) if i % every >= skip]
+    c = _walk(len(keep), seed=seed)
+    return pd.Series(c.to_numpy(), index=sessions[keep]), sessions
+
+
+def test_intermittently_traded_stocks_are_out_of_the_universe():
+    s, sessions = _intermittent(every=4, skip=1)               # prints on 75% of sessions
+    st = stock_states(_bars(s), [], sessions=sessions)
+    assert not st["eligible"].any() and not st["excluded"].any()
+    s, sessions = _intermittent(every=10, skip=1)              # 90%: regular enough
+    assert stock_states(_bars(s), [], sessions=sessions)["eligible"].iloc[-1]
+
+
+def test_daily_window_agrees_for_a_regular_but_gappy_stock():
+    s, sessions = _intermittent(every=6, skip=1)               # 83%: in the universe, 250 prints ~ 300 sessions
+    s.iloc[-200:] = s.iloc[-200:] / 2                          # an unrecorded bonus 200 prints back
+    full = stock_states(_bars(s), [], sessions=sessions)
+    tail = sessions[-DAILY_SESSIONS:]
+    short = stock_states(_bars(s[s.index >= tail[0]]), [], sessions=tail)
+    cols = ["eligible", "excluded", "above_200", "above_50", "new_high", "new_low"]
+    assert full[cols].iloc[-10:].equals(short[cols].iloc[-10:])
+    assert full["excluded"].iloc[-1]

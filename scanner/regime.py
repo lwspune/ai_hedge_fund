@@ -29,9 +29,12 @@ START = date(2020, 1, 1)          # bucket floor; first breadth row once 200 pri
 DMA_LONG, DMA_SHORT, HIGH_LOW = 200, 50, 250
 VOL_WINDOW, VOL_PCT_MIN = 20, 250
 MAINBOARD = ("EQ", "BE", "BZ")
-LOOKBACK_DAYS = 420               # daily run: calendar days of panel for 250 prints + slack
+LOOKBACK_DAYS = 520               # daily run: ~355 sessions, so 250 prints of any regular stock (>= 80%) fit
 RECOMPUTE_SESSIONS = 10           # daily run rewrites the last 10 sessions (heals a late bhavcopy)
 MAX_MOVE_GAP = 5                  # a previous print further back than this is not a one-day move
+MAX_GAP_RESET = 20                # a longer gap (a suspension) starts a new segment: history restarts
+REGULAR_SESSIONS, REGULAR_MIN_PRINTS = 250, 200   # in the universe only if it printed on >= 80% of the
+                                  # last 250 sessions (risk.SPARSE_COVERAGE); intermittent trading is out
 
 STATE_COLS = ["eligible", "excluded", "above_200", "above_50", "new_high", "new_low", "move"]
 INDEX_COLS = ["n500_close", "n500_dd", "n50_dd", "n500_ret_1m", "n500_ret_3m", "n500_vol_20", "n500_vol_pct"]
@@ -100,38 +103,34 @@ def adjust_segments(closes: pd.Series, actions: list[dict]) -> tuple[pd.Series, 
     return out, sorted(breaks)
 
 
-def stock_states(bars: pd.DataFrame, actions: list[dict], sessions=None) -> pd.DataFrame:
-    """Per print date: in the breadth universe (`eligible`) or kept out by a break (`excluded`), and the
-    stock's flags that day. `sessions`: every market session (for the one-day-move gap rule); business
-    days when omitted. BadPriceData from clean_series propagates (a corrupt store, not a bad stock)."""
-    closes = clean_series(bars["close"])
-    n = len(closes)
-    if not n:
-        return pd.DataFrame(columns=STATE_COLS, index=pd.DatetimeIndex([], name="date"))
-    series = (bars["series"] if "series" in bars else pd.Series("EQ", index=bars.index))
-    series = series[~series.index.duplicated(keep="last")].reindex(closes.index)
-    turnover = pd.to_numeric(bars["turnover_lakh"], errors="coerce")
-    turnover = turnover[~turnover.index.duplicated(keep="last")].reindex(closes.index)
-    adj, breaks = adjust_segments(closes, actions)
+def _positions(index: pd.DatetimeIndex, sessions) -> np.ndarray:
+    """Session number of each print (business days when `sessions` is omitted)."""
+    if sessions is not None:
+        return pd.DatetimeIndex(sessions).searchsorted(index)
+    d = index.values.astype("datetime64[D]")
+    return np.busday_count(d[0], d)
 
+
+def _regular(pos: np.ndarray) -> np.ndarray:
+    """True where the stock printed on >= REGULAR_MIN_PRINTS of the last REGULAR_SESSIONS sessions."""
+    first = np.searchsorted(pos, pos - REGULAR_SESSIONS + 1)
+    return (np.arange(len(pos)) - first + 1) >= REGULAR_MIN_PRINTS
+
+
+def _segment_states(closes: pd.Series, series: pd.Series, turnover: pd.Series, actions: list[dict],
+                    gaps: np.ndarray, regular: np.ndarray) -> pd.DataFrame:
+    """States over one unbroken trading stretch (no gap > MAX_GAP_RESET inside it)."""
+    n = len(closes)
+    adj, breaks = adjust_segments(closes, actions)
     in_break = np.zeros(n, dtype=bool)
     for b in breaks:
         pb = closes.index.searchsorted(b)                    # first print on / after the break
         in_break[pb:pb + HIGH_LOW] = True
     prints = np.arange(1, n + 1)
     liquid = (turnover.rolling(20).median() >= MIN_TURNOVER_LAKH).to_numpy()
-    base = series.isin(MAINBOARD).to_numpy() & (prints >= DMA_LONG) & liquid
-
+    base = series.isin(MAINBOARD).to_numpy() & (prints >= DMA_LONG) & liquid & regular
     move = np.sign(adj.diff()).to_numpy(dtype="float64", copy=True)
-    if n >= 2:
-        if sessions is not None:
-            pos = pd.DatetimeIndex(sessions).searchsorted(closes.index)
-            gap = np.diff(pos)
-        else:
-            d = closes.index.values.astype("datetime64[D]")
-            gap = np.busday_count(d[:-1], d[1:])
-        move[1:][gap > MAX_MOVE_GAP] = np.nan
-
+    move[1:][gaps > MAX_MOVE_GAP] = np.nan
     hi, lo = adj.rolling(HIGH_LOW).max(), adj.rolling(HIGH_LOW).min()
     return pd.DataFrame({
         "eligible": base & ~in_break,
@@ -142,6 +141,29 @@ def stock_states(bars: pd.DataFrame, actions: list[dict], sessions=None) -> pd.D
         "new_low": (adj <= lo).to_numpy() & (prints >= HIGH_LOW),
         "move": move,
     }, index=closes.index)
+
+
+def stock_states(bars: pd.DataFrame, actions: list[dict], sessions=None) -> pd.DataFrame:
+    """Per print date: in the breadth universe (`eligible`) or kept out by a break (`excluded`), and the
+    stock's flags that day. `sessions`: every market session (gap and regular-trading rules); business
+    days when omitted. Intermittently traded stocks (< 80% of the last 250 sessions) are never in it.
+    A gap of more than MAX_GAP_RESET sessions (a suspension) starts a new segment: prints are counted and
+    every window measured inside the segment, and the jump across the gap is not a break — so the daily
+    run's short panel and the full rebuild agree. BadPriceData from clean_series propagates."""
+    closes = clean_series(bars["close"])
+    if not len(closes):
+        return pd.DataFrame(columns=STATE_COLS, index=pd.DatetimeIndex([], name="date"))
+    series = (bars["series"] if "series" in bars else pd.Series("EQ", index=bars.index))
+    series = series[~series.index.duplicated(keep="last")].reindex(closes.index)
+    turnover = pd.to_numeric(bars["turnover_lakh"], errors="coerce")
+    turnover = turnover[~turnover.index.duplicated(keep="last")].reindex(closes.index)
+    pos = _positions(closes.index, sessions)
+    gaps, regular = np.diff(pos), _regular(pos)
+    starts = np.concatenate([[0], np.flatnonzero(gaps > MAX_GAP_RESET) + 1, [len(closes)]])
+    parts = [_segment_states(closes.iloc[a:b], series.iloc[a:b], turnover.iloc[a:b], actions, gaps[a:b - 1],
+                             regular[a:b])
+             for a, b in zip(starts[:-1], starts[1:])]
+    return pd.concat(parts)[STATE_COLS]
 
 
 # --- breadth ----------------------------------------------------------------------------
