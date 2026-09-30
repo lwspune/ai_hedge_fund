@@ -84,27 +84,38 @@ def adjust_for_actions(s: pd.Series, actions: list[dict]) -> pd.Series | None:
     Guarded: an action inside the series whose jump the prices don't show (wrong date, wrong
     ratio) returns None — never a silently wrong return. Actions sharing an ex-date (a split and a
     bonus together) are one jump: their factors multiply. Other event types are ignored."""
-    import math
     out = s.sort_index().astype("float64").copy()
+    for ex, same_day in action_groups(out.index, actions).items():
+        f = confirmed_factor(out, ex, same_day)
+        if f is None:
+            return None
+        out[out.index < ex] = out[out.index < ex] * f
+    return out
+
+
+def action_groups(index: pd.DatetimeIndex, actions: list[dict]) -> dict:
+    """{ex-date: [actions]} for the split / bonus / consolidation rows strictly inside the series
+    (after its first print, on or before its last), ex-dates in order."""
     by_date: dict = {}
     for a in actions:
         if a.get("event_type") not in ("split", "bonus", "consolidation"):
             continue
         ex = pd.Timestamp(a["event_date"])
-        if ex <= out.index.min() or ex > out.index.max():
-            continue
-        by_date.setdefault(ex, []).append(a)
-    for ex, same_day in by_date.items():
-        factors = [_action_factor(a) for a in same_day]
-        if any(f is None for f in factors):
-            return None
-        f = math.prod(factors)
-        before, after = out[out.index < ex], out[out.index >= ex]
-        observed = after.iloc[0] / before.iloc[-1]
-        if abs(math.log(observed / f)) > math.log(1 + ADJUST_TOLERANCE):
-            return None
-        out[out.index < ex] = before * f
-    return out
+        if index.min() < ex <= index.max():
+            by_date.setdefault(ex, []).append(a)
+    return dict(sorted(by_date.items()))
+
+
+def confirmed_factor(s: pd.Series, ex: pd.Timestamp, same_day: list[dict]) -> float | None:
+    """The combined factor of the actions sharing ex-date `ex`, if the prices show that jump
+    (within ADJUST_TOLERANCE); None when a ratio is unreadable or the jump isn't there."""
+    import math
+    factors = [_action_factor(a) for a in same_day]
+    if any(f is None for f in factors):
+        return None
+    f = math.prod(factors)
+    observed = s[s.index >= ex].iloc[0] / s[s.index < ex].iloc[-1]
+    return f if abs(math.log(observed / f)) <= math.log(1 + ADJUST_TOLERANCE) else None
 
 
 def write_cache(fp: Path, s: pd.Series) -> None:
