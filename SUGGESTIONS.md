@@ -255,7 +255,7 @@ next" with a pointer to `CANDIDATE_SIGNALS.md`. Docs only.
 Out of scope for v1 by design; each is a separate piece of work. Measurements, not signals — none
 of them may become a ranking.
 
-### Backfill the price-store hole 2026-09-01 → 09-09 (and index 2026-01-01)
+### ~~Backfill the price-store hole 2026-09-01 → 09-09 (and index 2026-01-01)~~ — **DONE 2026-09-30** (`backfill.yml what=prices` run 36736724513: 7 sessions, ~3,400 rows each, bucket month 21 days; Yahoo has no ^CRSLDX 2026-01-01, so that one close — 23,909.55 — came from NSE's `content/indices/ind_close_all_01012026.csv`, consistent with both stored neighbours; `price_break` 64 → 36)
 
 **Found building the risk lens:** seven trading sessions (Sep 1-4, 7-9) are missing from the bucket
 month `bhav/2026-09.parquet`, from `daily_prices` and from `index_prices`; `index_prices ^CRSLDX` also
@@ -299,7 +299,7 @@ Risk tab show "vol now vs its own past".
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
-### `pricestore.adjust_for_actions` rejects a split and a bonus on the same ex-date — **awaiting go-ahead**
+### ~~`pricestore.adjust_for_actions` rejects a split and a bonus on the same ex-date~~ — **DONE 2026-09-30** (owner go-ahead: same-date factors multiply, the guard checks the product; all 8 symbols now verified; `validate_investor_skill.py` may gain a few events on its next re-run — verdict null either way)
 
 **Learning (risk lens, 2026-09-30):** each action is checked against the observed jump on its own,
 so a combined split + bonus (AHCL, BESTAGRO, BHARATRAS, DELPHIFX, FCL, NAZARA, RNBDENIMS, SILVERTUC —
@@ -310,7 +310,7 @@ combined actions · risk — low, reversible; the guard stays (compare the produ
 to the jump) · cost — ~20 lines + tests · **recommendation: do** (then re-run any study whose n
 changes).
 
-### `check_freshness.py` can't see holes inside a table — **awaiting go-ahead**
+### ~~`check_freshness.py` can't see holes inside a table~~ — **DONE 2026-09-30** (owner go-ahead, after the backfill: `HOLE_TABLES` — every trading day in the last 60 must have `daily_prices` rows (RPC `price_dates`) and ^CRSLDX / ^NSEI `index_prices` rows; live check 0 / 0 / 0. Yahoo's index gaps (it lacked ^CRSLDX 2026-01-01) will now fail the run — NSE's `ind_close_all_DDMMYYYY.csv` is the fallback source if that recurs)
 
 **Learning:** the 2026-09-01..09 price hole passed every freshness rule (the newest row is fresh,
 the 2-day floor is full). **360:** scope — one new rule (trading days in the last ~60 with no

@@ -298,6 +298,8 @@ a label fails the test, the `signalLabels` pattern; `fmtDaysToExit`).
   the store has a hole 2026-09-01..09 (SUGGESTIONS.md, Risk lens v2 section).
 - **Desk chip is a link** to the company Risk tab, with the spoken sentence as its `aria-label`
   (`ui/RiskChip.jsx`). Same-day split + bonus (8 symbols) stays `action_unverified` — the fix belongs to
-  `pricestore.adjust_for_actions` (backfill ledger).
+  `pricestore.adjust_for_actions` — fixed the same day (same-date factors multiply; 8 → 0).
 - Measured: the full run takes ~30 s on the laptop (panel read 7-12 s); 3,157 rows; flags illiquid 1,560,
   sme 572, short_history 433, asm 228, sparse 187, price_break 64, gsm 64, action_unverified 8.
+- After the price-hole backfill and that fix (same evening): action_unverified 0, price_break 36, no
+  missing sessions in the window.

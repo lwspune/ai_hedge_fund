@@ -274,7 +274,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (817 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (820 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,
@@ -289,7 +289,7 @@ fundamentals + snapshot history, shareholding/pledge (2 new quarters per symbol)
 secrets `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` live in repo Actions secrets; a failed step
 fails the run → GitHub emails the owner; the last step `scripts/check_freshness.py` also fails
 the run on any **age** rule (calendar or trading days), **row-volume floor**, **ratio**
-(industry known ≥ 95%), a stuck **buyback frontier** (no new id in 60 d, or a scan that saw ≥ 10
+(industry known ≥ 95%), a **hole** (a trading day in the last 60 with no `daily_prices` / `index_prices` rows), a stuck **buyback frontier** (no new id in 60 d, or a scan that saw ≥ 10
 pages and parsed 0 tenders — the 2026 format change), or **DB size** (warn 300 MB, fail 400 MB via
 RPC `db_size_bytes`). A test forces every dated table in `db/schema.sql` to carry a rule.
 **CI** (`ci.yml`): pytest + dashboard lint/build on every push.
@@ -534,6 +534,9 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   book; a score would be an invented gradient. Added beyond the spec: **`price_break`** blanks symbols whose
   prices jump outside every NSE band with no recorded action (~2% of the universe, mostly SME) — the recorded-
   action guard alone would have published −75% "worst days".
+- **2026-09-30** — Freshness gains a **hole** rule; `adjust_for_actions` multiplies same-date factors (split + bonus
+  together). *Reason:* a 7-session price hole (2026-09-01..09) passed every age and floor rule because the newest
+  row was fresh — "newest" is not "complete"; and a combined action is one jump, not two.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.
