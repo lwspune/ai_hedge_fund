@@ -194,7 +194,7 @@ WP7 stored the 2026-09-24 laptop results as baselines; `validate.yml` can now re
 a runner with provenance. **How to apply:** dispatch `validate.yml` per script once the price
 backfill is complete; update each CONCLUSIONS evidence line to the new path.
 
-### Shrink the database (327 MB of the 500 MB free tier; warn line is 300 MB)
+### ~~Shrink the database (327 MB of the 500 MB free tier; warn line is 300 MB)~~ — **DONE 2026-09-30** (options 1 + 2: `idx_events_symbol_type_date` dropped, `idx_filings_category_time` → partial on the extractor categories, `daily_prices` window 730 → 400 d + `VACUUM FULL`; the DB had reached 370 MB. After: `daily_prices` 169 → 80 MB (heap 56, pkey 24), database 370 → 274 MB (`db_size_bytes` 287 MB, under the 300 MB warn line). Decision logged in CLAUDE.md; test pins `KEEP_DAYS`.)
 
 **Finding (2026-09-24, live `pg_total_relation_size`):** `daily_prices` 162 MB (98 heap + 65 pkey,
 1.41 M rows, already at the full 730-day window so flat), `filings` 93 MB (67 + 26, 186 k rows,
