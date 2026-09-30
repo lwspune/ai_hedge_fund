@@ -285,6 +285,20 @@ def test_adjust_ignores_actions_outside_the_series_and_other_types():
     assert list(ps.adjust_for_actions(s, acts)) == [100, 101, 102, 103]
 
 
+def test_adjust_combines_a_split_and_a_bonus_on_the_same_ex_date():
+    # FCL / NAZARA pattern: split FV 10 -> 2 (x0.2) and bonus 1:1 (x0.5) together = one x0.1 jump
+    s = _s(_D, [1000, 1010, 101, 102])
+    acts = [{"event_type": "bonus", "event_date": "2024-01-03", "details": {"ratio": "1:1"}},
+            {"event_type": "split", "event_date": "2024-01-03", "details": {"from_fv": 10.0, "to_fv": 2.0}}]
+    assert list(ps.adjust_for_actions(s, acts).round(2)) == [100.0, 101.0, 101.0, 102.0]
+    # the guard still holds: prices that show only the split fail the combined factor
+    only_split = _s(_D, [1000, 1010, 202, 204])
+    assert ps.adjust_for_actions(only_split, acts) is None
+    # one unreadable action on the date sinks the date
+    bad = [acts[1], {"event_type": "bonus", "event_date": "2024-01-03", "details": {"ratio": "n/a"}}]
+    assert ps.adjust_for_actions(s, bad) is None
+
+
 def test_adjust_rejects_an_unreadable_ratio():
     s = _s(_D, [300, 300, 150, 150])
     acts = [{"event_type": "bonus", "event_date": "2024-01-03", "details": {"ratio": "n/a"}}]

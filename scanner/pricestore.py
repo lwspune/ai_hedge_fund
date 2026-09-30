@@ -82,18 +82,23 @@ def adjust_for_actions(s: pd.Series, actions: list[dict]) -> pd.Series | None:
     """Split / bonus / consolidation-adjust UNADJUSTED closes ("db" / "nse") for return studies
     that span an action. `actions`: corporate_events rows (event_type, event_date, details).
     Guarded: an action inside the series whose jump the prices don't show (wrong date, wrong
-    ratio) returns None — never a silently wrong return. Other event types are ignored."""
+    ratio) returns None — never a silently wrong return. Actions sharing an ex-date (a split and a
+    bonus together) are one jump: their factors multiply. Other event types are ignored."""
     import math
     out = s.sort_index().astype("float64").copy()
+    by_date: dict = {}
     for a in actions:
         if a.get("event_type") not in ("split", "bonus", "consolidation"):
             continue
         ex = pd.Timestamp(a["event_date"])
         if ex <= out.index.min() or ex > out.index.max():
             continue
-        f = _action_factor(a)
-        if f is None:
+        by_date.setdefault(ex, []).append(a)
+    for ex, same_day in by_date.items():
+        factors = [_action_factor(a) for a in same_day]
+        if any(f is None for f in factors):
             return None
+        f = math.prod(factors)
         before, after = out[out.index < ex], out[out.index >= ex]
         observed = after.iloc[0] / before.iloc[-1]
         if abs(math.log(observed / f)) > math.log(1 + ADJUST_TOLERANCE):
