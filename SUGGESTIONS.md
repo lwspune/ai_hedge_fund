@@ -277,7 +277,7 @@ chittorgarh's entitlement ratio (ρ 0.67, but published after it). Scratch analy
 - *Recommendation:* **do the study first**; change the model only if a premium band shows positive
   after-tax return in both eras.
 
-### `refresh_buyback_results` stores the wrong filing for ~1 in 7 tenders
+### ~~`refresh_buyback_results` stores the wrong filing for ~1 in 7 tenders~~ — **DONE 2026-09-30** (every newspaper copy in the window is tried, post-buyback-subject copies first, closure letters last; window 45 → 75 d; tokenizer reads `211 .04`; tests in `test_buyback_results.py`; historical rows untouched)
 
 **Learning (same session):** 9 of 65 `needs_manual` pointers were extinguishment certificates
 ("Closure of Buy Back"), not the response table. `is_result_announcement` accepts a "Copy of Newspaper

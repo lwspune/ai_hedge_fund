@@ -26,7 +26,7 @@ from scanner.buyback_results import fetch_symbol_announcements, parse_post_buyba
 from scanner.filings import _HEADERS  # noqa: E402
 from scanner.kpis import pdf_text  # noqa: E402
 
-WINDOW_DAYS = 45      # post-buyback announcement lands within ~3 weeks of the close
+WINDOW_DAYS = 75      # the response table usually lands within ~3 weeks of the close; Dhampur 2025 / HGS 2023 took > 45 d
 RECENT_DAYS = 120
 
 

@@ -26,7 +26,8 @@ def _int(s: str) -> int:
     return int(s.replace(",", ""))
 
 
-_TOKEN = re.compile(r"\d[\d,]*(?:\.\d+)?%?")
+# a text layer may split "211.04" into "211 .04": one optional space before the decimal point
+_TOKEN = re.compile(r"\d[\d,]*(?: ?\.\d+)?%?")
 _BEFORE, _AFTER = 110, 260   # a wrapped layout puts the label after its numbers (Garware)
 _MIN_RESERVED = 100
 
@@ -66,7 +67,8 @@ def _category(text: str, label: str) -> dict | None:
 def _solve(window: str) -> dict | None:
     toks = _tokens(window)
     ints = [int(t.replace(",", "")) for t, _ in toks if "." not in t and "%" not in t]
-    resp = [(float(t.rstrip("%").replace(",", "")), t.endswith("%")) for t, _ in toks if "." in t or "%" in t]
+    resp = [(float(t.rstrip("%").replace(",", "").replace(" ", "")), t.endswith("%"))
+            for t, _ in toks if "." in t or "%" in t]
     # two-decimal figures: agreement within rounding only (a neighbouring column is off by far
     # more — Garware's gross vs valid tendered differ by 0.11 points)
     for x, is_pct in resp:
@@ -133,18 +135,27 @@ def ss_acceptance(r: dict) -> float | None:
 
 
 def is_result_announcement(a: dict) -> bool:
-    cat, subj = (a.get("desc") or "").strip(), a.get("attchmntText") or ""
-    return cat in _RESULT_CATEGORIES or (cat == "Copy of Newspaper Publication" and bool(_POST.search(subj)))
+    """A PDF worth trying for the response table. Every newspaper copy in the window counts —
+    most companies file the post-buyback table under the generic subject, and the arithmetic
+    check in `parse_post_buyback` rejects the ones that are not tables (2026-09-30: gating on
+    'post buyback' in the subject let the closure letter win for ~1 in 7 tenders)."""
+    cat = (a.get("desc") or "").strip()
+    return cat in _RESULT_CATEGORIES or cat == "Copy of Newspaper Publication"
 
 
 def _rank(a: dict) -> tuple:
-    cat = (a.get("desc") or "").strip()
-    order = {"Post Buyback Public Announcement": 0, "Copy of Newspaper Publication": 1, "Closure of Buy Back": 2}
+    cat, subj = (a.get("desc") or "").strip(), a.get("attchmntText") or ""
+    order = {"Post Buyback Public Announcement": 0, "Copy of Newspaper Publication": 2, "Closure of Buy Back": 3}
+    if cat == "Copy of Newspaper Publication" and _POST.search(subj):
+        return (1, _when(a))
+    return (order.get(cat, 9), _when(a))
+
+
+def _when(a: dict) -> datetime:
     try:
-        ts = datetime.strptime(str(a.get("an_dt") or "").strip(), "%d-%b-%Y %H:%M:%S")
+        return datetime.strptime(str(a.get("an_dt") or "").strip(), "%d-%b-%Y %H:%M:%S")
     except ValueError:
-        ts = datetime.max
-    return (order.get(cat, 9), ts)
+        return datetime.max
 
 
 def pick_result(announcements: list[dict]) -> list[dict]:

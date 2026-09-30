@@ -81,8 +81,11 @@ def test_is_result_announcement():
                                    "attchmntText": "Copy of Newspaper Publication- Post Buyback Newspaper Advertisement"})
     assert is_result_announcement({"desc": "Closure of Buy Back", "attchmntText": "x"})
     assert not is_result_announcement({"desc": "Buyback", "attchmntText": "Letter of offer"})
-    assert not is_result_announcement({"desc": "Copy of Newspaper Publication",
-                                       "attchmntText": "Public Announcement for buyback"})
+    # since 2026-09-30 every newspaper copy is tried (the arithmetic check rejects non-tables);
+    # only the category gates
+    assert is_result_announcement({"desc": "Copy of Newspaper Publication",
+                                   "attchmntText": "Public Announcement for buyback"})
+    assert not is_result_announcement({"desc": "Outcome of Board Meeting", "attchmntText": "Post Buyback"})
 
 
 def test_pick_result_prefers_post_buyback_pa_then_closure():
@@ -181,3 +184,41 @@ def test_total_must_be_the_sum_of_the_categories_when_both_read():
     assert r["total_reserved"] == 1666667            # 2,50,001 + 14,16,666 -> kept
     r = parse_post_buyback(GANDHI)
     assert r["total_reserved"] == 868100             # 1,30,215 + 7,37,885 -> kept
+
+
+# --- 2026-09-30 loader review: closure letters won for ~1 in 7 tenders ------------------------
+
+def test_any_newspaper_copy_in_the_window_is_a_candidate():
+    """Most companies file the post-buyback response table as a 'Copy of Newspaper Publication'
+    with a generic subject; the arithmetic check rejects the ones that are not tables."""
+    assert is_result_announcement({"desc": "Copy of Newspaper Publication",
+                                   "attchmntText": "Copy of Newspaper Publication"})
+    assert is_result_announcement({"desc": "Copy of Newspaper Publication", "attchmntText": ""})
+
+
+def test_pick_result_ranks_closure_letters_after_every_newspaper_copy():
+    rows = [{"desc": "Closure of Buy Back", "attchmntText": "", "attchmntFile": "c.pdf", "an_dt": "17-Sep-2026 19:00:46"},
+            {"desc": "Copy of Newspaper Publication", "attchmntText": "Newspaper Publication", "attchmntFile": "n2.pdf",
+             "an_dt": "12-Sep-2026 10:19:32"},
+            {"desc": "Copy of Newspaper Publication", "attchmntText": "Post Buyback PA", "attchmntFile": "n1.pdf",
+             "an_dt": "11-Sep-2026 10:19:32"},
+            {"desc": "Post Buyback Public Announcement", "attchmntText": "", "attchmntFile": "p.pdf",
+             "an_dt": "18-Sep-2026 10:00:00"}]
+    assert [r["attchmntFile"] for r in pick_result(rows)] == ["p.pdf", "n1.pdf", "n2.pdf", "c.pdf"]
+
+
+def test_parse_tolerates_a_space_before_the_decimal():
+    """Some text layers split '211.04' into '211 .04'; the figure must still read as 211.04%."""
+    text = ("Category of Shareholders No. of Equity Shares reserved Total Equity Shares Validly Tendered % Response "
+            "Reserved category for Small Shareholders 2,50,000 5,27,600 211 .04 General Category for other Eligible "
+            "Shareholders 14,16,666 16,22,421 114 .52 Total 16,66,666 21,50,021 129 .00")
+    r = parse_post_buyback(text)
+    assert r is not None
+    assert r["ss_reserved"] == 250000 and r["ss_tendered"] == 527600
+    assert r["ss_response_pct"] == pytest.approx(211.04)
+
+
+def test_result_window_covers_late_announcements():
+    """Dhampur 2025 and HGS 2023 filed the response table more than 45 days after the close."""
+    from scripts.refresh_buyback_results import WINDOW_DAYS
+    assert WINDOW_DAYS >= 75
