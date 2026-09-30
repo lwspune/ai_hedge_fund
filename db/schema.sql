@@ -310,7 +310,14 @@ create table if not exists filings (
   created_at     timestamptz not null default now()
 );
 create index if not exists idx_filings_symbol_time on filings(symbol, disclosed_at desc);
-create index if not exists idx_filings_category_time on filings(category, disclosed_at desc);
+-- 2026-09-30: the full (category, disclosed_at) index (13 MB, 86 scans) is replaced by a partial one on
+-- the categories the extractors and the order-win study filter on (extract_kpis KPI_FILTER / ORDERS_FILTER,
+-- validate_order_wins); the extractors' extracted_at-is-null work lists use idx_filings_unextracted.
+drop index if exists idx_filings_category_time;
+create index if not exists idx_filings_kpi_category_time on filings(category, disclosed_at desc)
+  where category in ('Investor Presentation', 'Bagging/Receiving of orders/contracts',
+                     'Awarding of order(s)/contract(s)')
+     or category like 'Press Release%' or category like 'Analysts%';
 alter table filings enable row level security;
 create policy "anon read filings" on filings for select to anon using (true);
 
@@ -388,11 +395,13 @@ alter table corporate_events add constraint corporate_events_event_type_check ch
 alter table corporate_events drop constraint if exists corporate_events_source_check;
 alter table corporate_events add constraint corporate_events_source_check check (source in (
   'nse_ca','nse_fo','chittorgarh','nse_bm','nse_band'));
-create index if not exists idx_events_symbol_type_date on corporate_events(symbol, event_type, event_date);
+-- 2026-09-30: idx_events_symbol_type_date dropped — it duplicated the prefix of the unique key
+-- (symbol, event_type, event_date, source), 5 MB for nothing.
+drop index if exists idx_events_symbol_type_date;
 
 -- ============================================================================
 -- WP3 price store (scanner/bhavcopy.py, scripts/refresh_prices.py, pricestore source="db").
--- daily_prices = rolling ~2 years of NSE bhavcopy (equity series, UNADJUSTED closes);
+-- daily_prices = rolling 400 days of NSE bhavcopy (equity series, UNADJUSTED closes; 730 until 2026-09-30);
 -- the full history (all series/columns, 2020->) lives in the private `prices` bucket as
 -- bhav/YYYY-MM.parquet. index_prices = benchmark closes (full history, tiny).
 -- ============================================================================

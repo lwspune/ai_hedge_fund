@@ -3,7 +3,7 @@
     python scripts/refresh_prices.py                          # last 5 calendar days (heals a missed run)
     python scripts/refresh_prices.py --date 2026-09-23
     python scripts/refresh_prices.py --from 2024-01-01 --to 2024-12-31   # backfill (backfill.yml)
-    python scripts/refresh_prices.py --prune                  # weekly: drop table rows > 730 days
+    python scripts/refresh_prices.py --prune                  # weekly: drop table rows > KEEP_DAYS
 
 Per trading day: fetch sec_bhavdata_full -> parse (guarded) -> `reload_daily_prices` RPC (only
 for dates inside the table's retention window, so a backfill never bloats Postgres) -> merged
@@ -25,7 +25,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-KEEP_DAYS = 730                       # daily_prices retention; older rows live in the bucket only
+KEEP_DAYS = 400                       # daily_prices retention (400 d since 2026-09-30, was 730); older rows live in the bucket only
 BENCHMARKS = ("^NSEI", "^CRSLDX")     # NIFTY 50, NIFTY 500
 POLITE = 0.3
 

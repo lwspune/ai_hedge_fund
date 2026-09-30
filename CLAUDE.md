@@ -118,7 +118,7 @@ Efficiently-priced spreads (merger arb) get competed to ~risk-free.
     fail the run. `scripts/backfill_orphans.py` (RPC `orphan_symbols()`) gives symbols seen in
     filings/deals/events a delisted `manual` row.
   - **I2 price store** — `scanner/pricestore.get_closes(sym, start, end, *, source=...)`:
-    **`source` is required.** `"db"` = the cloud store, UNADJUSTED: `daily_prices` (rolling 730 days
+    **`source` is required.** `"db"` = the cloud store, UNADJUSTED: `daily_prices` (rolling 400 days
     of NSE bhavcopy, equity series, BRIN on date) + bucket `prices` `bhav/YYYY-MM.parquet` (every
     series/column, 2020→) + `index_prices` (^NSEI, ^CRSLDX); `get_bars` adds volume/turnover/
     delivery %. Loader `scanner/bhavcopy.py` + `scripts/refresh_prices.py` (daily, `--prune` weekly,
@@ -371,7 +371,7 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   negative in 2024-26. *Reason:* public drift signal, same fate as deals/index rebalance.
 
 - **2026-09-24** — Data-infra gap closure (`docs/DATA_INFRA_SPEC.md` WP1-8). **Prices now live in
-  Supabase** (`daily_prices` 730 days + bucket `prices` full raw bhavcopy history 2020→), not a laptop
+  Supabase** (`daily_prices` 400 days since 2026-09-30, was 730 + bucket `prices` full raw bhavcopy history 2020→), not a laptop
   parquet. *Reason:* the laptop must never be a dependency — every scan and validation runs on
   Actions; the 2-year table (~170 MB, BRIN not btree) fits the free tier next to the WP2 size guard.
 - **2026-09-24** — Bhavcopy backfill floor **2020-01-01** (archive goes deeper); pre-2020 stays on
@@ -499,6 +499,16 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   +2.4% median after tax on well-chosen tenders is the size the old tables called thin, and choosing them
   in advance isn't proven yet; re-promote only if realized acceptance (`scanner.calibrate`) shows
   high-acceptance tenders can be picked before the record date. Alerts and the daily scan continue.
+
+- **2026-09-30** — `daily_prices` window **730 → 400 days** (supersedes the 2026-09-24 "2-year table"),
+  plus two index drops (`idx_events_symbol_type_date` duplicated the unique key; `idx_filings_category_time`
+  → partial on the extractor categories). *Reason:* the DB reached 370 MB of the 400 MB fail line six days
+  after the 327 MB reading; `get_bars` already reads dates below the table floor from the bucket, so the
+  table is a hot cache and the window is one constant (`refresh_prices.KEEP_DAYS`, pinned by a test).
+- **2026-09-30** — Every daily run since 2026-09-24 had failed at the buyback save (`NaT` → Postgres 22007)
+  and the VRL Logistics tender never reached the Desk or Telegram. *Reason logged as a learning:* test each
+  parser's missing value at the DB boundary; a downstream step that reads "the latest saved row" looks
+  healthy while its upstream is broken.
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

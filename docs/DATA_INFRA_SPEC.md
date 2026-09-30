@@ -262,7 +262,7 @@ green again (label "Order wins", headline from `CONCLUSIONS.md` §11).
     refreshes `index_prices` from yfinance for the same window.
   - Daily step in `scheduled_refresh.steps("daily")` **right after** `fo-ban` and **before** the
     buyback/rights scans (they now read prices from the table).
-  - Weekly step: `prune_daily_prices(730)`.
+  - Weekly step: `prune_daily_prices(400)` (730 until 2026-09-30; the bucket keeps older dates).
   - Backfill workflow `.github/workflows/backfill-prices.yml` (`workflow_dispatch`, input `year`):
     runs `refresh_prices.py --from YYYY-01-01 --to YYYY-12-31` with 0.3 s politeness; ~250 files ≈
     5 min/year; run 2020…2026 one at a time (concurrency group `refresh` so it never overlaps the

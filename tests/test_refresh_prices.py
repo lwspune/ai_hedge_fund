@@ -21,6 +21,16 @@ def test_in_table_window():
     assert not in_table_window(date(2024, 9, 23), today, keep_days=730)
 
 
+def test_table_window_is_400_days():
+    """Decision 2026-09-30: the table is a hot cache (older dates come from the bucket); 400 days
+    keeps the DB ~70 MB under the 400 MB fail line. The default must follow the constant."""
+    from scripts.refresh_prices import KEEP_DAYS
+    assert KEEP_DAYS == 400
+    today = date(2026, 9, 30)
+    assert in_table_window(date(2025, 8, 27), today)
+    assert not in_table_window(date(2025, 8, 25), today)
+
+
 def test_months_of_groups_dates():
     ds = [date(2026, 8, 31), date(2026, 9, 1), date(2026, 9, 2)]
     assert months_of(ds) == {"2026-08": [date(2026, 8, 31)], "2026-09": [date(2026, 9, 1), date(2026, 9, 2)]}
