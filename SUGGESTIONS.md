@@ -255,7 +255,7 @@ next" with a pointer to `CANDIDATE_SIGNALS.md`. Docs only.
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
-### `estimate_acceptance` ignores the offer premium — the strongest pre-record predictor of acceptance
+### ~~`estimate_acceptance` ignores the offer premium — the strongest pre-record predictor of acceptance~~ — **DONE 2026-09-30** (owner go-ahead: `PREMIUM_BAND_ACCEPTANCE` 100 / 83 / 38 / 33 / 12% is the live prior whenever the premium is known; flat 45% + size nudge kept only as the no-price fallback; `scanner.calibrate` prints realized vs prior by band — 101 tenders reproduce it; verdict unchanged, thin / watch)
 
 **Study done 2026-09-30** (`scripts/validate_buyback_selection.py`, CONCLUSIONS §3 addendum, n=97): the
 premium predicts acceptance (Spearman −0.62 vs +0.06 for the flat prior) but not the return — after-tax

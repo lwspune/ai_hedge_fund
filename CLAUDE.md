@@ -301,8 +301,8 @@ Python · pandas · yfinance · nselib · jugaad-data · requests/bs4 · html5li
 Supabase (raw PostgREST, no ORM/SDK) · React + Vite + supabase-js (dashboard). P0–P3 built +
 deployed (https://ai-hedge-fund-fawn.vercel.app/). `buyback_arb` now self-discovers current
 buybacks (upward id probe from `db.max_buyback_id`) + ranks by an acceptance-estimation model
-(`estimate_acceptance` heuristic prior → after-tax `exp_return`). Next: calibrate the acceptance
-prior from the `outcomes` feedback loop; add issue-size / retail-% features.
+(`estimate_acceptance`: premium-band prior since 2026-09-30 → after-tax `exp_return`). Next: re-check
+the band medians with `python -m scanner.calibrate` as `buyback_results` grows.
 
 ## Decisions log
 One dated line per non-obvious decision + the reason. Don't re-litigate without a new reason.
@@ -509,6 +509,12 @@ One dated line per non-obvious decision + the reason. Don't re-litigate without 
   and the VRL Logistics tender never reached the Desk or Telegram. *Reason logged as a learning:* test each
   parser's missing value at the DB boundary; a downstream step that reads "the latest saved row" looks
   healthy while its upstream is broken.
+
+- **2026-09-30** — Buyback acceptance prior = **median realized acceptance by offer-premium band**
+  (≤5% 100 · 5-10% 83 · 10-20% 38 · 20-40% 33 · >40% 12%; `buyback.PREMIUM_BAND_ACCEPTANCE`), replacing the flat
+  45% (owner's call). *Reason:* the premium over the last cum close is known before the record date and
+  predicts acceptance (Spearman −0.62, n=97) where the flat prior scored +0.07. Ranking accuracy only —
+  acceptance × premium is flat across bands, so the verdict stays thin / watch (CONCLUSIONS §3).
 
 ## Conventions / Don'ts
 - **TDD**: pure logic (signal math, arb math, parsers) is tested before implementation.

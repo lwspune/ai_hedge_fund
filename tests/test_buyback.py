@@ -453,8 +453,9 @@ def test_enrich_without_any_floor_still_ranks_on_acceptance_prior():
     r = enrich_buyback(bb, cur=100.0, market_cap_cr=500.0, small_holder_pct=None, today=pd.Timestamp("2026-09-24"))
     assert r["entitlement_source"] is None and r["est_entitlement"] is None
     assert r["est_return"] is None                   # no floor -> no floor estimate
-    from scanner.buyback import CALIBRATED_ACCEPTANCE
-    assert r["est_acceptance"] == pytest.approx(CALIBRATED_ACCEPTANCE)  # flat calibrated prior
+    from scanner.buyback import PREMIUM_BAND_ACCEPTANCE
+    # premium 120/100 - 1 = 20% -> the 10-20% band median (2026-09-30), not the flat prior
+    assert r["est_acceptance"] == pytest.approx(PREMIUM_BAND_ACCEPTANCE["10-20%"])
     assert r["exp_return"] is not None
 
 
@@ -553,3 +554,57 @@ def test_realized_arb_return_uses_the_published_acceptance():
     floor = arb_return(100.0, 105.0, 90.0, 0.1)
     assert full > floor
     assert abs(full - (105.0 / (100.0 * 1.003) - 1)) < 1e-9
+
+
+# --- acceptance by premium band (2026-09-30, owner-approved) -----------------------------------
+
+def test_premium_band_acceptance_is_the_measured_medians():
+    """Medians of realized small-shareholder acceptance per band, 97 tenders 2022-26
+    (scripts/validate_buyback_selection.py, evidence buyback_arb/2026-09-30T124016Z)."""
+    from scanner.buyback import PREMIUM_BAND_ACCEPTANCE
+    assert PREMIUM_BAND_ACCEPTANCE == {"<=5%": 1.00, "5-10%": 0.83, "10-20%": 0.38,
+                                       "20-40%": 0.33, ">40%": 0.12}
+
+
+def test_estimate_acceptance_uses_the_premium_band_when_known():
+    assert estimate_acceptance(8000, 0.05, premium=0.03) == pytest.approx(1.00)
+    assert estimate_acceptance(8000, 0.05, premium=0.07) == pytest.approx(0.83)
+    assert estimate_acceptance(8000, 0.05, premium=0.15) == pytest.approx(0.38)
+    assert estimate_acceptance(8000, 0.05, premium=0.30) == pytest.approx(0.33)
+    assert estimate_acceptance(8000, 0.05, premium=0.50) == pytest.approx(0.12)
+
+
+def test_premium_band_estimate_never_below_the_entitlement_floor():
+    assert estimate_acceptance(8000, 0.20, premium=0.50) == pytest.approx(0.20)
+
+
+def test_premium_band_estimate_needs_no_market_cap_and_no_size_nudge():
+    """The band median is measured, so neither an unknown market cap nor the untested
+    issue-size nudge moves it."""
+    assert estimate_acceptance(None, 0.05, premium=0.15) == pytest.approx(0.38)
+    assert estimate_acceptance(8000, 0.05, issue_size_cr=800, premium=0.15) == pytest.approx(0.38)
+
+
+def test_estimate_acceptance_without_premium_keeps_the_flat_fallback():
+    from scanner.buyback import CALIBRATED_ACCEPTANCE
+    assert estimate_acceptance(8000, 0.05) == pytest.approx(CALIBRATED_ACCEPTANCE)
+    assert estimate_acceptance(8000, 0.05, premium=None) == pytest.approx(CALIBRATED_ACCEPTANCE)
+
+
+def test_enrich_ranks_a_small_premium_tender_above_the_flat_prior():
+    from scanner.buyback import enrich_buyback
+    bb = {"id": 2, "symbol": "Y", "buyback_price": 104.0, "record_date": pd.Timestamp("2026-10-09"),
+          "close_date": pd.NaT, "entitlement_small": 0.10, "issue_size_cr": None, "issue_type": "tender"}
+    r = enrich_buyback(bb, cur=100.0, market_cap_cr=5000.0, small_holder_pct=None, today=pd.Timestamp("2026-09-30"))
+    assert r["est_acceptance"] == pytest.approx(1.00)       # 4% premium -> everything accepted
+
+
+def test_calibrate_by_premium_band_reports_medians():
+    from scanner.buyback import calibrate_by_premium
+    recs = [{"premium": 0.03, "realized_acceptance": 1.0}, {"premium": 0.04, "realized_acceptance": 0.6},
+            {"premium": 0.02, "realized_acceptance": 0.9}, {"premium": 0.30, "realized_acceptance": 0.2},
+            {"premium": None, "realized_acceptance": 0.5}, {"premium": 0.12, "realized_acceptance": None}]
+    out = calibrate_by_premium(recs)
+    assert out["<=5%"] == {"n": 3, "acceptance": pytest.approx(0.9)}
+    assert out["20-40%"] == {"n": 1, "acceptance": pytest.approx(0.2)}
+    assert "10-20%" not in out

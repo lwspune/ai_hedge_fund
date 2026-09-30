@@ -177,13 +177,26 @@ def mcap_bucket(market_cap_cr) -> str:
     return "large"
 
 
-def estimate_acceptance(market_cap_cr, entitlement_small, issue_size_cr=None) -> float:
-    """Estimated retail acceptance fraction, never below the entitlement floor.
+# Median realized small-shareholder acceptance per offer-premium band (premium over the last
+# cum-entitlement close), 97 tenders 2022-26: scripts/validate_buyback_selection.py, evidence
+# buyback_arb/2026-09-30T124016Z. Owner-approved 2026-09-30 as the acceptance prior; re-check
+# with `python -m scanner.calibrate` as buyback_results grows.
+PREMIUM_BAND_ACCEPTANCE = {"<=5%": 1.00, "5-10%": 0.83, "10-20%": 0.38, "20-40%": 0.33, ">40%": 0.12}
 
-    A large *relative* buyback (issue size >= 5% of market cap) nudges acceptance up —
-    more reserved shares chasing the same small-shareholder float.
+
+def estimate_acceptance(market_cap_cr, entitlement_small, issue_size_cr=None, premium=None) -> float:
+    """Estimated small-shareholder acceptance fraction, never below the entitlement floor.
+
+    With the offer premium known (always, in the live scan) this is the measured median of
+    its band (`PREMIUM_BAND_ACCEPTANCE`): a small premium draws few tenders, so nearly all are
+    accepted; a large one draws a crowd. Without a premium it falls back to the flat prior,
+    where a large *relative* buyback (issue size >= 5% of market cap) nudges acceptance up —
+    an untested heuristic kept only on this fallback path.
     """
     floor = float(entitlement_small or 0.0)
+    band = premium_band(premium)
+    if band is not None:
+        return max(floor, PREMIUM_BAND_ACCEPTANCE[band])
     if market_cap_cr is None:
         return floor
     base = next(a for cap, a in _MCAP_ACCEPTANCE_PRIOR if market_cap_cr < cap)
@@ -234,6 +247,20 @@ def calibrate_from_outcomes(records) -> dict:
             continue
         acc[mcap_bucket(mc)].append(float(ra))
     return {b: {"n": len(v), "acceptance": sum(v) / len(v)} for b, v in acc.items()}
+
+
+def calibrate_by_premium(records) -> dict:
+    """Median realized acceptance per offer-premium band. records: dicts with premium (over the
+    last cum close) + realized_acceptance. Compare with PREMIUM_BAND_ACCEPTANCE."""
+    from collections import defaultdict
+    from statistics import median
+    acc = defaultdict(list)
+    for r in records:
+        band, ra = premium_band(r.get("premium")), r.get("realized_acceptance")
+        if band is None or ra is None:
+            continue
+        acc[band].append(float(ra))
+    return {b: {"n": len(v), "acceptance": median(v)} for b, v in acc.items()}
 
 
 def expected_after_tax(price, buyback_price, est_acceptance, record_date, slab=0.30, close_date=None):
@@ -448,7 +475,9 @@ def enrich_buyback(bb: dict, cur: float, market_cap_cr, small_holder_pct, today,
     today is on or before `last_buy_date`, the trading day before the record date (T+1: the
     record date itself is ex-entitlement)."""
     floor, floor_src = entitlement_floor(bb, market_cap_cr, cur, small_holder_pct)
-    acc = estimate_acceptance(market_cap_cr, floor, issue_size_cr=bb.get("issue_size_cr"))
+    # premium vs today's close: before the record date it stands in for the last cum close
+    acc = estimate_acceptance(market_cap_cr, floor, issue_size_cr=bb.get("issue_size_cr"),
+                              premium=bb["buyback_price"] / cur - 1 if cur else None)
     lbd = last_buy_date(bb.get("record_date"), hol)
     window_open = bool(pd.isna(bb.get("close_date")) or pd.Timestamp(bb["close_date"]) >= pd.Timestamp(today))
     can_buy = lbd is None or pd.Timestamp(today).date() <= lbd
@@ -546,7 +575,7 @@ def format_buyback_table(rows: list[dict]) -> str:
             f"{('OPEN, buy by ' + str(r['last_buy_date'])) if r.get('is_open') and r.get('last_buy_date') else 'OPEN' if r.get('is_open') else 'closed'}")
     out.append("\nENT = published small-shareholder entitlement; a trailing ~ = estimated from the "
                "small-holder float (letter of offer not yet out; ? = no estimate). ACC~ = estimated "
-               "acceptance (heuristic by mkt-cap; the outcomes feedback loop calibrates it). "
+               "acceptance (median of realized acceptance for the offer's premium band, 97 tenders; `scanner.calibrate` re-checks it). "
                "EXP~ = after-tax expected return at ACC~. OPEN = you can still buy: the trading day "
                "before the record date (the record date itself is ex-entitlement) has not passed and "
                "the tender window is not closed. "

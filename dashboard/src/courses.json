@@ -646,7 +646,7 @@
         "tryIt": {
           "steps": [
             "Record your most recent (or next) tender: python -m scanner.track tender … and, when settled, python -m scanner.track outcome ….",
-            "Run python -m scanner.calibrate and read how realised acceptance compares with the 45% prior.",
+            "Run python -m scanner.calibrate and read how realised acceptance by offer-premium band compares with the prior the scan uses.",
             "Write a one-page monthly review template: trades this month, live vs backtest range, data freshness, rule changes, keep / watch / retire.",
             "Write the retirement rule for buyback_arb in one sentence, with a number in it."
           ],
