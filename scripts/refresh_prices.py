@@ -4,6 +4,7 @@
     python scripts/refresh_prices.py --date 2026-09-23
     python scripts/refresh_prices.py --from 2024-01-01 --to 2024-12-31   # backfill (backfill.yml)
     python scripts/refresh_prices.py --prune                  # weekly: drop table rows > KEEP_DAYS
+    python scripts/refresh_prices.py --indices-only --from 2020-01-01 --to 2022-07-31   # benchmarks only (backfill.yml what=indices)
 
 Per trading day: fetch sec_bhavdata_full -> parse (guarded) -> `reload_daily_prices` RPC (only
 for dates inside the table's retention window, so a backfill never bloats Postgres) -> merged
@@ -136,6 +137,8 @@ def main():
     ap.add_argument("--to", type=date.fromisoformat)
     ap.add_argument("--keep-days", type=int, default=KEEP_DAYS)
     ap.add_argument("--prune", action="store_true", help="only drop table rows older than --keep-days")
+    ap.add_argument("--indices-only", action="store_true",
+                    help="only refresh index_prices (Yahoo) for the window: no bhavcopy fetch, no bucket write")
     a = ap.parse_args()
     today = date.today()
     if a.prune:
@@ -147,6 +150,9 @@ def main():
         frm = to = a.date
     else:
         frm, to = a.frm or today - timedelta(days=5), a.to or today
+    if a.indices_only:
+        print(f"index_prices: {refresh_indices(frm, to)} benchmark rows {frm}..{to}")
+        return
     run(frm, to, a.keep_days)
 
 

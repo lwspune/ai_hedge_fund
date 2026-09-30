@@ -42,3 +42,15 @@ def test_holiday_copy_of_previous_day_is_not_a_trading_day():
     rows = [{"symbol": "X", "trade_date": "2026-09-11"}]
     assert file_is_for(rows, date(2026, 9, 11))
     assert not file_is_for(rows, date(2026, 9, 14))
+
+
+def test_indices_only_backfills_benchmarks_without_touching_bhavcopies(monkeypatch):
+    """Market regime: index_prices 2020-01 -> 2022-07 from Yahoo, no bhavcopy fetch or bucket write."""
+    import sys
+    import scripts.refresh_prices as rp
+    calls = []
+    monkeypatch.setattr(rp, "run", lambda *a, **k: calls.append(("run", a)))
+    monkeypatch.setattr(rp, "refresh_indices", lambda frm, to: calls.append(("indices", frm, to)) or 0)
+    monkeypatch.setattr(sys, "argv", ["refresh_prices.py", "--indices-only", "--from", "2020-01-01", "--to", "2022-07-31"])
+    rp.main()
+    assert calls == [("indices", date(2020, 1, 1), date(2022, 7, 31))]
