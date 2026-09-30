@@ -258,5 +258,15 @@
     "learned": "2026-09-30",
     "source": "scanner/db.py _iso; tests/test_run_save.py",
     "signals": ["buyback_arb"]
+  },
+  {
+    "id": "predicting-acceptance-is-not-predicting-return",
+    "section": "method",
+    "title": "A strong predictor of the mechanism can be a null predictor of the return",
+    "body": "The buyback offer premium predicts how much of a small-shareholder tender gets accepted (Spearman -0.62, n=97) and is known before the record date. But acceptance times premium is roughly flat across premium bands: the low-premium tenders accept everything and pay little, the high-premium ones pay a lot and accept a third. Blind tendering earns +2.9% after tax; the best band +4.1% on 15 tenders.",
+    "why": "A competed spread prices the mechanism in. Test the selection rule on the return you would earn, at realized acceptance, in both eras - never promote a signal because an input became predictable.",
+    "learned": "2026-09-30",
+    "source": "CONCLUSIONS.md section 3 (selection by offer premium); scripts/validate_buyback_selection.py",
+    "signals": ["buyback_arb"]
   }
 ]

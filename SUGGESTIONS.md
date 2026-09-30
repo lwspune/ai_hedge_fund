@@ -257,6 +257,14 @@ before touching the shipped artifact.
 
 ### `estimate_acceptance` ignores the offer premium — the strongest pre-record predictor of acceptance
 
+**Study done 2026-09-30** (`scripts/validate_buyback_selection.py`, CONCLUSIONS §3 addendum, n=97): the
+premium predicts acceptance (Spearman −0.62 vs +0.06 for the flat prior) but not the return — after-tax
+medians by band ≤5% −0.2% (n=5) · 5–10% **+4.1%** (n=15, both eras, t_cl 4.2) · 10–20% +2.1% · 20–40%
++6.2% · >40% −0.7%; blind +2.9%. Not monotonic, one point over blind at best → **verdict stays thin**.
+**Awaiting go-ahead:** swap the flat 45% prior for the band medians in `estimate_acceptance`
+(100 / 83 / 38 / 33 / 12%), so the scan's `ACC~` and `EXP~` columns and the alert ranking reflect the
+data. Ranking accuracy only; no promotion; ~2 h with tests + `scanner.calibrate` by band.
+
 **Learning (hand-entry of the 65 scanned response tables + 13 missing ones, 2026-09-27):** with 101
 realized small-shareholder acceptances (was 24), market cap barely separates them (small 49%, small-mid
 43%, mid 47%, large 61% on n=13). The buyback price over the **last cum-entitlement close** does

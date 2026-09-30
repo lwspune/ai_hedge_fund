@@ -122,6 +122,35 @@ medians: floor −0.2% → −2.3%; 3× +4.9% → +3.0%; 20%-slab 3× +3.8% → 
 event list `evidence/buyback_arb/2026-09-24` · sha 4f552e3; corrected run published from Actions
 after this commit (see `validation_runs`).
 
+*Selection by offer premium (2026-09-30, `scripts/validate_buyback_selection.py`, n=97 of the 102
+published response tables; 5 dropped for missing cum/residual closes):* the re-promotion question was
+whether high-acceptance tenders can be picked **before** the record date. The offer premium over the
+last cum close is the only predictor known in time, and it predicts acceptance strongly (Spearman
+−0.62; the flat-prior model scores +0.07, mean error 23 points). It does **not** turn into a return
+rule. After tax under today's capital-gains rule, at each tender's *realized* acceptance, a ₹2 lakh
+tender earned (median):
+
+| premium band | n | realized acceptance (median) | residual leg | after-tax median | t (month-clustered) |
+|---|---|---|---|---|---|
+| ≤ 5% | 5 | 100% | +7.3% | −0.2% (mean −4.3%) | −1.2 |
+| 5–10% | 15 | 83% | −0.6% | **+4.1%** | +4.2 (both eras +4%) |
+| 10–20% | 38 | 38% | −6.6% | +2.1% | +0.6 |
+| 20–40% | 33 | 33% | −2.3% | +6.2% | +2.7 |
+| > 40% | 6 | 12% | −9.9% | −0.7% | −0.6 |
+| blind, every tender | 97 | 42% | — | +2.9% | +2.3 |
+
+The 5–10% band meets the pre-registered criterion (positive after-tax median in both eras, pooled
+t ≥ 2), but it is 15 tenders, its edge over blind tendering is about one point, and the bands are not
+monotonic (20–40% beats 10–20% — the premium's size pays for the acceptance it loses, and the residual
+leg of the 10–20% band is the worst). Blind tendering at realized acceptance is +2.9% (the +2.4% of the
+downgrade), and at the entitlement floor −2.2%. Reading: the premium tells you *how much will be
+accepted*, and acceptance × premium is roughly flat across bands — which is what a competed spread
+looks like. **Verdict stays thin / watch.** The one model change the evidence supports is replacing
+the flat 45% acceptance prior with the band medians (known before the record date), so the scan's
+acceptance estimate and `exp_return` stop being noise; that is a ranking-accuracy change, not a
+promotion, and awaits the owner's go-ahead (SUGGESTIONS backfill ledger).
+*Evidence:* `evidence/buyback_arb/2026-09-30T124016Z` (Actions run, `validation_runs` row).
+
 ### 4. Stock-swap merger arb — THIN
 3 verified completed deals (HDFC, LTIMindtree, Shriram): announcement spreads +2.7/2.4/6.7%
 (mean +3.9%, ~4.6% annualised *gross*). Efficiently priced; before futures carry and the
@@ -660,8 +689,13 @@ and these verdicts baked into `scanner/catalog.py`. Recover the prior concluded 
 git `30f1f1e` if ever needed.
 
 ## Open / next
-- P2: Supabase persistence + outcome tracking (calibrate acceptance estimates from realized
-  tenders).
-- P3: React dashboard (verdict-aware).
-- Refine `buyback_arb` selection: add market cap / issue size / retail-% and an
-  acceptance-estimation model.
+- **Waiting on data** (the daily jobs accrue it): ASM/GSM entries and exits (#5, from 2026-09-24),
+  pledge invocations (#21), GMP at application time (#25, from 2026-09-26). Re-test each after ~6-12
+  months.
+- **Needs an F&O bhavcopy loader first:** cash-futures basis (#12), results-day implied vs realised
+  move (#24, falsification test only).
+- **Cheap controls, expect null:** pledge release (#8), bonus/split drift (#9), PEAD proxy (#15),
+  52-week-high momentum (#16), macro event-day vol (#18), sector pairs (#19).
+- **Buyback acceptance model:** replace the flat 45% prior with the premium-band medians (§3,
+  2026-09-30) once approved; keep `scanner.calibrate` reading the growing `buyback_results`.
+- **Parked:** delisting RBB (#3, no reachable source).
