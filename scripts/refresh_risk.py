@@ -81,6 +81,7 @@ def main():
     from scanner import db
     from scanner.pricestore import bar_panel, get_closes
     from scanner.risk import WINDOW_DAYS, add_ranks, format_table, risk_row, symbol_metrics
+    from scanner.sectors import N500, assign_indices, load_industries, load_sector_closes
     from scanner.trading_calendar import holidays
 
     args = sys.argv[1:]
@@ -103,9 +104,19 @@ def main():
               f"({gap[0]} .. {gap[-1]}): moves across them read as one session; backfill.yml what=prices")
 
     universe, actions, surv = _load(start)
+    sec_closes = load_sector_closes(start, today)
+    picks = assign_indices(load_industries(), {**sec_closes, N500: mkt}, start)
     panel = bar_panel(start, today)
     t_panel = time.monotonic() - t0
-    rows = [symbol_metrics(sym, panel[sym], mkt, actions.get(sym, []), universe[sym], surv.get(sym, set()))
+
+    def sector_of(sym):
+        idx, fb = picks.get(sym, (None, False))
+        if idx is None:
+            return None
+        return {"index": idx, "fallback": fb, "closes": mkt if idx == N500 else sec_closes.get(idx)}
+
+    rows = [symbol_metrics(sym, panel[sym], mkt, actions.get(sym, []), universe[sym], surv.get(sym, set()),
+                           sector=sector_of(sym))
             for sym in sorted(universe) if sym in panel]
     rows = [risk_row(m, today) for m in add_ranks(rows)]
     hist = Counter(f for r in rows for f in r["flags"])

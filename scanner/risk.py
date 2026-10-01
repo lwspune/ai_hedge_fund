@@ -35,7 +35,8 @@ FLAGS = ("short_history", "sparse", "action_unverified", "price_break", "illiqui
 PRICE_KEYS = ("vol_1y", "vol_3m", "beta_1y", "corr_1y", "idio_vol_1y", "max_dd_1y", "dd_now",
               "worst_day_1y", "worst_week_1y", "ret_1m", "ret_3m", "ret_1y")
 LIQ_KEYS = ("adv_20_cr", "delivery_pct_20", "days_to_exit_5l")
-COLUMNS = ("symbol", "as_of", "sessions", *PRICE_KEYS, *LIQ_KEYS, "vol_rank", "liq_rank", "flags")
+SECTOR_KEYS = ("beta_sector_1y", "corr_sector_1y", "sector_ret_3m")
+COLUMNS = ("symbol", "as_of", "sessions", *PRICE_KEYS, *LIQ_KEYS, "vol_rank", "liq_rank", *SECTOR_KEYS, "flags")
 INT_COLUMNS = ("sessions", "days_to_exit_5l")
 
 
@@ -148,16 +149,25 @@ def price_break(adj: pd.Series, actions: list[dict]) -> bool:
 # --- orchestrator -------------------------------------------------------------------
 
 def symbol_metrics(sym: str, bars: pd.DataFrame, mkt_closes: pd.Series, actions: list[dict],
-                   series: str | None, surveillance: set[str]) -> dict:
+                   series: str | None, surveillance: set[str], sector: dict | None = None) -> dict:
     """One flat dict of every metric + flags for one symbol. `bars`: the window's bars (unadjusted);
     `actions`: its split / bonus / consolidation corporate_events rows; `surveillance`: the list
-    names (asm_lt / asm_st / gsm) it is on today. Price metrics are null when the adjustment can't
-    be verified (`action_unverified`) or a break remains after it (`price_break`). Never raises on a bad stock — flags it — but a
-    BadPriceData from clean_series propagates (a corrupt store, not a bad stock)."""
+    names (asm_lt / asm_st / gsm) it is on today; `sector`: {"index", "fallback", "closes"} of the
+    sector index it uses (docs/SECTOR_INDICES_SPEC.md), or None. Price metrics are null when the
+    adjustment can't be verified (`action_unverified`) or a break remains after it (`price_break`);
+    sector beta / correlation follow the same gates as beta. Never raises on a bad stock — flags it —
+    but a BadPriceData from clean_series propagates (a corrupt store, not a bad stock)."""
     closes = clean_series(bars["close"])
     last = closes.index.max() if len(closes) else (bars.index.max() if len(bars) else None)
     m = {"symbol": sym, "sessions": len(closes), "last_date": last,
-         **{k: None for k in PRICE_KEYS}, **liquidity(bars)}
+         **{k: None for k in PRICE_KEYS}, **liquidity(bars), **{k: None for k in SECTOR_KEYS},
+         "sector_index": None, "sector_is_fallback": None}
+    sec = None
+    if sector is not None and sector.get("closes") is not None and len(sector["closes"]):
+        sec = clean_series(sector["closes"])
+        m.update(sector_index=sector["index"], sector_is_fallback=bool(sector.get("fallback")))
+        to = sec[sec.index <= last] if last is not None else sec
+        m["sector_ret_3m"] = trailing_returns(to)["ret_3m"] if len(to) else None
     flags = set()
     n = len(closes)
     if n < MIN_SESSIONS_1Y:
@@ -187,6 +197,11 @@ def symbol_metrics(sym: str, bars: pd.DataFrame, mkt_closes: pd.Series, actions:
                 b = beta_stats(log_returns(adj[common]), log_returns(mkt[common]), 250)
                 if b["n_aligned"] >= MIN_SESSIONS_1Y:
                     m.update(beta_1y=b["beta"], corr_1y=b["corr"], idio_vol_1y=b["idio_vol"])
+                if sec is not None:                          # same gates, against the sector index
+                    common = adj.index.intersection(sec.index)
+                    b = beta_stats(log_returns(adj[common]), log_returns(sec[common]), 250)
+                    if b["n_aligned"] >= MIN_SESSIONS_1Y:
+                        m.update(beta_sector_1y=b["beta"], corr_sector_1y=b["corr"])
     if m["adv_20_cr"] is not None and m["adv_20_cr"] < ILLIQUID_ADV_CR:
         flags.add("illiquid")
     if series in SME_SERIES:
@@ -240,6 +255,9 @@ def risk_row(m: dict, as_of: date) -> dict:
         f = None if v is pd.NaT else _num(v)
         row[k] = None if f is None else (int(round(f)) if k in INT_COLUMNS else round(f, 4))
     row["flags"] = [str(f) for f in (m.get("flags") or [])]
+    row["sector_index"] = str(m["sector_index"]) if m.get("sector_index") else None
+    fb = m.get("sector_is_fallback")
+    row["sector_is_fallback"] = None if fb is None or row["sector_index"] is None else bool(fb)
     row["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     return row
 

@@ -73,6 +73,38 @@ def pick_index(industry: str | None, sessions_by_index: dict[str, int],
     return N500, True
 
 
+def assign_indices(industries: dict[str, str | None], closes: dict[str, pd.Series], since,
+                   smap: dict[str, tuple[str, str]] | None = None) -> dict[str, tuple[str | None, bool]]:
+    """{symbol: (index, is_fallback)} for every symbol, judging each index's history by its closes on or
+    after `since` (the risk window)."""
+    smap = load_sector_map() if smap is None else smap
+    lo = pd.Timestamp(since)
+    sessions = {i: int((c.index >= lo).sum()) for i, c in closes.items()}
+    return {s: pick_index(ind, sessions, smap) for s, ind in industries.items()}
+
+
+# --- thin I/O ------------------------------------------------------------------------------
+
+def load_industries() -> dict[str, str | None]:
+    """{symbol: NSE industry} from company_snapshot (the classification the map is keyed on)."""
+    from scanner import db
+    return {r["symbol"]: r.get("industry") for r in db.select_all("company_snapshot", {"select": "symbol,industry"})}
+
+
+def load_sector_closes(start, end) -> dict[str, pd.Series]:
+    """{index_symbol: closes} for the configured sector indices from index_prices, [start, end]."""
+    from scanner import db
+    names = ",".join(f'"{s}"' for s in sector_symbols())
+    rows = db.select_all("index_prices", {"select": "index_symbol,trade_date,close", "index_symbol": f"in.({names})",
+                                          "and": f"(trade_date.gte.{start},trade_date.lte.{end})",
+                                          "order": "index_symbol,trade_date"})
+    out: dict[str, list] = {}
+    for r in rows:
+        out.setdefault(r["index_symbol"], []).append((pd.Timestamp(r["trade_date"]), float(r["close"])))
+    return {s: pd.Series([c for _, c in v], index=pd.DatetimeIndex([d for d, _ in v], name="date"))
+            for s, v in out.items()}
+
+
 def _r(v, dp=4):
     if v is None:
         return None

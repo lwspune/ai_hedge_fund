@@ -423,7 +423,7 @@ alter table daily_prices enable row level security;
 create policy "anon read daily_prices" on daily_prices for select to anon using (true);
 
 create table if not exists index_prices (
-  index_symbol text not null,                 -- Yahoo ticker: ^NSEI, ^CRSLDX, ...
+  index_symbol text not null,                 -- Yahoo ticker (^NSEI, ^CRSLDX) or NSE sector index name ('Nifty Bank')
   trade_date   date not null,
   close        real not null check (close > 0),
   primary key (index_symbol, trade_date)
@@ -930,3 +930,16 @@ create table if not exists market_regime (
 );
 alter table market_regime enable row level security;
 create policy "anon read market_regime" on market_regime for select to anon using (true);
+
+-- ============================================================================
+-- Sector indices v1 (docs/SECTOR_INDICES_SPEC.md). Sector closes live in index_prices (index_symbol =
+-- the NSE name, e.g. 'Nifty Bank'; loaded from NSE's daily ind_close_all file). Risk lens gains the
+-- stock's sector index (primary, or fallback until the primary has 250 sessions) and beta / correlation
+-- to it. Measurements, not a rotation signal.
+-- ============================================================================
+alter table risk_metrics add column if not exists sector_index text;
+alter table risk_metrics add column if not exists sector_is_fallback boolean;
+alter table risk_metrics add column if not exists beta_sector_1y real;
+alter table risk_metrics add column if not exists corr_sector_1y real
+  check (corr_sector_1y is null or corr_sector_1y between -1 and 1);
+alter table risk_metrics add column if not exists sector_ret_3m real;
