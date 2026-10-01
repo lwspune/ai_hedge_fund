@@ -308,3 +308,43 @@ def test_every_flag_has_a_dashboard_label():
     block = re.search(r"const FLAG_LABEL = \{(.*?)\n\}", js, re.S).group(1)
     labelled = set(re.findall(r"^\s*(\w+):", block, re.M))
     assert labelled == set(risk.FLAGS)
+
+
+
+# --- sector-relative risk (docs/SECTOR_INDICES_SPEC.md §2.3) ----------------------------------
+
+def test_symbol_metrics_beta_to_the_sector_index():
+    mkt = _mkt()
+    sector = _levered(mkt, b=1.2, level=40000.0)               # the sector moves 1.2 x the market
+    stock = _levered(sector, b=1.5)                             # the stock 1.5 x its sector
+    m = symbol_metrics("BANKX", _bars(stock), mkt, [], "EQ", set(),
+                       sector={"index": "Nifty Bank", "fallback": False, "closes": sector})
+    assert m["sector_index"] == "Nifty Bank" and m["sector_is_fallback"] is False
+    assert m["beta_sector_1y"] == pytest.approx(1.5, rel=1e-6)
+    assert m["corr_sector_1y"] == pytest.approx(1.0, abs=1e-9)
+    assert m["sector_ret_3m"] == pytest.approx(sector.iloc[-1] / sector.iloc[-64] - 1)
+    assert m["beta_1y"] == pytest.approx(1.8, rel=1e-6)         # unchanged: still against NIFTY 500
+
+
+def test_sector_metrics_follow_the_same_gates():
+    mkt = _mkt()
+    sector = _levered(mkt, b=1.2, level=40000.0)
+    stock = _levered(sector, b=1.5)
+    stock = stock[(np.arange(len(stock)) % 3 != 1)]             # sparse: beta to anything is null
+    m = symbol_metrics("THIN", _bars(stock), mkt, [], "EQ", set(),
+                       sector={"index": "Nifty Bank", "fallback": True, "closes": sector})
+    assert m["beta_sector_1y"] is None and m["corr_sector_1y"] is None and m["sector_index"] == "Nifty Bank"
+    bare = symbol_metrics("X", _bars(_levered(mkt)), mkt, [], "EQ", set())
+    assert bare["sector_index"] is None and bare["beta_sector_1y"] is None and bare["sector_is_fallback"] is None
+
+
+def test_risk_row_carries_sector_text_and_flag():
+    from datetime import date
+    m = {"symbol": "ABC", "sessions": 270, "last_date": None, "flags": [], "sector_index": "Nifty Bank",
+         "sector_is_fallback": True, "beta_sector_1y": np.float64(1.23456), "corr_sector_1y": float("nan"),
+         "sector_ret_3m": 0.05}
+    r = risk_row(m, date(2026, 9, 30))
+    json.dumps(r)
+    assert r["sector_index"] == "Nifty Bank" and r["sector_is_fallback"] is True
+    assert r["beta_sector_1y"] == pytest.approx(1.2346, abs=1e-4) and r["corr_sector_1y"] is None
+    assert risk_row({**m, "sector_index": None, "sector_is_fallback": None}, date(2026, 9, 30))["sector_index"] is None

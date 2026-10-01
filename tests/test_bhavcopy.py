@@ -129,3 +129,12 @@ def test_confirm_close_against_the_previous_close():
     assert not confirm_close(23500.0, 23909.55, 38.0)        # a different day's file / wrong index
     assert not confirm_close(None, 23909.55, 38.0)           # nothing to check against
     assert not confirm_close(23871.6, 23909.55, None)
+
+
+def test_parse_index_closes_with_a_sector_name_map():
+    from scanner.bhavcopy import parse_index_closes
+    text = IDX.read_text(encoding="utf-8")
+    got = parse_index_closes(text, {"nifty bank": "Nifty Bank", "nifty it": "Nifty IT"})
+    assert got == {"Nifty Bank": {"date": date(2026, 1, 1), "close": 59711.55, "change": 129.7},
+                   "Nifty IT": {"date": date(2026, 1, 1), "close": 38171.5, "change": 287.45}}
+    assert set(parse_index_closes(text)) == {"^NSEI", "^CRSLDX"}            # default: the two benchmarks

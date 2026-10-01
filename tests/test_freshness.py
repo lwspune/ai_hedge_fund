@@ -150,3 +150,19 @@ def test_market_regime_rules():
     assert TRADING_RULES["market_regime"] == 1
     f = FLOORS["market_regime"]
     assert f["table"] == "market_regime" and f["days"] is None and f["min"] == 1400
+
+
+
+def test_sector_holes_start_at_each_index_s_first_row():
+    """An index launched inside the window is checked from its first row; one that stops is a hole."""
+    from scripts.check_freshness import HOLE_TABLES, sector_holes
+    assert HOLE_TABLES["sector_indices"] == ("sectors", None)
+    hol = frozenset()
+    today = date(2026, 9, 30)
+    days = [date(2026, 9, d) for d in (21, 22, 23, 24, 25, 28, 29)]           # the last 7 sessions before today
+    rows = {"Nifty Bank": set(days) | {date(2026, 9, 1)},                     # full + an older row
+            "Nifty Power": set(days[3:]),                                     # launched 24 Sep: fine
+            "Nifty Media": {date(2026, 9, 1)} | set(days[:4])}                # stopped after the 24th: a hole
+    got = sector_holes(rows, today, 7, hol)
+    assert got == {"Nifty Media": [date(2026, 9, 25), date(2026, 9, 28), date(2026, 9, 29)]}
+    assert sector_holes({}, today, 7, hol) == {}

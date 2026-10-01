@@ -108,3 +108,33 @@ def test_refresh_indices_falls_back_to_nse_for_sessions_yahoo_misses(monkeypatch
     assert fetched == [D2]                                   # one NSE file per missing session, nothing else
     assert {(r["index_symbol"], r["trade_date"]) for r in inserted} >= {("^NSEI", "2026-01-01"), ("^CRSLDX", "2026-01-01")}
     assert n == 6
+
+
+def test_plan_fallback_accepts_an_index_s_first_close_only_when_allowed():
+    """A sector index's first-ever close has nothing before it to check against: stored on a date match."""
+    from scripts.refresh_prices import plan_fallback
+    files = {D2: {"Nifty Bank": {"date": D2, "close": 59711.55, "change": 129.7}},
+             D3: {"Nifty Bank": {"date": D3, "close": 59800.0, "change": 88.45}}}
+    rows, skipped = plan_fallback({"Nifty Bank": [D2, D3]}, files, {}, allow_first=True)
+    assert [(r["trade_date"], r["close"]) for r in rows] == [("2026-01-01", 59711.55), ("2026-01-02", 59800.0)]
+    rows, _ = plan_fallback({"Nifty Bank": [D2]}, files, {})                    # benchmarks: never unchecked
+    assert rows == []
+    holiday = {D2: {"Nifty Bank": {"date": D1, "close": 59711.55, "change": 129.7}}}
+    assert plan_fallback({"Nifty Bank": [D2]}, holiday, {}, allow_first=True)[0] == []
+
+
+def test_refresh_sectors_stores_checked_closes_for_every_session(monkeypatch):
+    import scripts.refresh_prices as rp
+    inserted, fetched = [], []
+    monkeypatch.setattr(rp, "_last_closes_before", lambda syms, d: {"Nifty Bank": (D1, 59581.85)})
+    monkeypatch.setattr(rp, "_known_closes_for", lambda syms, frm, to: {s: {} for s in syms})
+    monkeypatch.setattr(rp, "_insert_index_rows", lambda rows: inserted.extend(rows))
+    monkeypatch.setattr(rp, "_index_file", lambda d: fetched.append(d) or "file")
+    monkeypatch.setattr(rp, "parse_index_closes", lambda text, names=None: {
+        "Nifty Bank": {"date": D2, "close": 59711.55, "change": 129.7},
+        "Nifty IT": {"date": D2, "close": 38171.5, "change": 287.45}})
+    monkeypatch.setattr(rp, "sector_symbols", lambda: ["Nifty Bank", "Nifty IT"])
+    monkeypatch.setattr(rp, "load_sector_indices", lambda: {"nifty bank": "Nifty Bank", "nifty it": "Nifty IT"})
+    n = rp.refresh_sectors({D2})
+    assert fetched == [D2] and n == 2
+    assert {(r["index_symbol"], r["close"]) for r in inserted} == {("Nifty Bank", 59711.55), ("Nifty IT", 38171.5)}
