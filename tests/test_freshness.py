@@ -142,7 +142,7 @@ def test_holes_lists_missing_trading_days_inside_the_window():
 def test_hole_rules_cover_prices_and_benchmarks():
     from scripts.check_freshness import HOLE_TABLES, HOLE_WINDOW
     assert HOLE_WINDOW == 60
-    assert set(HOLE_TABLES) == {"prices", "index_^CRSLDX", "index_^NSEI"}
+    assert set(HOLE_TABLES) == {"prices", "index_^CRSLDX", "index_^NSEI", "sector_indices"}
 
 
 def test_market_regime_rules():
@@ -166,3 +166,11 @@ def test_sector_holes_start_at_each_index_s_first_row():
     got = sector_holes(rows, today, 7, hol)
     assert got == {"Nifty Media": [date(2026, 9, 25), date(2026, 9, 28), date(2026, 9, 29)]}
     assert sector_holes({}, today, 7, hol) == {}
+
+
+
+def test_sector_regime_rules():
+    from scripts.check_freshness import TRADING_RULES
+    assert TRADING_RULES["sector_regime"] == 1
+    f = FLOORS["sector_regime"]
+    assert f["table"] == "sector_regime" and f["days"] is None and f["min"] == 15

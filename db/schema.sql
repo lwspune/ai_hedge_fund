@@ -943,3 +943,19 @@ alter table risk_metrics add column if not exists beta_sector_1y real;
 alter table risk_metrics add column if not exists corr_sector_1y real
   check (corr_sector_1y is null or corr_sector_1y between -1 and 1);
 alter table risk_metrics add column if not exists sector_ret_3m real;
+
+-- sector_regime: one row per sector index some stock maps to, overwritten daily by refresh_regime.py
+-- (latest day only: today's NSE classification is never applied to the past).
+create table if not exists sector_regime (
+  index_name     text primary key,
+  as_of          date not null,
+  close          real not null check (close > 0),
+  dd             real check (dd is null or (dd <= 0 and dd >= -1)),
+  ret_1m real, ret_3m real, rel_3m real,
+  n_stocks       integer not null check (n_stocks >= 0),
+  pct_above_200  real check (pct_above_200 is null or pct_above_200 between 0 and 1),
+  updated_at     timestamptz not null default now()
+);
+alter table sector_regime enable row level security;
+create policy "anon read sector_regime" on sector_regime for select to anon using (true);
+

@@ -73,6 +73,7 @@ TRADING_QUERIES = {
     "surveillance": ("surveillance_daily", "as_of", {}, 1),   # a snapshot every trading day
     "risk_metrics": ("risk_metrics", "as_of", {}, 1),         # rewritten every trading day (refresh_risk.py)
     "market_regime": ("market_regime", "trade_date", {}, 1),  # a row every trading day (refresh_regime.py)
+    "sector_regime": ("sector_regime", "as_of", {}, 1),       # one row per sector, rewritten daily
 }
 TRADING_RULES = {name: q[3] for name, q in TRADING_QUERIES.items()}
 
@@ -108,6 +109,8 @@ FLOORS = {
     "risk_metrics": {"table": "risk_metrics", "col": None, "filters": {}, "days": None, "min": 1500},
     # one row per trading day since 2020 (~1,650); a rebuild that silently wrote one year trips it
     "market_regime": {"table": "market_regime", "col": None, "filters": {}, "days": None, "min": 1400},
+    # one row per sector index some stock maps to (~25 today)
+    "sector_regime": {"table": "sector_regime", "col": None, "filters": {}, "days": None, "min": 15},
 }
 
 
@@ -118,7 +121,10 @@ HOLE_TABLES = {
     "prices": ("rpc", "price_dates"),
     "index_^CRSLDX": ("index", "^CRSLDX"),
     "index_^NSEI": ("index", "^NSEI"),
+    # every NSE sector index (data/sector_indices.csv), each checked from its own first stored row
+    "sector_indices": ("sectors", None),
 }
+SECTOR_LOOKBACK_DAYS = 30        # rows this far before the window tell an established index from a new one
 
 
 # name -> (table, numerator filters, denominator filters, minimum share)
@@ -178,6 +184,20 @@ def holes(present: set, today: date, n_trading: int, hol) -> list[date]:
         if is_trading_day(d, hol) and d not in present:
             out.append(d)
         d += timedelta(days=1)
+    return out
+
+
+def sector_holes(rows: dict, today: date, n_trading: int, hol) -> dict:
+    """{index: [missing trading days]} — each index checked from its own first row (an index launched
+    inside the window is fine; one whose rows stop is a hole). Indices with no rows are not judged."""
+    out = {}
+    for sym, present in rows.items():
+        if not present:
+            continue
+        first = min(present)
+        g = [d for d in holes(present, today, n_trading, hol) if d >= first]
+        if g:
+            out[sym] = g
     return out
 
 
@@ -249,6 +269,24 @@ def _present_dates(spec: tuple, since: date) -> set | None:
     return {date.fromisoformat(r["trade_date"]) for r in rows}
 
 
+def _sector_gaps(since: date, today: date, hol) -> list | None:
+    """['<index> <date>', ...] for the sector hole rule; None when the rows can't be read."""
+    from scanner import db
+    from scanner.sectors import sector_symbols
+    syms = sector_symbols()
+    names = ",".join(f'"{s}"' for s in syms)
+    try:
+        rows = db.select_all("index_prices", {"select": "index_symbol,trade_date", "index_symbol": f"in.({names})",
+                                              "trade_date": f"gte.{since - timedelta(days=SECTOR_LOOKBACK_DAYS)}"})
+    except Exception as e:
+        print(f"  sector hole check failed: {e}")
+        return None
+    present = {s: set() for s in syms}
+    for r in rows:
+        present[r["index_symbol"]].add(date.fromisoformat(r["trade_date"]))
+    return [f"{s} {d}" for s, ds in sector_holes(present, today, HOLE_WINDOW, hol).items() for d in ds]
+
+
 def _last_scan_params() -> dict:
     from scanner import db
     rows = db.select("scan_runs", {"select": "params", "signal_name": "eq.buyback_arb",
@@ -274,6 +312,9 @@ def main():
     since = window_start(today, HOLE_WINDOW, holidays())
     gaps = {}
     for name, spec in HOLE_TABLES.items():
+        if spec[0] == "sectors":
+            gaps[name] = _sector_gaps(since, today, holidays())
+            continue
         present = _present_dates(spec, since)
         gaps[name] = None if present is None else holes(present, today, HOLE_WINDOW, holidays())
 

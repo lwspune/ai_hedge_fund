@@ -65,6 +65,8 @@ def main():
     from scanner.pricestore import bar_panel, get_closes
     from scanner.regime import (LOOKBACK_DAYS, RECOMPUTE_SESSIONS, START, breadth, format_table,
                                 index_metrics, regime_rows, stock_states)
+    from scanner.risk import WINDOW_DAYS
+    from scanner.sectors import N500, assign_indices, load_industries, load_sector_closes, sector_rows
 
     args = sys.argv[1:]
     dry = "--print" in args
@@ -91,6 +93,17 @@ def main():
           f"total {time.monotonic() - t0:.0f}s, peak {_peak_mb()}")
     print(format_table(rows[-20:]))
 
+    # sector table: latest session only (docs/SECTOR_INDICES_SPEC.md §2.4)
+    last = sessions[-1]
+    sec_closes = load_sector_closes(START, today)
+    picks = assign_indices(load_industries(), {**sec_closes, N500: n500}, today - timedelta(days=WINDOW_DAYS))
+    states_last = {s: (bool(st.at[last, "eligible"]), bool(st.at[last, "above_200"]))
+                   for s, st in states.items() if last in st.index}
+    srows = sector_rows(sec_closes, n500, states_last, {s: idx for s, (idx, _) in picks.items()})
+    print(f"sectors: {len(srows)} rows" + ("" if srows else " (no sector closes yet: backfill.yml what=sector-indices)"))
+    for r in srows:
+        print(f"  {r['index_name']:<34}{r['as_of']}  dd {r['dd']}  3m {r['ret_3m']}  stocks {r['n_stocks']}")
+
     failures = run_failures(rows, bench_last)
     if failures:
         raise SystemExit("FAILED: " + "; ".join(failures))
@@ -101,6 +114,10 @@ def main():
         _, bad = db.upsert_resilient("market_regime", rows[i:i + PAGE], on_conflict="trade_date")
         rejected += bad
     print(f"upserted {len(rows) - len(rejected)} rows")
+    if srows:
+        _, bad = db.upsert_resilient("sector_regime", srows, on_conflict="index_name")
+        rejected += [({"trade_date": r["index_name"]}, e) for r, e in bad]
+        print(f"upserted {len(srows) - len(bad)} sector rows")
     if rejected:
         for r, err in rejected[:20]:
             print(f"  rejected {r['trade_date']}: {err}")
