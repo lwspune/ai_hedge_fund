@@ -1,0 +1,59 @@
+industry,primary,fallback
+Banks,Nifty Bank,Nifty Financial Services
+Finance,Nifty Financial Services Ex-Bank,Nifty Financial Services
+Financial Technology (Fintech),Nifty Financial Services Ex-Bank,Nifty Financial Services
+Capital Markets,Nifty Capital Markets,Nifty Financial Services
+Insurance,Nifty Insurance,Nifty Financial Services
+IT - Software,Nifty IT,Nifty IT
+IT - Services,Nifty IT,Nifty IT
+IT - Hardware,Nifty IT,Nifty IT
+Pharmaceuticals & Biotechnology,Nifty Pharma,Nifty Healthcare Index
+Healthcare Services,Nifty Healthcare Index,Nifty Pharma
+Healthcare Equipment & Supplies,Nifty Healthcare Index,Nifty Pharma
+Agricultural Food & other Products,Nifty FMCG,Nifty FMCG
+Food Products,Nifty FMCG,Nifty FMCG
+Beverages,Nifty FMCG,Nifty FMCG
+Household Products,Nifty FMCG,Nifty FMCG
+Personal Products,Nifty FMCG,Nifty FMCG
+Diversified FMCG,Nifty FMCG,Nifty FMCG
+Cigarettes & Tobacco Products,Nifty FMCG,Nifty FMCG
+Automobiles,Nifty Auto,Nifty Auto
+Auto Components,Nifty Auto,Nifty Auto
+"Agricultural, Commercial & Construction Vehicles",Nifty Auto,Nifty Auto
+Ferrous Metals,Nifty Metal,Nifty Metal
+Non - Ferrous Metals,Nifty Metal,Nifty Metal
+Minerals & Mining,Nifty Metal,Nifty Metal
+Metals & Minerals Trading,Nifty Metal,Nifty Metal
+Diversified Metals,Nifty Metal,Nifty Metal
+Realty,Nifty Realty,Nifty Realty
+Oil,Nifty Oil & Gas,Nifty Energy
+Petroleum Products,Nifty Oil & Gas,Nifty Energy
+Gas,Nifty Oil & Gas,Nifty Energy
+Consumable Fuels,Nifty Oil & Gas,Nifty Energy
+Power,Nifty Power,Nifty Energy
+Other Utilities,Nifty Power,Nifty Energy
+Media,Nifty Media,Nifty Media
+Entertainment,Nifty Media,Nifty Media
+Printing & Publication,Nifty Media,Nifty Media
+Consumer Durables,Nifty Consumer Durables,Nifty India Consumption
+Textiles & Apparels,Nifty Consumer Services,Nifty India Consumption
+Leisure Services,Nifty Consumer Services,Nifty India Consumption
+Retailing,Nifty Consumer Services,Nifty India Consumption
+Other Consumer Services,Nifty Consumer Services,Nifty India Consumption
+Chemicals & Petrochemicals,Nifty Chemicals,Nifty Commodities
+Fertilizers & Agrochemicals,Nifty Chemicals,Nifty Commodities
+Cement & Cement Products,Nifty Cement,Nifty Commodities
+Other Construction Materials,Nifty Cement,Nifty Commodities
+"Paper, Forest & Jute Products",Nifty Cement,Nifty Commodities
+Industrial Products,Nifty Capital Goods,Nifty India Manufacturing
+Industrial Manufacturing,Nifty Capital Goods,Nifty India Manufacturing
+Electrical Equipment,Nifty Capital Goods,Nifty India Manufacturing
+Aerospace & Defense,Nifty India Defence,Nifty India Manufacturing
+Construction,Nifty Construction,Nifty Infrastructure
+Transport Services,Nifty Transportation & Logistics,Nifty Infrastructure
+Transport Infrastructure,Nifty Transportation & Logistics,Nifty Infrastructure
+Commercial Services & Supplies,Nifty Services Sector,Nifty Services Sector
+Engineering Services,Nifty Services Sector,Nifty Services Sector
+Telecom - Services,Nifty Telecommunications,Nifty Infrastructure
+Telecom -  Equipment & Accessories,Nifty Telecommunications,Nifty Infrastructure
+Diversified,^CRSLDX,^CRSLDX
