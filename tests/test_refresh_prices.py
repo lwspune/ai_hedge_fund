@@ -79,8 +79,8 @@ def test_plan_fallback_fills_confirmed_closes_and_says_why_it_skips():
     assert rows == [] and all("is for 2025-12-31" in why for _, _, why in skipped)
     rows, skipped = plan_fallback(missing, {D2: None}, known)
     assert rows == [] and all(why == "no NSE file" for _, _, why in skipped)
-    rows, skipped = plan_fallback(missing, {D2: _file(D2, (26146.55, 16.95), (23000.0, 38.0))}, known)
-    assert [r["index_symbol"] for r in rows] == ["^NSEI"] and skipped[0][:2] == ("^CRSLDX", D2)
+    rows, skipped = plan_fallback(missing, {D2: _file(D2, (26146.55, 16.95), (30000.0, 38.0))}, known)
+    assert [r["index_symbol"] for r in rows] == ["^NSEI"] and skipped[0][:2] == ("^CRSLDX", D2)   # +26%: implausible
 
 
 def test_plan_fallback_chains_consecutive_missing_days():
@@ -157,7 +157,33 @@ def test_plan_fallback_bridges_a_special_session_the_stock_store_lacks():
     assert [(r["trade_date"], r["close"]) for r in rows] == [
         ("2021-11-04", 39573.7), ("2021-11-08", 39438.25), ("2021-11-09", 39368.8)]
     assert skipped == []
-    rows, skipped = plan_fallback({"Nifty Bank": [d1, d2]}, files, known)          # no lookup: as before
-    assert rows == [] and len(skipped) == 2
-    bad = {mu: {"Nifty Bank": {"date": mu, "close": 40000.0, "change": 171.65}}}   # a bridge that doesn't chain
-    assert plan_fallback({"Nifty Bank": [d1]}, files, known, lookup=bad.get)[0] == []
+    # no lookup / a bridge that doesn't chain: the days are still believable moves, stored without Muhurat
+    rows, skipped = plan_fallback({"Nifty Bank": [d1, d2]}, files, known)
+    assert [r["trade_date"] for r in rows] == ["2021-11-08", "2021-11-09"] and skipped == []
+    bad = {mu: {"Nifty Bank": {"date": mu, "close": 40000.0, "change": 171.65}}}
+    assert [r["trade_date"] for r in plan_fallback({"Nifty Bank": [d1]}, files, known, lookup=bad.get)[0]] == ["2021-11-08"]
+
+
+
+def test_plan_fallback_tolerates_nse_s_wrong_change_column_but_not_an_implausible_close():
+    """NSE 13-03-2023 Nifty Bank: change -1692.05 is measured from 9 March; the close itself is right."""
+    from scripts.refresh_prices import MAX_INDEX_MOVE, plan_fallback
+    assert MAX_INDEX_MOVE == 0.15
+    d0, d1 = date(2023, 3, 10), date(2023, 3, 13)
+    known = {"Nifty Bank": {d0: 40485.45}}
+    good = {d1: {"Nifty Bank": {"date": d1, "close": 39564.7, "change": -1692.05}}}
+    rows, skipped = plan_fallback({"Nifty Bank": [d1]}, good, known)
+    assert [(r["trade_date"], r["close"]) for r in rows] == [("2023-03-13", 39564.7)] and skipped == []
+    wild = {d1: {"Nifty Bank": {"date": d1, "close": 52000.0, "change": -1692.05}}}     # +28%: a broken row
+    rows, skipped = plan_fallback({"Nifty Bank": [d1]}, wild, known)
+    assert rows == [] and "implausible" in skipped[0][2]
+
+
+def test_plan_fallback_accepts_a_month_first_date():
+    """Some 2023 files write the date month-first (the 6 Apr 2023 file says 04-06-2023)."""
+    from scripts.refresh_prices import plan_fallback
+    d0, d1 = date(2023, 4, 5), date(2023, 4, 6)
+    known = {"Nifty Bank": {d0: 40999.15}}
+    files = {d1: {"Nifty Bank": {"date": date(2023, 6, 4), "date_alt": d1, "close": 41041.0, "change": 41.85}}}
+    rows, _ = plan_fallback({"Nifty Bank": [d1]}, files, known)
+    assert [r["trade_date"] for r in rows] == ["2023-04-06"]

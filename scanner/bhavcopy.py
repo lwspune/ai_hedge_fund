@@ -131,7 +131,8 @@ def parse_index_closes(text: str, names: dict[str, str] | None = None) -> dict:
         if not sym:
             continue
         try:
-            d = datetime.strptime(rec[col["Index Date"]].strip(), "%d-%m-%Y").date()
+            raw = rec[col["Index Date"]].strip()
+            d = datetime.strptime(raw, "%d-%m-%Y").date()
             close = float(rec[col["Closing Index Value"]])
         except (ValueError, IndexError):
             continue
@@ -140,6 +141,12 @@ def parse_index_closes(text: str, names: dict[str, str] | None = None) -> dict:
         except (ValueError, IndexError):
             change = None
         out[sym] = {"date": d, "close": close, "change": change}
+        try:                                       # some 2023 files write the date month-first
+            alt = datetime.strptime(raw, "%m-%d-%Y").date()
+            if alt != d:
+                out[sym]["date_alt"] = alt
+        except ValueError:
+            pass
     return out
 
 

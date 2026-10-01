@@ -88,20 +88,29 @@ def _bridge(sym: str, prev_day: date, prev: float, d: date, rec: dict, lookup) -
     for k in range(1, (d - prev_day).days):
         day = prev_day + timedelta(days=k)
         r = (lookup(day) or {}).get(sym)
-        if r and r["date"] == day and confirm_close(p, r["close"], r["change"]):
+        if r and _is_for(r, day) and confirm_close(p, r["close"], r["change"]):
             chain.append((day, r["close"]))
             p = r["close"]
     return chain if chain and confirm_close(p, rec["close"], rec["change"]) else None
 
 
+MAX_INDEX_MOVE = 0.15    # one session; the worst NIFTY day since 2020 was ~-13% (2020-03-23)
+
+
+def _is_for(rec: dict, d: date) -> bool:
+    """The file's row is for `d` (some 2023 files write the date month-first: `date_alt`)."""
+    return rec["date"] == d or rec.get("date_alt") == d
+
+
 def plan_fallback(missing: dict, parsed: dict, known: dict, allow_first: bool = False,
-                  lookup=None) -> tuple[list[dict], list[tuple]]:
+                  lookup=None, notes: list | None = None) -> tuple[list[dict], list[tuple]]:
     """Rows to store from NSE's index-close files, and (sym, date, why) for the rest. A close is stored
-    only if the file is for that day and NSE's change from the previous known close agrees
-    (`confirm_close`); dates are walked in order so a filled day checks the next one. `allow_first`: an
-    index with no earlier close at all (a sector index's first day) is stored on the date match alone.
-    `lookup(date) -> parsed file`: when the check fails, the calendar days in between are searched for a
-    special session that chains (stored too) — without it one Muhurat day would fail every day after."""
+    when the file is for that day (exact index name) and either NSE's change from the previous known close
+    agrees (`confirm_close`) or — NSE's change column is sometimes wrong (13-03-2023 Nifty Bank: measured
+    from two sessions back) — the close is within MAX_INDEX_MOVE of the previous close; those are appended
+    to `notes`. Dates are walked in order so a filled day checks the next one. `allow_first`: an index's
+    first-ever close needs the date match only. `lookup(date) -> parsed file`: on a failed change check,
+    the days in between are searched for a special session that chains (Muhurat; stored too)."""
     rows, skipped = [], []
     for sym, days in missing.items():
         closes = dict(known.get(sym, {}))
@@ -112,16 +121,26 @@ def plan_fallback(missing: dict, parsed: dict, known: dict, allow_first: bool = 
             prev = closes[max(prev_days)] if prev_days else None
             first = allow_first and not prev_days     # nothing earlier (later daily rows may already exist)
             why = ("no NSE file" if f is None else f"{sym} not in the file" if rec is None
-                   else f"file is for {rec['date']}" if rec["date"] != d
+                   else f"file is for {rec['date']}" if not _is_for(rec, d)
                    else None if first or confirm_close(prev, rec["close"], rec["change"])
-                   else f"close {rec['close']} - change {rec['change']} != previous close {prev}")
-            if why and rec is not None and rec["date"] == d and prev is not None:
+                   else "change check")
+            if why == "change check" and prev is not None:
                 chain = _bridge(sym, max(prev_days), prev, d, rec, lookup)
+                move = rec["close"] / prev - 1 if prev else float("inf")
                 if chain:
                     for day, c in chain:
                         closes[day] = c
                         rows.append({"index_symbol": sym, "trade_date": day.isoformat(), "close": c})
                     why = None
+                elif abs(move) <= MAX_INDEX_MOVE:
+                    why = None
+                    if notes is not None:
+                        notes.append((sym, d))
+                else:
+                    why = (f"implausible: close {rec['close']} vs previous close {prev} ({move:+.1%}); "
+                           f"NSE change {rec['change']}")
+            elif why == "change check":
+                why = "no previous close to check against"
             if why:
                 skipped.append((sym, d, why))
                 continue
@@ -216,8 +235,10 @@ def refresh_sectors(sessions) -> int:
     for d in sorted({d for v in missing.values() for d in v}):
         text = _index_file(d)
         parsed[d] = parse_index_closes(text, names) if text else None
+    notes: list = []
     rows, skipped = plan_fallback(missing, parsed, known, allow_first=True,
-                                  lookup=lambda day: _parsed_file(day, names))
+                                  lookup=lambda day: _parsed_file(day, names), notes=notes)
+    unconfirmed = Counter(s for s, _ in notes)
     _insert_index_rows(rows)
     stored = Counter(r["index_symbol"] for r in rows)
     first = {}
@@ -225,7 +246,8 @@ def refresh_sectors(sessions) -> int:
         first.setdefault(r["index_symbol"], r["trade_date"])
     for s in syms:
         if stored[s]:
-            print(f"  {s}: {stored[s]} closes from {first[s]}")
+            note = f" ({unconfirmed[s]} where NSE's own change column disagreed; move within ±15%)" if unconfirmed[s] else ""
+            print(f"  {s}: {stored[s]} closes from {first[s]}{note}")
     seen = {}                                     # first file each index appears in (before it: not launched)
     for d in sorted(parsed):
         for s in parsed[d] or {}:

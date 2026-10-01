@@ -138,3 +138,14 @@ def test_parse_index_closes_with_a_sector_name_map():
     assert got == {"Nifty Bank": {"date": date(2026, 1, 1), "close": 59711.55, "change": 129.7},
                    "Nifty IT": {"date": date(2026, 1, 1), "close": 38171.5, "change": 287.45}}
     assert set(parse_index_closes(text)) == {"^NSEI", "^CRSLDX"}            # default: the two benchmarks
+
+
+
+def test_parse_index_closes_keeps_the_month_first_reading():
+    from scanner.bhavcopy import parse_index_closes
+    head = IDX.read_text(encoding="utf-8").splitlines()[0]
+    text = "\n".join([head, "Nifty Bank,04-06-2023,40940.7,41274.7,40820.55,41041,41.85,0.1,1,1,1,1,1",
+                      "Nifty IT,13-04-2023,1,1,1,28000,10,0.1,1,1,1,1,1"]) + "\n"
+    got = parse_index_closes(text, {"nifty bank": "Nifty Bank", "nifty it": "Nifty IT"})
+    assert got["Nifty Bank"]["date"] == date(2023, 6, 4) and got["Nifty Bank"]["date_alt"] == date(2023, 4, 6)
+    assert "date_alt" not in got["Nifty IT"]                                    # 13 can't be a month
