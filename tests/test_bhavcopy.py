@@ -93,3 +93,39 @@ def test_decode_handles_xlsx_served_as_csv():
 def test_decode_passes_csv_through():
     from scanner.bhavcopy import decode_bhavcopy
     assert decode_bhavcopy(_text().encode("utf-8")) == _text()
+
+
+# --- NSE daily index closes (fallback for the sessions Yahoo misses) -------------------------------
+
+IDX = Path(__file__).resolve().parent / "fixtures" / "indices" / "ind_close_all_01012026_head.csv"
+
+
+def test_index_url():
+    from scanner.bhavcopy import index_url
+    assert index_url(date(2026, 1, 1)) == \
+        "https://nsearchives.nseindia.com/content/indices/ind_close_all_01012026.csv"
+
+
+def test_parse_index_closes_matches_names_exactly():
+    from scanner.bhavcopy import parse_index_closes
+    got = parse_index_closes(IDX.read_text(encoding="utf-8"))
+    assert got == {"^NSEI": {"date": date(2026, 1, 1), "close": 26146.55, "change": 16.95},
+                   "^CRSLDX": {"date": date(2026, 1, 1), "close": 23909.55, "change": 38.0}}
+    # "Nifty Next 50" / "Nifty500 Multicap 50:25:25" are other indices, never a benchmark
+    assert parse_index_closes("Index Name,Index Date,Closing Index Value\n") == {}
+    assert parse_index_closes("") == {}
+
+
+def test_parse_index_closes_skips_unreadable_rows():
+    from scanner.bhavcopy import parse_index_closes
+    head = IDX.read_text(encoding="utf-8").splitlines()[0]
+    bad = head + "\nNifty 50,01-01-2026,1,1,1,-,-,-,0,0,0,0,0\nNifty 500,garbage,1,1,1,23909.55,38.0,.16,0,0,0,0,0\n"
+    assert parse_index_closes(bad) == {}
+
+
+def test_confirm_close_against_the_previous_close():
+    from scanner.bhavcopy import confirm_close
+    assert confirm_close(23871.6, 23909.55, 38.0)            # stored prev (real) + NSE change = NSE close
+    assert not confirm_close(23500.0, 23909.55, 38.0)        # a different day's file / wrong index
+    assert not confirm_close(None, 23909.55, 38.0)           # nothing to check against
+    assert not confirm_close(23871.6, 23909.55, None)

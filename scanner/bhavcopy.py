@@ -8,6 +8,8 @@ any premium against a nominal rupee price (buyback / open offer / rights issue p
   parse_bhavcopy -> rows for the `daily_prices` table (equity series, one per symbol, guarded)
   parse_raw      -> every column and series as published, for the `prices` bucket
                     (`bhav/YYYY-MM.parquet`, the durable full history)
+  parse_index_closes -> NSE's daily index-close file (`ind_close_all_DDMMYYYY.csv`), the fallback for
+                    the benchmark sessions Yahoo misses (Muhurat, Budget Saturdays, some 1 Jan / 26 Dec)
 """
 from __future__ import annotations
 
@@ -98,3 +100,60 @@ def fetch_bhavcopy(d: date, session=None) -> str | None:
         return None
     r.raise_for_status()
     return decode_bhavcopy(r.content)
+
+
+# --- NSE daily index closes ---------------------------------------------------------------
+
+INDEX_URL = "https://nsearchives.nseindia.com/content/indices/ind_close_all_{d:%d%m%Y}.csv"
+NSE_INDEX_NAMES = {"nifty 50": "^NSEI", "nifty 500": "^CRSLDX"}   # exact names; "Nifty Next 50" is another index
+
+
+def index_url(d: date) -> str:
+    return INDEX_URL.format(d=d)
+
+
+def parse_index_closes(text: str) -> dict:
+    """{benchmark: {date, close, change}} for NIFTY 50 / NIFTY 500 in one day's index-close file.
+    Rows whose date or close can't be read are skipped (never a guessed value)."""
+    import csv
+    from datetime import datetime
+    out = {}
+    rows = csv.reader(io.StringIO(text or ""))
+    header = [h.strip() for h in next(rows, [])]
+    col = {h: i for i, h in enumerate(header)}
+    need = ("Index Name", "Index Date", "Closing Index Value")
+    if not all(k in col for k in need):
+        return out
+    for rec in rows:
+        sym = NSE_INDEX_NAMES.get(rec[col["Index Name"]].strip().lower()) if rec else None
+        if not sym:
+            continue
+        try:
+            d = datetime.strptime(rec[col["Index Date"]].strip(), "%d-%m-%Y").date()
+            close = float(rec[col["Closing Index Value"]])
+        except (ValueError, IndexError):
+            continue
+        try:
+            change = float(rec[col["Points Change"]]) if "Points Change" in col else None
+        except (ValueError, IndexError):
+            change = None
+        out[sym] = {"date": d, "close": close, "change": change}
+    return out
+
+
+def confirm_close(prev: float | None, close: float, change: float | None) -> bool:
+    """NSE's close agrees with the stored previous close + NSE's points change (within rounding: the
+    table stores `real`). The guard that keeps a wrong day's or wrong index's file out."""
+    if prev is None or change is None:
+        return False
+    return abs(prev + change - close) <= max(1.0, 5e-5 * close)
+
+
+def fetch_index_closes(d: date, session=None) -> str | None:
+    """The day's index-close CSV text; None on 404 (no such session). Other errors raise."""
+    import requests
+    r = (session or requests).get(index_url(d), headers={"User-Agent": "Mozilla/5.0"}, timeout=60)
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    return r.content.decode("utf-8", errors="replace")

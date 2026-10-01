@@ -11,7 +11,9 @@ for dates inside the table's retention window, so a backfill never bloats Postgr
 into that month's raw parquet in the private `prices` bucket (bhav/YYYY-MM.parquet: every
 series and column, the durable history). Past weekdays with no file are recorded as holidays
 in `trading_calendar` (source nse_bhavcopy) — historical trading days for validations. Also
-refreshes `index_prices` (Yahoo benchmarks) for the same window.
+refreshes `index_prices` (Yahoo benchmarks) for the same window; a stock session Yahoo has no close
+for (Muhurat, Budget Saturdays, some 1 Jan / 26 Dec) is filled from NSE's daily index-close file,
+checked against the previous close + NSE's change before it is stored.
 """
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scanner.bhavcopy import confirm_close, fetch_index_closes, parse_index_closes  # noqa: E402
 
 KEEP_DAYS = 400                       # daily_prices retention (400 d since 2026-09-30, was 730); older rows live in the bucket only
 BENCHMARKS = ("^NSEI", "^CRSLDX")     # NIFTY 50, NIFTY 500
@@ -72,20 +75,95 @@ def _save_month(ym: str, df: pd.DataFrame) -> None:
     db.storage_put("prices", f"bhav/{ym}.parquet", buf.getvalue(), "application/vnd.apache.parquet")
 
 
-def refresh_indices(frm: date, to: date) -> int:
+def plan_fallback(missing: dict, parsed: dict, known: dict) -> tuple[list[dict], list[tuple]]:
+    """Rows to store from NSE's index-close files for sessions Yahoo lacks, and (sym, date, why) for the
+    rest. A close is stored only if the file is for that day and NSE's change from the previous known
+    close agrees (`confirm_close`); dates are walked in order so a filled day checks the next one."""
+    rows, skipped = [], []
+    for sym, days in missing.items():
+        closes = dict(known.get(sym, {}))
+        for d in sorted(days):
+            f = parsed.get(d)
+            rec = (f or {}).get(sym)
+            prev_days = [x for x in closes if x < d]
+            prev = closes[max(prev_days)] if prev_days else None
+            why = ("no NSE file" if f is None else f"{sym} not in the file" if rec is None
+                   else f"file is for {rec['date']}" if rec["date"] != d
+                   else None if confirm_close(prev, rec["close"], rec["change"])
+                   else f"close {rec['close']} - change {rec['change']} != previous close {prev}")
+            if why:
+                skipped.append((sym, d, why))
+                continue
+            closes[d] = rec["close"]
+            rows.append({"index_symbol": sym, "trade_date": d.isoformat(), "close": rec["close"]})
+    return rows, skipped
+
+
+# --- thin I/O for refresh_indices (monkeypatched in tests) ----------------------------------------
+
+def _yahoo_closes(frm: date, to: date) -> dict:
     import yfinance as yf
-    from scanner import db
-    rows = []
+    out = {}
     for sym in BENCHMARKS:
         h = yf.Ticker(sym).history(start=frm.isoformat(), end=(to + timedelta(days=1)).isoformat(),
                                    interval="1d", auto_adjust=False)
         if h is None or h.empty:
             raise SystemExit(f"yfinance returned nothing for {sym} {frm}..{to}")
-        rows += [{"index_symbol": sym, "trade_date": pd.Timestamp(i).date().isoformat(), "close": float(c)}
-                 for i, c in h["Close"].dropna().items() if c > 0]
+        out[sym] = {pd.Timestamp(i).date(): float(c) for i, c in h["Close"].dropna().items() if c > 0}
+    return out
+
+
+def _known_closes(frm: date, to: date) -> dict:
+    from scanner import db
+    out = {s: {} for s in BENCHMARKS}
+    for r in db.select_all("index_prices", {"select": "index_symbol,trade_date,close",
+                                            "and": f"(trade_date.gte.{frm},trade_date.lte.{to})"}):
+        if r["index_symbol"] in out:
+            out[r["index_symbol"]][date.fromisoformat(r["trade_date"])] = float(r["close"])
+    return out
+
+
+def _insert_index_rows(rows: list[dict]) -> None:
+    from scanner import db
     for i in range(0, len(rows), 1000):
         db.insert("index_prices", rows[i:i + 1000], on_conflict="index_symbol,trade_date", return_rows=False)
-    return len(rows)
+
+
+def _bucket_sessions(frm: date, to: date) -> set:
+    from scanner.pricestore import _bhav_month
+    days = set()
+    for ym in pd.period_range(frm, to, freq="M"):
+        raw = _bhav_month(str(ym))
+        if raw is not None and len(raw):
+            days |= {d for d in pd.to_datetime(raw["DATE1"]).dt.date if frm <= d <= to}
+    return days
+
+
+def refresh_indices(frm: date, to: date, sessions: set | None = None) -> int:
+    """Benchmarks into `index_prices`: Yahoo first, then NSE's daily index-close file for every stock
+    session (`sessions`; else the bucket's bhavcopy days) Yahoo lacks — checked against the previous
+    close before it is stored. A session still missing is printed; the freshness hole rule fails on it."""
+    yahoo = _yahoo_closes(frm, to)
+    rows = [{"index_symbol": s, "trade_date": d.isoformat(), "close": c}
+            for s, closes in yahoo.items() for d, c in sorted(closes.items())]
+    _insert_index_rows(rows)
+    sessions = {d for d in (sessions if sessions is not None else _bucket_sessions(frm, to)) if frm <= d <= to}
+    known = _known_closes(frm - timedelta(days=15), to)
+    for s, closes in yahoo.items():
+        known.setdefault(s, {}).update(closes)
+    missing = {s: sorted(sessions - set(known.get(s, {}))) for s in BENCHMARKS}
+    parsed = {}
+    for d in sorted({d for days in missing.values() for d in days}):
+        text = fetch_index_closes(d)
+        time.sleep(POLITE)
+        parsed[d] = parse_index_closes(text) if text else None
+    fallback, skipped = plan_fallback(missing, parsed, known)
+    _insert_index_rows(fallback)
+    for r in fallback:
+        print(f"  {r['trade_date']} {r['index_symbol']}: {r['close']} from NSE ind_close_all (Yahoo had none)")
+    for s, d, why in skipped:
+        print(f"  WARN {d} {s}: no benchmark close ({why})")
+    return len(rows) + len(fallback)
 
 
 def run(frm: date, to: date, keep_days: int = KEEP_DAYS) -> None:
@@ -127,7 +205,7 @@ def run(frm: date, to: date, keep_days: int = KEEP_DAYS) -> None:
           f"{sum(not r['is_trading'] for r in cal)} past weekdays without a file")
     if frm >= today - timedelta(days=7) and not present:
         raise SystemExit(f"no bhavcopy for any day {frm}..{to} — NSE archive down or moved?")
-    print(f"index_prices: {refresh_indices(frm, to)} benchmark rows")
+    print(f"index_prices: {refresh_indices(frm, to, sessions=present)} benchmark rows")
 
 
 def main():

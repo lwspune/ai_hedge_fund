@@ -54,3 +54,57 @@ def test_indices_only_backfills_benchmarks_without_touching_bhavcopies(monkeypat
     monkeypatch.setattr(sys, "argv", ["refresh_prices.py", "--indices-only", "--from", "2020-01-01", "--to", "2022-07-31"])
     rp.main()
     assert calls == [("indices", date(2020, 1, 1), date(2022, 7, 31))]
+
+
+# --- index fallback: NSE's daily index file for sessions Yahoo misses ---------------------------------
+
+D1, D2, D3 = date(2025, 12, 31), date(2026, 1, 1), date(2026, 1, 2)
+
+
+def _file(d, n50, n500):
+    return {"^NSEI": {"date": d, "close": n50[0], "change": n50[1]},
+            "^CRSLDX": {"date": d, "close": n500[0], "change": n500[1]}}
+
+
+def test_plan_fallback_fills_confirmed_closes_and_says_why_it_skips():
+    from scripts.refresh_prices import plan_fallback
+    known = {"^NSEI": {D1: 26129.6, D3: 26328.6}, "^CRSLDX": {D1: 23871.6, D3: 24099.0}}
+    missing = {"^NSEI": [D2], "^CRSLDX": [D2]}
+    rows, skipped = plan_fallback(missing, {D2: _file(D2, (26146.55, 16.95), (23909.55, 38.0))}, known)
+    assert rows == [{"index_symbol": "^NSEI", "trade_date": "2026-01-01", "close": 26146.55},
+                    {"index_symbol": "^CRSLDX", "trade_date": "2026-01-01", "close": 23909.55}]
+    assert skipped == []
+    # a holiday copy (the file is another day's), a missing file, a failed check: skipped, never stored
+    rows, skipped = plan_fallback(missing, {D2: _file(D1, (26146.55, 16.95), (23909.55, 38.0))}, known)
+    assert rows == [] and all("is for 2025-12-31" in why for _, _, why in skipped)
+    rows, skipped = plan_fallback(missing, {D2: None}, known)
+    assert rows == [] and all(why == "no NSE file" for _, _, why in skipped)
+    rows, skipped = plan_fallback(missing, {D2: _file(D2, (26146.55, 16.95), (23000.0, 38.0))}, known)
+    assert [r["index_symbol"] for r in rows] == ["^NSEI"] and skipped[0][:2] == ("^CRSLDX", D2)
+
+
+def test_plan_fallback_chains_consecutive_missing_days():
+    """Two missing sessions in a row: the second checks against the first one just filled."""
+    from scripts.refresh_prices import plan_fallback
+    known = {"^CRSLDX": {D1: 23871.6}}
+    files = {D2: {"^CRSLDX": {"date": D2, "close": 23909.55, "change": 38.0}},
+             D3: {"^CRSLDX": {"date": D3, "close": 24099.0, "change": 189.45}}}
+    rows, skipped = plan_fallback({"^CRSLDX": [D3, D2]}, files, known)
+    assert [r["trade_date"] for r in rows] == ["2026-01-01", "2026-01-02"] and skipped == []
+
+
+def test_refresh_indices_falls_back_to_nse_for_sessions_yahoo_misses(monkeypatch):
+    import scripts.refresh_prices as rp
+    inserted, fetched = [], []
+    monkeypatch.setattr(rp, "_yahoo_closes", lambda frm, to: {"^NSEI": {D1: 26129.6, D3: 26328.6},
+                                                              "^CRSLDX": {D1: 23871.6, D3: 24099.0}})
+    monkeypatch.setattr(rp, "_known_closes", lambda frm, to: {"^NSEI": {D1: 26129.6, D3: 26328.6},
+                                                              "^CRSLDX": {D1: 23871.6, D3: 24099.0}})
+    monkeypatch.setattr(rp, "_insert_index_rows", lambda rows: inserted.extend(rows))
+    monkeypatch.setattr(rp, "fetch_index_closes", lambda d, s=None: fetched.append(d) or "file")
+    monkeypatch.setattr(rp, "parse_index_closes", lambda text: _file(D2, (26146.55, 16.95), (23909.55, 38.0)))
+    monkeypatch.setattr(rp, "POLITE", 0)
+    n = rp.refresh_indices(D1, D3, sessions={D1, D2, D3})
+    assert fetched == [D2]                                   # one NSE file per missing session, nothing else
+    assert {(r["index_symbol"], r["trade_date"]) for r in inserted} >= {("^NSEI", "2026-01-01"), ("^CRSLDX", "2026-01-01")}
+    assert n == 6
