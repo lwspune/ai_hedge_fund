@@ -76,12 +76,32 @@ def _save_month(ym: str, df: pd.DataFrame) -> None:
     db.storage_put("prices", f"bhav/{ym}.parquet", buf.getvalue(), "application/vnd.apache.parquet")
 
 
-def plan_fallback(missing: dict, parsed: dict, known: dict,
-                  allow_first: bool = False) -> tuple[list[dict], list[tuple]]:
+MAX_BRIDGE_DAYS = 10     # a special session the bhavcopy store lacks sits within a few calendar days
+
+
+def _bridge(sym: str, prev_day: date, prev: float, d: date, rec: dict, lookup) -> list[tuple] | None:
+    """Sessions between `prev_day` and `d` that NSE has but the stock store doesn't (Muhurat, a Budget
+    Saturday): [(date, close), ...] that chain prev -> ... -> d, or None if no such chain exists."""
+    if lookup is None or (d - prev_day).days > MAX_BRIDGE_DAYS:
+        return None
+    chain, p = [], prev
+    for k in range(1, (d - prev_day).days):
+        day = prev_day + timedelta(days=k)
+        r = (lookup(day) or {}).get(sym)
+        if r and r["date"] == day and confirm_close(p, r["close"], r["change"]):
+            chain.append((day, r["close"]))
+            p = r["close"]
+    return chain if chain and confirm_close(p, rec["close"], rec["change"]) else None
+
+
+def plan_fallback(missing: dict, parsed: dict, known: dict, allow_first: bool = False,
+                  lookup=None) -> tuple[list[dict], list[tuple]]:
     """Rows to store from NSE's index-close files, and (sym, date, why) for the rest. A close is stored
     only if the file is for that day and NSE's change from the previous known close agrees
     (`confirm_close`); dates are walked in order so a filled day checks the next one. `allow_first`: an
-    index with no earlier close at all (a sector index's first day) is stored on the date match alone."""
+    index with no earlier close at all (a sector index's first day) is stored on the date match alone.
+    `lookup(date) -> parsed file`: when the check fails, the calendar days in between are searched for a
+    special session that chains (stored too) — without it one Muhurat day would fail every day after."""
     rows, skipped = [], []
     for sym, days in missing.items():
         closes = dict(known.get(sym, {}))
@@ -95,6 +115,13 @@ def plan_fallback(missing: dict, parsed: dict, known: dict,
                    else f"file is for {rec['date']}" if rec["date"] != d
                    else None if first or confirm_close(prev, rec["close"], rec["change"])
                    else f"close {rec['close']} - change {rec['change']} != previous close {prev}")
+            if why and rec is not None and rec["date"] == d and prev is not None:
+                chain = _bridge(sym, max(prev_days), prev, d, rec, lookup)
+                if chain:
+                    for day, c in chain:
+                        closes[day] = c
+                        rows.append({"index_symbol": sym, "trade_date": day.isoformat(), "close": c})
+                    why = None
             if why:
                 skipped.append((sym, d, why))
                 continue
@@ -144,6 +171,12 @@ def _index_file(d: date) -> str | None:
     return _FILES[d]
 
 
+def _parsed_file(d: date, names: dict | None):
+    """The day's index-close file parsed for `names` (None = the benchmarks); None if NSE has no file."""
+    text = _index_file(d)
+    return parse_index_closes(text, names) if text else None
+
+
 def _known_closes_for(symbols: list[str], frm: date, to: date) -> dict:
     from scanner import db
     out = {s: {} for s in symbols}
@@ -183,7 +216,8 @@ def refresh_sectors(sessions) -> int:
     for d in sorted({d for v in missing.values() for d in v}):
         text = _index_file(d)
         parsed[d] = parse_index_closes(text, names) if text else None
-    rows, skipped = plan_fallback(missing, parsed, known, allow_first=True)
+    rows, skipped = plan_fallback(missing, parsed, known, allow_first=True,
+                                  lookup=lambda day: _parsed_file(day, names))
     _insert_index_rows(rows)
     stored = Counter(r["index_symbol"] for r in rows)
     first = {}
@@ -232,7 +266,7 @@ def refresh_indices(frm: date, to: date, sessions: set | None = None) -> int:
     for d in sorted({d for days in missing.values() for d in days}):
         text = _index_file(d)
         parsed[d] = parse_index_closes(text) if text else None
-    fallback, skipped = plan_fallback(missing, parsed, known)
+    fallback, skipped = plan_fallback(missing, parsed, known, lookup=lambda day: _parsed_file(day, None))
     _insert_index_rows(fallback)
     for r in fallback:
         print(f"  {r['trade_date']} {r['index_symbol']}: {r['close']} from NSE ind_close_all (Yahoo had none)")

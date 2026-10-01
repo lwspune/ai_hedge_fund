@@ -142,3 +142,22 @@ def test_refresh_sectors_stores_checked_closes_for_every_session(monkeypatch):
     n = rp.refresh_sectors({D2})
     assert fetched == [D2] and n == 2
     assert {(r["index_symbol"], r["close"]) for r in inserted} == {("Nifty Bank", 59711.55), ("Nifty IT", 38171.5)}
+
+
+def test_plan_fallback_bridges_a_special_session_the_stock_store_lacks():
+    """Muhurat 2021-11-04: NSE's 11-08 change is from the 11-04 close, a session the bhavcopy store doesn't
+    have. The check must find and store that session instead of failing every day after it."""
+    from scripts.refresh_prices import plan_fallback
+    d0, mu, d1, d2 = date(2021, 11, 3), date(2021, 11, 4), date(2021, 11, 8), date(2021, 11, 9)
+    known = {"Nifty Bank": {d0: 39402.05}}
+    files = {d1: {"Nifty Bank": {"date": d1, "close": 39438.25, "change": -135.45}},
+             d2: {"Nifty Bank": {"date": d2, "close": 39368.8, "change": -69.45}}}
+    extra = {mu: {"Nifty Bank": {"date": mu, "close": 39573.7, "change": 171.65}}}
+    rows, skipped = plan_fallback({"Nifty Bank": [d1, d2]}, files, known, lookup=extra.get)
+    assert [(r["trade_date"], r["close"]) for r in rows] == [
+        ("2021-11-04", 39573.7), ("2021-11-08", 39438.25), ("2021-11-09", 39368.8)]
+    assert skipped == []
+    rows, skipped = plan_fallback({"Nifty Bank": [d1, d2]}, files, known)          # no lookup: as before
+    assert rows == [] and len(skipped) == 2
+    bad = {mu: {"Nifty Bank": {"date": mu, "close": 40000.0, "change": 171.65}}}   # a bridge that doesn't chain
+    assert plan_fallback({"Nifty Bank": [d1]}, files, known, lookup=bad.get)[0] == []
