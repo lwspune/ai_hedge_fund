@@ -2,6 +2,7 @@ import { useState } from 'react'
 import useLoad from '../lib/useLoad'
 import { fmtDate, fmtNum, fmtPct } from '../lib/format'
 import { DD_WARN, VOL_PCT_WARN, fmtVolPct, loadRegimeHistory } from '../lib/regime'
+import { loadSectors } from '../lib/sectors'
 import Section from '../components/ui/Section'
 import DataTable from '../components/ui/DataTable'
 import LineChart from '../components/ui/LineChart'
@@ -32,6 +33,42 @@ const COLUMNS = [
   { key: 'up_share', header: 'Up', align: 'right', render: (r) => pct0(r.up_share) },
   { key: 'n_universe', header: 'Stocks', align: 'right', render: (r) => fmtNum(r.n_universe) },
 ]
+
+const SECTOR_INFO = 'Latest day only. A stock belongs to the sector index its NSE industry maps to (today’s '
+  + 'classification, never applied to the past). “% above 200-DMA” counts the liquid, regularly traded mainboard '
+  + 'stocks in that sector; blank under 5 stocks. Measurements, not a rotation signal.'
+
+const num = (k) => (r) => r[k] ?? -Infinity
+const SECTOR_COLUMNS = [
+  { key: 'index_name', header: 'Sector index', sortable: true, sortValue: (r) => r.index_name },
+  { key: 'dd', header: 'Off high', align: 'right', sortable: true, sortValue: num('dd'), render: (r) => fmtPct(r.dd) },
+  { key: 'ret_1m', header: '1m', align: 'right', sortable: true, sortValue: num('ret_1m'), render: (r) => fmtPct(r.ret_1m) },
+  { key: 'ret_3m', header: '3m', align: 'right', sortable: true, sortValue: num('ret_3m'), render: (r) => fmtPct(r.ret_3m) },
+  {
+    key: 'rel_3m', header: 'vs NIFTY 500 (3m)', align: 'right', sortable: true, sortValue: num('rel_3m'),
+    title: 'Sector 3m return minus NIFTY 500 3m return (simple difference)', render: (r) => fmtPct(r.rel_3m),
+  },
+  {
+    key: 'pct_above_200', header: '> 200-DMA', align: 'right', sortable: true, sortValue: num('pct_above_200'),
+    render: (r) => pct0(r.pct_above_200),
+  },
+  { key: 'n_stocks', header: 'Stocks', align: 'right', sortable: true, sortValue: num('n_stocks'), render: (r) => fmtNum(r.n_stocks) },
+  { key: 'as_of', header: 'As of', nowrap: true, render: (r) => fmtDate(r.as_of) },
+]
+
+// The sector table: its own load, so a failure here never blanks the charts above.
+function Sectors() {
+  const { loading, error, data } = useLoad(loadSectors, [])
+  return (
+    <Section id="market-sectors" title="Sectors" level={2} info={SECTOR_INFO}>
+      {loading ? <Loading label="Loading sectors"><SkeletonTable rows={8} cols={7} /></Loading>
+        : error ? <ErrorNote what="sectors" message={error} />
+        : <DataTable dense caption="Sector indices, latest day" columns={SECTOR_COLUMNS} rows={data}
+                     rowKey={(r) => r.index_name} emptyText="No sector rows yet."
+                     emptyHint="They are written each trading day once the sector indices are loaded." />}
+    </Section>
+  )
+}
 
 const range = (vals, fmt) => {
   const v = vals.filter((x) => x != null)
@@ -93,6 +130,7 @@ export default function Market() {
           today for unadjustable breaks. Not a signal.
         </p>
       </Section>
+      <Sectors />
       <Section id="market-recent" title="Last 20 sessions" level={2}>
         <DataTable dense caption="Market regime, last 20 sessions" columns={COLUMNS}
                    rows={data.slice(-20).reverse()} rowKey={(r) => r.trade_date} />

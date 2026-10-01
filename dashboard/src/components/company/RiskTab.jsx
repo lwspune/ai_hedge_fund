@@ -1,6 +1,7 @@
 import useLoad from '../../lib/useLoad'
 import { fmtCrValue, fmtDate, fmtNum, fmtPct, fmtPctPts } from '../../lib/format'
 import { blanksPriceMetrics, flagLabel, fmtDaysToExit, fmtRank, loadRisk } from '../../lib/risk'
+import { sectorLabel } from '../../lib/sectors'
 import Section from '../ui/Section'
 import { Stat, StatGrid } from '../ui/Stat'
 import { Badge } from '../ui/Badge'
@@ -32,7 +33,8 @@ export default function RiskTab({ symbol }) {
   const blank = blanksPriceMetrics(flags)
   return (
     <Section id="risk" title="Risk" info={INFO}
-             meta={`As of ${fmtDate(r.as_of)} · 400-day window · NIFTY 500 benchmark · not a signal`}>
+             meta={`As of ${fmtDate(r.as_of)} · 400-day window · NIFTY 500 benchmark`
+               + `${r.sector_index ? ` · sector: ${sectorLabel(r)}` : ''} · not a signal`}>
       {flags.length > 0 && (
         <p className="badges" aria-label="Risk flags">
           {flags.map((f) => <Badge key={f} tone={WARN.has(f) ? 'warn' : 'neutral'}>{flagLabel(f)}</Badge>)}
@@ -66,6 +68,19 @@ export default function RiskTab({ symbol }) {
               tone={r.days_to_exit_5l > 1 ? 'warn' : undefined} />
         <Stat label="Delivery (20 d median)" value={fmtPctPts(r.delivery_pct_20, 0)} />
       </StatGrid>
+      {r.sector_index && (
+        <>
+          <h3 className="subhead">Sector</h3>
+          <StatGrid label="Sector">
+            <Stat label="Sector index" value={sectorLabel(r)}
+                  title={r.sector_is_fallback ? 'The closest NSE sector index has under a year of history; '
+                    + 'a broader one is used until it does.' : undefined} />
+            <Stat label="Beta to sector" value={fmtNum(r.beta_sector_1y, 2)} />
+            <Stat label="Correlation to sector" value={fmtNum(r.corr_sector_1y, 2)} />
+            <Stat label="Sector 3m" value={fmtPct(r.sector_ret_3m)} sub={`stock ${fmtPct(r.ret_3m)}`} />
+          </StatGrid>
+        </>
+      )}
     </Section>
   )
 }
