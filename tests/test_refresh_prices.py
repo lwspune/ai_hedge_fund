@@ -121,6 +121,10 @@ def test_plan_fallback_accepts_an_index_s_first_close_only_when_allowed():
     assert rows == []
     holiday = {D2: {"Nifty Bank": {"date": D1, "close": 59711.55, "change": 129.7}}}
     assert plan_fallback({"Nifty Bank": [D2]}, holiday, {}, allow_first=True)[0] == []
+    # a 2020 backfill after the daily run already stored later rows: the earliest day is still a first close
+    later = {"Nifty Bank": {date(2026, 9, 30): 60000.0}}
+    rows, _ = plan_fallback({"Nifty Bank": [D2, D3]}, files, later, allow_first=True)
+    assert [r["trade_date"] for r in rows] == ["2026-01-01", "2026-01-02"]
 
 
 def test_refresh_sectors_stores_checked_closes_for_every_session(monkeypatch):

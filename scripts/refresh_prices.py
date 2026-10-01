@@ -28,6 +28,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scanner.bhavcopy import confirm_close, fetch_index_closes, parse_index_closes  # noqa: E402
+from scanner.sectors import load_sector_indices, sector_symbols  # noqa: E402
 
 KEEP_DAYS = 400                       # daily_prices retention (400 d since 2026-09-30, was 730); older rows live in the bucket only
 BENCHMARKS = ("^NSEI", "^CRSLDX")     # NIFTY 50, NIFTY 500
@@ -75,10 +76,12 @@ def _save_month(ym: str, df: pd.DataFrame) -> None:
     db.storage_put("prices", f"bhav/{ym}.parquet", buf.getvalue(), "application/vnd.apache.parquet")
 
 
-def plan_fallback(missing: dict, parsed: dict, known: dict) -> tuple[list[dict], list[tuple]]:
-    """Rows to store from NSE's index-close files for sessions Yahoo lacks, and (sym, date, why) for the
-    rest. A close is stored only if the file is for that day and NSE's change from the previous known
-    close agrees (`confirm_close`); dates are walked in order so a filled day checks the next one."""
+def plan_fallback(missing: dict, parsed: dict, known: dict,
+                  allow_first: bool = False) -> tuple[list[dict], list[tuple]]:
+    """Rows to store from NSE's index-close files, and (sym, date, why) for the rest. A close is stored
+    only if the file is for that day and NSE's change from the previous known close agrees
+    (`confirm_close`); dates are walked in order so a filled day checks the next one. `allow_first`: an
+    index with no earlier close at all (a sector index's first day) is stored on the date match alone."""
     rows, skipped = [], []
     for sym, days in missing.items():
         closes = dict(known.get(sym, {}))
@@ -87,9 +90,10 @@ def plan_fallback(missing: dict, parsed: dict, known: dict) -> tuple[list[dict],
             rec = (f or {}).get(sym)
             prev_days = [x for x in closes if x < d]
             prev = closes[max(prev_days)] if prev_days else None
+            first = allow_first and not prev_days     # nothing earlier (later daily rows may already exist)
             why = ("no NSE file" if f is None else f"{sym} not in the file" if rec is None
                    else f"file is for {rec['date']}" if rec["date"] != d
-                   else None if confirm_close(prev, rec["close"], rec["change"])
+                   else None if first or confirm_close(prev, rec["close"], rec["change"])
                    else f"close {rec['close']} - change {rec['change']} != previous close {prev}")
             if why:
                 skipped.append((sym, d, why))
@@ -129,6 +133,78 @@ def _insert_index_rows(rows: list[dict]) -> None:
         db.insert("index_prices", rows[i:i + 1000], on_conflict="index_symbol,trade_date", return_rows=False)
 
 
+_FILES: dict = {}
+
+
+def _index_file(d: date) -> str | None:
+    """NSE's index-close file for `d`, fetched once per process (benchmarks and sectors share it)."""
+    if d not in _FILES:
+        _FILES[d] = fetch_index_closes(d)
+        time.sleep(POLITE)
+    return _FILES[d]
+
+
+def _known_closes_for(symbols: list[str], frm: date, to: date) -> dict:
+    from scanner import db
+    out = {s: {} for s in symbols}
+    names = ",".join(f'"{s}"' for s in symbols)
+    for r in db.select_all("index_prices", {"select": "index_symbol,trade_date,close", "index_symbol": f"in.({names})",
+                                            "and": f"(trade_date.gte.{frm},trade_date.lte.{to})"}):
+        out[r["index_symbol"]][date.fromisoformat(r["trade_date"])] = float(r["close"])
+    return out
+
+
+def _last_closes_before(symbols: list[str], d: date) -> dict:
+    """{symbol: (date, close)} of each index's latest stored close before `d` (absent if none)."""
+    from scanner import db
+    out = {}
+    for s in symbols:
+        rows = db.select("index_prices", {"select": "trade_date,close", "index_symbol": f"eq.{s}",
+                                          "trade_date": f"lt.{d}", "order": "trade_date.desc", "limit": "1"})
+        if rows:
+            out[s] = (date.fromisoformat(rows[0]["trade_date"]), float(rows[0]["close"]))
+    return out
+
+
+def refresh_sectors(sessions) -> int:
+    """NSE sector indices (data/sector_indices.csv) for each session, from NSE's index-close file. A close
+    is stored only if the file is for that day and agrees with the index's previous close (its first-ever
+    close: the date match alone). Prints per index what was stored and why anything else was skipped."""
+    from collections import Counter
+    syms, names = sector_symbols(), load_sector_indices()
+    days = sorted(sessions)
+    if not days:
+        return 0
+    known = _known_closes_for(syms, days[0], days[-1])
+    for s, (d, c) in _last_closes_before(syms, days[0]).items():
+        known.setdefault(s, {})[d] = c
+    missing = {s: [d for d in days if d not in known.get(s, {})] for s in syms}
+    parsed = {}
+    for d in sorted({d for v in missing.values() for d in v}):
+        text = _index_file(d)
+        parsed[d] = parse_index_closes(text, names) if text else None
+    rows, skipped = plan_fallback(missing, parsed, known, allow_first=True)
+    _insert_index_rows(rows)
+    stored = Counter(r["index_symbol"] for r in rows)
+    first = {}
+    for r in rows:
+        first.setdefault(r["index_symbol"], r["trade_date"])
+    for s in syms:
+        if stored[s]:
+            print(f"  {s}: {stored[s]} closes from {first[s]}")
+    seen = {}                                     # first file each index appears in (before it: not launched)
+    for d in sorted(parsed):
+        for s in parsed[d] or {}:
+            seen.setdefault(s, d)
+    real = [(s, d, why) for s, d, why in skipped
+            if not ("not in the file" in why and d < seen.get(s, date.max))]
+    for s, d, why in real[:40]:
+        print(f"  WARN {d} {s}: {why}")
+    if len(real) > 40:
+        print(f"  ... {len(real) - 40} more skipped")
+    return len(rows)
+
+
 def _bucket_sessions(frm: date, to: date) -> set:
     from scanner.pricestore import _bhav_month
     days = set()
@@ -154,8 +230,7 @@ def refresh_indices(frm: date, to: date, sessions: set | None = None) -> int:
     missing = {s: sorted(sessions - set(known.get(s, {}))) for s in BENCHMARKS}
     parsed = {}
     for d in sorted({d for days in missing.values() for d in days}):
-        text = fetch_index_closes(d)
-        time.sleep(POLITE)
+        text = _index_file(d)
         parsed[d] = parse_index_closes(text) if text else None
     fallback, skipped = plan_fallback(missing, parsed, known)
     _insert_index_rows(fallback)
@@ -206,6 +281,7 @@ def run(frm: date, to: date, keep_days: int = KEEP_DAYS) -> None:
     if frm >= today - timedelta(days=7) and not present:
         raise SystemExit(f"no bhavcopy for any day {frm}..{to} — NSE archive down or moved?")
     print(f"index_prices: {refresh_indices(frm, to, sessions=present)} benchmark rows")
+    print(f"index_prices: {refresh_sectors(present)} sector index rows")
 
 
 def main():
@@ -217,6 +293,8 @@ def main():
     ap.add_argument("--prune", action="store_true", help="only drop table rows older than --keep-days")
     ap.add_argument("--indices-only", action="store_true",
                     help="only refresh index_prices (Yahoo) for the window: no bhavcopy fetch, no bucket write")
+    ap.add_argument("--sectors-only", action="store_true",
+                    help="only load NSE sector indices for the window's bhavcopy sessions (backfill.yml what=sector-indices)")
     a = ap.parse_args()
     today = date.today()
     if a.prune:
@@ -230,6 +308,9 @@ def main():
         frm, to = a.frm or today - timedelta(days=5), a.to or today
     if a.indices_only:
         print(f"index_prices: {refresh_indices(frm, to)} benchmark rows {frm}..{to}")
+        return
+    if a.sectors_only:
+        print(f"index_prices: {refresh_sectors(_bucket_sessions(frm, to))} sector index rows {frm}..{to}")
         return
     run(frm, to, a.keep_days)
 

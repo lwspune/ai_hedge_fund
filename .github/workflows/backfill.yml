@@ -4,6 +4,7 @@ name: backfill
 #   prices          NSE bhavcopy -> daily_prices + bucket  (from = date; to defaults to the end of
 #                   LAST month, so it never races the daily run's read-modify-write of this month)
 #   indices         index_prices only (Yahoo ^NSEI / ^CRSLDX; from/to default 2020-01-01..2022-07-31) — no bhavcopy
+#   sector-indices  NSE sector indices (data/sector_indices.csv) from ind_close_all files (from default 2020-01-01; to default end of last month)
 #   regime          market_regime full rebuild from `from` (default 2020-01-01; docs/REGIME_VIEW_SPEC.md)
 #   orphans         companies rows for symbols seen in filings/deals/events but not the master
 #   shareholding    quarterly SHP XBRL history, 30 quarters/symbol, 20k XBRL per run (from = floor, default 2020-01-01)
@@ -23,7 +24,7 @@ on:
     inputs:
       what:
         type: choice
-        options: [board-meetings, prices, indices, regime, orphans, shareholding, insider, pref-issues, credit-ratings, ipos, ipo-gmp, ipo-bids, holders]
+        options: [board-meetings, prices, indices, sector-indices, regime, orphans, shareholding, insider, pref-issues, credit-ratings, ipos, ipo-gmp, ipo-bids, holders]
         required: true
       from:
         description: "start date YYYY-MM-DD (board-meetings / prices)"
@@ -62,6 +63,8 @@ jobs:
             prices)         LAST_MONTH_END="$(date -d "$(date +%Y-%m-01) -1 day" +%F)"
                             python -u scripts/refresh_prices.py --from "${FROM:?from is required}" --to "${TO:-$LAST_MONTH_END}" ;;
             indices)        python -u scripts/refresh_prices.py --indices-only --from "${FROM:-2020-01-01}" --to "${TO:-2022-07-31}" ;;
+            sector-indices) LAST_MONTH_END="$(date -d "$(date +%Y-%m-01) -1 day" +%F)"
+                            python -u scripts/refresh_prices.py --sectors-only --from "${FROM:-2020-01-01}" --to "${TO:-$LAST_MONTH_END}" ;;
             regime)         python -u scripts/refresh_regime.py --from "${FROM:-2020-01-01}" ;;
             orphans)        python -u scripts/backfill_orphans.py ;;
             shareholding)   python -u scripts/refresh_shareholding.py --per-symbol 30 --xbrl-limit 20000 --floor "${FROM:-2020-01-01}" ;;

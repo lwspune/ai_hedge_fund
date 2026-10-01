@@ -112,11 +112,13 @@ def index_url(d: date) -> str:
     return INDEX_URL.format(d=d)
 
 
-def parse_index_closes(text: str) -> dict:
-    """{benchmark: {date, close, change}} for NIFTY 50 / NIFTY 500 in one day's index-close file.
-    Rows whose date or close can't be read are skipped (never a guessed value)."""
+def parse_index_closes(text: str, names: dict[str, str] | None = None) -> dict:
+    """{index_symbol: {date, close, change}} for the indices in `names` ({lowercase NSE name: symbol};
+    default: the NIFTY 50 / NIFTY 500 benchmarks) in one day's index-close file. Rows whose date or close
+    can't be read are skipped (never a guessed value)."""
     import csv
     from datetime import datetime
+    names = NSE_INDEX_NAMES if names is None else names
     out = {}
     rows = csv.reader(io.StringIO(text or ""))
     header = [h.strip() for h in next(rows, [])]
@@ -125,7 +127,7 @@ def parse_index_closes(text: str) -> dict:
     if not all(k in col for k in need):
         return out
     for rec in rows:
-        sym = NSE_INDEX_NAMES.get(rec[col["Index Name"]].strip().lower()) if rec else None
+        sym = names.get(rec[col["Index Name"]].strip().lower()) if rec else None
         if not sym:
             continue
         try:
