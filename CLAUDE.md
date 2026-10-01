@@ -244,8 +244,10 @@ Efficiently-priced spreads (merger arb) get competed to ~risk-free.
     history. `scripts/refresh_regime.py` daily rewrites the last 10 sessions from a 520-day panel — provably
     identical to the full rebuild (`--from 2020-01-01`, `backfill.yml what=regime`, ~1-4 min, 2.2 GB peak).
     `bar_panel` carries a `series` column; `refresh_prices.py --indices-only` (`backfill.yml what=indices`)
-    loads index history; Yahoo misses special sessions (Muhurat, Budget Saturdays) — those closes came from
-    NSE `content/indices/ind_close_all_DDMMYYYY.csv`, checked against the neighbouring close + change.
+    loads index history. Yahoo misses special sessions (Muhurat, Budget Saturdays, some 1 Jan / 26 Dec):
+    `refresh_indices` now fills every stock session Yahoo lacks from NSE `content/indices/ind_close_all_DDMMYYYY.csv`
+    (`bhavcopy.parse_index_closes`), stored only if the file is for that day and previous close + NSE's change
+    = NSE's close (`confirm_close`); an unfillable session is a WARN, and the freshness hole rule fails on it.
 
 ## Data sources (free, proven)
 **Every source below works from datacenter IPs** — verified from a GitHub Actions runner
@@ -254,7 +256,9 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
 - **Prices** — **NSE bhavcopy** `nsearchives.../products/content/sec_bhavdata_full_DDMMYYYY.csv`
   (all symbols, unadjusted, delivery %, archive back past 2019; the cloud store's source);
   yfinance (`.NS`, split-adjusted) for return studies + benchmarks; **nselib** for pre-2020 /
-  per-symbol unadjusted closes (filter `Series=='EQ'`!).
+  per-symbol unadjusted closes (filter `Series=='EQ'`!). **Index closes** — Yahoo `^NSEI` / `^CRSLDX`, with NSE
+  `nsearchives.../content/indices/ind_close_all_DDMMYYYY.csv` (every NSE index, one file per session, static,
+  reachable from runners) as the fallback for sessions Yahoo skips.
 - **Calendar** — NSE `api/holiday-master?type=trading` (CM segment, current year only),
   `api/corporate-board-meetings?index=equities&from_date=&to_date=` (results dates, 2020→),
   static `content/equities/eq_band_changes.csv`. Same Referer-session family as filings.
@@ -288,7 +292,7 @@ JS-gated JSON endpoints (PIT/insider, ASM/GSM) block.
   always fetch with `allow_redirects=False` / `redirect: "manual"` or the gap-stop never fires.
 
 ## Run
-`python -m pytest` (850 tests) · `python -m scanner.run --list` ·
+`python -m pytest` (857 tests) · `python -m scanner.run --list` ·
 `python -m scanner.run buyback_arb [--save]` · `python -m scanner.track buybacks|tender|outcome` ·
 `npm run dev --prefix dashboard` · `npm test --prefix dashboard` (vitest). One-offs: `scripts/backfill_deals.py`,
 `scripts/seed_buybacks.py`, `scripts/emit_signals_json.py`,

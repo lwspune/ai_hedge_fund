@@ -315,7 +315,7 @@ New sources (NSE participant-wise OI / FII-DII provisional data, VIX history); p
 Learnings that may apply to already-shipped work. Each needs a 360 + explicit go-ahead
 before touching the shipped artifact.
 
-### `refresh_prices.refresh_indices` trusts Yahoo alone — it misses special sessions — **awaiting go-ahead**
+### ~~`refresh_prices.refresh_indices` trusts Yahoo alone — it misses special sessions~~ — **DONE 2026-10-01** (owner go-ahead: `bhavcopy.parse_index_closes` / `confirm_close` + `refresh_prices.plan_fallback`; after Yahoo, every stock session without an index close reads NSE's file, stored only when it is that day's file and agrees with the previous close + change; dry run on 2026-01-01 recovered both hand-filled closes exactly; tests on a real NSE fixture)
 
 **Learning (market regime, 2026-09-30):** Yahoo had no NIFTY 500 close for 13 NSE sessions since 2020 (Muhurat
 2020-11-14 / 2023-11-12, Budget 2020-02-01 / 2025-02-01 / 2026-02-01, the 2024 Saturday DR sessions, several
